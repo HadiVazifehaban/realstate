@@ -1,0 +1,4 @@
+com.shekarchi.auth.sms.provider.KavenegarSmsSenderServiceFactory
+com.shekarchi.auth.sms.provider.FarazSmsSenderServiceFactory
+com.shekarchi.auth.sms.provider.MelliPayamakSmsSenderServiceFactory
+com.shekarchi.auth.sms.provider.FakeSmsSenderServiceFactory

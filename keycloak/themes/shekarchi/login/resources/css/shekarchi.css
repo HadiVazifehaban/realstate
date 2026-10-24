@@ -1,0 +1,1084 @@
+/* Shekarchi login theme — Keycloak 26 PatternFly base.
+   Design tokens mirror the Next.js showcase (rose-gold on deep navy).
+   Only additive overrides: no PatternFly markup is restyled by id removal,
+   so stock pages (OTP, reset, error) keep working. */
+
+:root {
+  --mk-navy-950: #060b13;
+  --mk-navy-900: #0b1322;
+  --mk-card: rgba(6, 11, 19, 0.82);
+  --mk-border: rgba(229, 168, 123, 0.28);
+  --mk-text: #f0efe9;
+  --mk-muted: rgba(240, 239, 233, 0.66);
+  --mk-dim: rgba(240, 239, 233, 0.45);
+  --mk-gold-1: #ffd8be;
+  --mk-gold-2: #e5a87b;
+  --mk-gold-3: #b87c4f;
+  --mk-danger: #f87171;
+  --mk-radius: 20px;
+}
+
+/* Full-bleed architectural backdrop. The additional overlay keeps the form
+   legible while preserving the supplied skyline image on narrow viewports. */
+body {
+  min-height: 100vh;
+  min-height: 100svh;
+  direction: rtl;
+  text-align: right;
+  background:
+    linear-gradient(to left, rgba(6, 11, 19, 0.50) 0%, rgba(6, 11, 19, 0.20) 60%, rgba(6, 11, 19, 0.40) 100%),
+    linear-gradient(to bottom, rgba(6, 11, 19, 0.18), rgba(6, 11, 19, 0.44)),
+    url("../img/login-bg.webp") center / cover no-repeat !important;
+  background-size: cover, cover, cover !important;
+  background-position: center, center, center !important;
+  color: var(--mk-text);
+  /* Persian-first stack: the base PatternFly font is Latin-oriented and renders
+     fa/RTL text thin and cramped. Prefer the app's own Vazirmatn when the OS
+     has it, then the common Persian UI faces, then a safe system fallback. */
+  font-family: "Vazirmatn", "IRANSans", "IRANYekan", "Segoe UI", Tahoma,
+    "Noto Sans Arabic", "Noto Naskh Arabic", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* PatternFly centers #kc-content-wrapper; widen it a touch for the brand.
+   Keycloak 26 template nests it inside #kc-content > .card-pf area. */
+#kc-content-wrapper {
+  max-width: 460px;
+  margin-inline: auto;
+}
+
+/* Card: glass panel, gold hairline, soft deep shadow.
+   PatternFly v3 (.login-pf-page .card-pf) and plain (.card-pf) both covered. */
+.card-pf,
+.login-pf-page .card-pf {
+  background: var(--mk-card) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--mk-border) !important;
+  border-radius: var(--mk-radius) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 216, 190, 0.15) !important;
+  padding: 32px 32px 28px !important;
+  max-width: 460px;
+  margin-inline: auto;
+  width: 100%;
+}
+
+/* Desktop puts the glass card on the right, leaving the skyline visible on the
+   left. Small screens center the same card without stretching the background. */
+.login-pf-page {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: clamp(20px, 5vh, 56px) clamp(20px, 7vw, 112px);
+  background: transparent !important;
+}
+#kc-content {
+  width: min(100%, 460px);
+  margin: 0;
+}
+
+/* The template renders the header section inside <h1 id="kc-page-title">,
+   which carries a big default font-size — neutralize it so .mk-title rules. */
+#kc-page-title {
+  font-size: inherit;
+  margin: 0;
+}
+
+/* Brand block injected by login.ftl header section. */
+.mk-brand {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.mk-logo {
+  display: block;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 8px 28px rgba(229, 168, 123, 0.35);
+}
+.mk-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--mk-text);
+}
+.mk-subtitle {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--mk-muted);
+}
+
+/* Hide the stock Keycloak wordmark header (realm display name). The realm
+   name still reaches screen readers via the card title. */
+#kc-header-wrapper {
+  display: none;
+}
+
+/* Form controls: dark glass inputs, gold focus ring.
+   `.mk-input` is pinned in theme.properties so the look never depends on
+   whatever PatternFly class the base theme resolves. */
+.login-pf-page label,
+.mk-brand ~ * label {
+  color: var(--mk-text);
+  font-weight: 600;
+  /* PatternFly renders these labels as `inline-block`, which shrinks the box to
+     the text width — so `text-align` can only align text *inside* a small box
+     that still hugs the left in RTL. Force the label to a full-width block so
+     `text-align: start` actually pushes the Persian text to the right edge (and
+     English to the left). The inputs keep dir="ltr" (emails/usernames are LTR);
+     only the label alignment follows the page direction. */
+  display: block;
+  text-align: start;
+}
+.login-pf-page input[type="text"],
+.login-pf-page input[type="password"],
+.mk-input,
+#kc-form-password input[type="text"],
+#kc-form-password input[type="password"] {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  color: var(--mk-text) !important;
+  border-radius: 12px !important;
+  height: 48px;
+  padding: 0 16px;
+  box-shadow: none !important;
+}
+.login-pf-page input::placeholder,
+#kc-form-password input::placeholder {
+  color: var(--mk-dim);
+}
+.login-pf-page input:focus,
+.mk-input:focus,
+#kc-form-password input:focus {
+  border-color: var(--mk-gold-2) !important;
+  box-shadow: 0 0 0 3px rgba(229, 168, 123, 0.25) !important;
+  outline: none;
+}
+/* Password wrapper: the stock keycloak theme wraps #password in this div,
+   and PatternFly v4 paints `.pf-c-input-group` with
+   `background-color: var(--pf-c-input-group--BackgroundColor)` (white).
+   Kill the wrapper background/border/inset shadow so the dark input shows. */
+#kc-form-login .pf-c-input-group,
+#kc-form-login .mk-input-group,
+#kc-form-password .pf-c-input-group,
+#kc-form-password .mk-input-group {
+  display: flex;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  --pf-c-input-group--BackgroundColor: transparent;
+  --pf-c-form-control--BackgroundColor: rgba(255, 255, 255, 0.05);
+}
+/* Password pill: one shared hairline on the wrapper, children borderless —
+   this kills the leftover seam around the eye toggle in both LTR and RTL. */
+#kc-form-login .pf-c-input-group,
+#kc-form-login .mk-input-group,
+#kc-form-password .pf-c-input-group,
+#kc-form-password .mk-input-group {
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+#kc-form-login .pf-c-input-group > #password,
+#kc-form-login .mk-input-group > .mk-input,
+#kc-form-password .pf-c-input-group > #password-pw,
+#kc-form-password .mk-input-group > .mk-input {
+  border: none !important;
+  border-radius: 0 !important;
+  flex: 1 1 auto;
+  min-width: 0;
+  --pf-c-form-control--BackgroundColor: transparent !important;
+  --pf-c-form-control--BorderTopColor: transparent !important;
+  --pf-c-form-control--BorderRightColor: transparent !important;
+  --pf-c-form-control--BorderBottomColor: transparent !important;
+  --pf-c-form-control--BorderLeftColor: transparent !important;
+  --pf-c-form-control--Color: var(--mk-text) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  color: var(--mk-text) !important;
+  box-shadow: none !important;
+}
+#kc-form-login .pf-c-input-group > .pf-c-button,
+#kc-form-password .pf-c-input-group > .pf-c-button {
+  --pf-c-button--m-control--BackgroundColor: rgba(255, 255, 255, 0.05) !important;
+  --pf-c-button--m-control--BorderColor: rgba(255, 255, 255, 0.16) !important;
+  --pf-c-button--m-control--Color: var(--mk-muted) !important;
+}
+#kc-form-login .pf-c-input-group > #password:focus,
+#kc-form-password .pf-c-input-group > #password-pw:focus {
+  border-color: var(--mk-gold-2) !important;
+  box-shadow: 0 0 0 3px rgba(229, 168, 123, 0.25) !important;
+  outline: none;
+}
+/* PatternFly draws the field chrome (white fill + underline) on the
+   .pf-c-form-control::before/::after pseudo-elements, not on the input
+   itself — paint them dark too. */
+#kc-form-login .pf-c-input-group > #password::before,
+#kc-form-login .pf-c-input-group > #password::after,
+#kc-form-login #username::before,
+#kc-form-login #username::after,
+#kc-form-password .pf-c-input-group > #password-pw::before,
+#kc-form-password .pf-c-input-group > #password-pw::after,
+#kc-form-password #password-username::before,
+#kc-form-password #password-username::after {
+  background: rgba(255, 255, 255, 0.05) !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+.mk-pw-toggle,
+#kc-form-login .pf-c-input-group > .pf-c-button,
+#kc-form-password .pf-c-input-group > .pf-c-button {
+  background: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  color: var(--mk-muted) !important;
+  padding: 0 16px;
+  height: 48px;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  transition: color 0.2s ease, background 0.2s ease;
+  position: relative;
+  z-index: 10;
+}
+.mk-pw-toggle:hover,
+#kc-form-login .pf-c-input-group > .pf-c-button:hover,
+#kc-form-password .pf-c-input-group > .pf-c-button:hover {
+  color: var(--mk-gold-2) !important;
+  background: rgba(229, 168, 123, 0.08) !important;
+}
+.mk-pw-toggle .fa,
+#kc-form-login .pf-c-input-group > .pf-c-button .fa,
+#kc-form-password .pf-c-input-group > .pf-c-button .fa {
+  color: var(--mk-muted);
+  font-size: 16px;
+  transition: color 0.2s ease;
+  opacity: 1 !important;
+}
+.mk-pw-toggle:hover .fa,
+#kc-form-login .pf-c-input-group > .pf-c-button:hover .fa,
+#kc-form-password .pf-c-input-group > .pf-c-button:hover .fa {
+  color: var(--mk-gold-2);
+}
+/* PatternFly draws the control-button outline via `:after` (absolute,
+   full-cover border) — hide it so no white seam rings the eye toggle. */
+#kc-form-login .pf-c-input-group > .pf-c-button::after,
+#kc-form-login .pf-c-input-group > .mk-pw-toggle::after,
+#kc-form-login .pf-c-input-group > .pf-c-button:after,
+#kc-form-login .pf-c-input-group > .mk-pw-toggle:after,
+#kc-form-password .pf-c-input-group > .pf-c-button::after,
+#kc-form-password .pf-c-input-group > .mk-pw-toggle::after,
+#kc-form-password .pf-c-input-group > .pf-c-button:after,
+#kc-form-password .pf-c-input-group > .mk-pw-toggle:after {
+  display: none !important;
+  content: none !important;
+  border: none !important;
+}
+/* The base template hides the second eye with a v5 utility that does not
+   exist in the v3 CSS this page loads — both icons would show. */
+.mk-hidden {
+  display: none !important;
+}
+/* Locale switcher: stock PatternFly renders a white button that reads as a
+   blank chip on the dark card — flatten it into a subtle ghost button. */
+#kc-current-locale-link,
+.pf-c-dropdown > #kc-locale-wrapper button {
+  background: transparent !important;
+  background-image: none !important;
+  border: 1px solid transparent !important;
+  color: var(--mk-muted) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+#kc-current-locale-link:hover {
+  border-color: var(--mk-border) !important;
+  color: var(--mk-text) !important;
+}
+/* Locale dropdown: the template renders the <ul> open until its
+   menu-button-links.js collapses it; keep it collapsed in pure CSS so it
+   never covers the brand on first paint, and show on hover/focus only.
+   menu-button-links.js toggles the <ul> with an inline `display`, so the
+   visibility rules below must not fight it — we only restyle colours. */
+#kc-locale {
+  position: relative;
+  z-index: 5;
+  text-align: end;
+  margin-bottom: 8px;
+}
+#kc-locale ul,
+#kc-locale .pf-c-dropdown__menu {
+  background: var(--mk-navy-900) !important;
+  background-color: var(--mk-navy-900) !important;
+  border: 1px solid var(--mk-border) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5) !important;
+  position: absolute;
+  inset-inline-end: 0;
+  top: 100%;
+  min-width: 160px;
+  border-radius: 12px;
+  padding: 4px;
+  list-style: none;
+  margin: 4px 0 0;
+  /* Hidden by default. This is the ONLY rule hiding the menu on first paint
+     (the parent keycloak login.css is not loaded for this theme), so it must
+     stay. No !important: menu-button-links.js opens the menu by setting an
+     inline `display:block`, which must win over this stylesheet rule. */
+  display: none;
+}
+#kc-locale:hover ul,
+#kc-locale:focus-within ul,
+#kc-locale:hover .pf-c-dropdown__menu,
+#kc-locale:focus-within .pf-c-dropdown__menu {
+  display: block;
+}
+/* The menu items keep PatternFly's own open/close inline `display`; only the
+   colours are ours. The critical fix: PatternFly v4 paints the item's hover/
+   focus background from `--pf-c-dropdown__menu-item--hover--BackgroundColor`
+   (a near-white #f0f0f0) — on the dark card that blanked the light text into
+   invisibility. Override the variable AND the computed background so the row
+   stays a dark, readable surface in every state. */
+#kc-locale .pf-c-dropdown__menu-item,
+#kc-locale-dropdown a {
+  --pf-c-dropdown__menu-item--BackgroundColor: transparent;
+  --pf-c-dropdown__menu-item--Color: var(--mk-text);
+  --pf-c-dropdown__menu-item--hover--Color: var(--mk-gold-1);
+  --pf-c-dropdown__menu-item--hover--BackgroundColor: rgba(229, 168, 123, 0.14);
+  --pf-c-dropdown__menu-item--focus--Color: var(--mk-gold-1);
+  --pf-c-dropdown__menu-item--focus--BackgroundColor: rgba(229, 168, 123, 0.14);
+  color: var(--mk-text) !important;
+  background-color: transparent !important;
+  text-align: start;
+  border-radius: 8px;
+  display: block;
+  padding: 8px 12px;
+  text-decoration: none;
+}
+#kc-locale .pf-c-dropdown__menu-item:hover,
+#kc-locale .pf-c-dropdown__menu-item:focus,
+#kc-locale-dropdown a:hover,
+#kc-locale-dropdown a:focus {
+  color: var(--mk-gold-1) !important;
+  background-color: rgba(229, 168, 123, 0.14) !important;
+}
+/* The active/focused row from menu-button-links.js gets a tabindex; keep its
+   ring subtle on the dark menu rather than PatternFly's blue outline. */
+#kc-locale .pf-c-dropdown__menu-item:focus-visible {
+  outline: 2px solid var(--mk-gold-2);
+  outline-offset: -2px;
+}
+.mk-error {
+  color: var(--mk-danger);
+  font-size: 13px;
+}
+#input-error {
+  color: var(--mk-danger);
+  font-size: 13px;
+}
+
+/* Primary button: rose-gold gradient, dark text, full width.
+   `.mk-btn-primary` beats Bootstrap's blue .btn-primary without fighting its
+   specificity across versions. */
+#kc-login,
+.mk-btn-primary {
+  background: linear-gradient(135deg, var(--mk-gold-1) 0%, var(--mk-gold-2) 60%, var(--mk-gold-3) 100%) !important;
+  background-color: var(--mk-gold-2) !important;
+  color: #060b13 !important;
+  font-weight: 700 !important;
+  border: none !important;
+  border-radius: 12px !important;
+  height: 48px;
+  width: 100%;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  transition: filter 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+}
+#kc-login:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 6px 22px rgba(229, 168, 123, 0.4);
+}
+#kc-login:active {
+  transform: scale(0.99);
+}
+
+/* Links + helpers inside the card. */
+.login-pf-page a {
+  color: var(--mk-gold-2);
+}
+/* Forgot-password row. PatternFly's `.login-pf-settings` is a flex row with
+   `justify-content:space-between`, laid out for "remember me" on one end and
+   "forgot password" on the other. This realm disables remember-me, so the
+   options cell is empty and space-between strands the link on the far
+   inline-end — the LEFT in fa, the opposite corner from the right-aligned
+   field labels above it. Drop to flex-start so the link hugs the inline-start
+   (right in fa, left in en), sitting neatly under its field in both scripts.
+   The `dir` on <html> drives inline-start, so this needs no per-locale rule. */
+#kc-form-login .login-pf-settings {
+  justify-content: flex-start;
+}
+#kc-form-login .login-pf-settings > div {
+  text-align: start;
+}
+.mk-secure-note {
+  margin: 16px 0 0;
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--mk-dim);
+  text-align: center;
+}
+
+/* Alert + info text legibility on the dark card. */
+.alert {
+  border-radius: 12px;
+}
+#kc-info,
+#kc-info-wrapper,
+#kc-registration {
+  color: var(--mk-muted);
+}
+
+/* ==========================================================================
+   Refinements layered on top of the base rose-gold skin. Everything here is
+   additive and guarded so it never breaks the stock pages that inherit this
+   stylesheet (OTP, reset-password, error, terms). */
+
+/* Card entrance: a soft rise + fade once on load. Skipped entirely for users
+   who ask for reduced motion, and for the authChecker-driven page swaps. */
+@keyframes mk-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.card-pf,
+.login-pf-page .card-pf {
+  animation: mk-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-pf,
+  .login-pf-page .card-pf {
+    animation: none;
+  }
+  #kc-login {
+    transition: none;
+  }
+}
+
+/* Title: rose-gold gradient text that echoes the primary button. Falls back to
+   the flat --mk-text colour where background-clip:text is unsupported. */
+.mk-title {
+  background: linear-gradient(120deg, var(--mk-gold-1) 0%, var(--mk-gold-2) 55%, var(--mk-gold-3) 110%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--mk-text);
+  letter-spacing: 0.2px;
+}
+@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+  .mk-title {
+    -webkit-text-fill-color: currentColor;
+  }
+}
+
+/* Secure badge under the subtitle (mirrors the frontend "محیط امن" chip). */
+.mk-secure-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px auto 0;
+  padding: 5px 12px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--mk-muted);
+  background: rgba(229, 168, 123, 0.08);
+  border: 1px solid var(--mk-border);
+  border-radius: 999px;
+}
+.mk-secure-badge .fa,
+.mk-secure-badge .pficon {
+  color: var(--mk-gold-2);
+}
+
+/* Chrome/Safari paint autofilled credentials with an opaque white/yellow fill,
+   which punches a bright hole straight through the dark glass input. Repaint
+   the fill via a long inset shadow so the dark field survives autofill. */
+#kc-form-login input:-webkit-autofill,
+#kc-form-login input:-webkit-autofill:hover,
+#kc-form-login input:-webkit-autofill:focus,
+#kc-form-login input:-webkit-autofill:active,
+#kc-form-password input:-webkit-autofill,
+#kc-form-password input:-webkit-autofill:hover,
+#kc-form-password input:-webkit-autofill:focus,
+#kc-form-password input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--mk-text);
+  caret-color: var(--mk-text);
+  -webkit-box-shadow: 0 0 0 1000px rgba(16, 24, 36, 0.96) inset;
+  box-shadow: 0 0 0 1000px rgba(16, 24, 36, 0.96) inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* Field error state: the FTL sets aria-invalid on the input when username or
+   password fails, so paint a red hairline + soft ring on the offending field
+   and its wrapper (the password field keeps its single-pill chrome). */
+#kc-form-login #username[aria-invalid="true"],
+#kc-form-login #password[aria-invalid="true"],
+#kc-form-password #password-username[aria-invalid="true"],
+#kc-form-password #password-pw[aria-invalid="true"] {
+  border-color: var(--mk-danger) !important;
+}
+#kc-form-login .mk-input-group:has(#password[aria-invalid="true"]),
+#kc-form-password .mk-input-group:has(#password-pw[aria-invalid="true"]) {
+  border-color: var(--mk-danger) !important;
+}
+#kc-form-login #username[aria-invalid="true"]:focus,
+#kc-form-login #password[aria-invalid="true"]:focus,
+#kc-form-password #password-username[aria-invalid="true"]:focus,
+#kc-form-password #password-pw[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.28) !important;
+}
+/* Gentle nudge on the error text so a wrong password reads as feedback, not a
+   static label. */
+@keyframes mk-shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-3px); }
+  40%, 60% { transform: translateX(3px); }
+}
+#kc-form-login .mk-error,
+#kc-form-login #input-error {
+  display: block;
+  animation: mk-shake 0.4s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  #kc-form-login .mk-error,
+  #kc-form-login #input-error {
+    animation: none;
+  }
+}
+
+/* Readable alerts on the dark card: Keycloak emits Bootstrap alert-* banners
+   for account-disabled / expired / invalid-token messages. Give them a tinted
+   dark surface so the text keeps contrast instead of sitting on white. */
+.alert-error,
+.alert-warning,
+.alert-success,
+.alert-info {
+  background: rgba(229, 168, 123, 0.08) !important;
+  border: 1px solid var(--mk-border) !important;
+  color: var(--mk-text) !important;
+}
+.alert-error {
+  background: rgba(248, 113, 113, 0.1) !important;
+  border-color: rgba(248, 113, 113, 0.4) !important;
+}
+.alert-success {
+  background: rgba(52, 211, 153, 0.1) !important;
+  border-color: rgba(52, 211, 153, 0.4) !important;
+}
+.alert-error::before { color: var(--mk-danger); }
+.alert-warning::before { color: var(--mk-gold-2); }
+.alert-success::before { color: #34d399; }
+
+/* Busy submit: the form sets login.disabled = true on submit, so show it as a
+   dimmed, non-interactive "processing" button rather than leaving it bright. */
+#kc-login:disabled,
+.mk-btn-primary:disabled {
+  filter: grayscale(0.35) brightness(0.8);
+  cursor: not-allowed;
+  box-shadow: none !important;
+}
+
+/* Keyboard focus rings: keep the gold focus visible on links and buttons for
+   keyboard users (mouse clicks do not trigger :focus-visible). */
+.login-pf-page a:focus-visible,
+#kc-current-locale-link:focus-visible,
+#kc-form-login .mk-pw-toggle:focus-visible {
+  outline: 2px solid var(--mk-gold-2);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Small screens: trim the card padding and let the brand breathe so nothing
+   crowds the viewport edges on a phone. */
+@media (max-width: 480px) {
+  .card-pf,
+  .login-pf-page .card-pf {
+    padding: 24px 20px 20px !important;
+  }
+  #kc-content-wrapper {
+    max-width: 100%;
+  }
+  .mk-logo {
+    width: 72px;
+    height: 72px;
+  }
+  .mk-title {
+    font-size: 20px;
+  }
+  
+  /* Auth switcher responsive */
+  .mk-auth-switcher {
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .mk-auth-tab {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+  
+  /* OTP input wrapper stack on mobile */
+  .mk-otp-input-wrapper {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .mk-otp-input {
+    width: 100%;
+    min-width: unset;
+  }
+  
+  .mk-otp-send-btn {
+    width: 100%;
+    padding: 12px;
+  }
+  
+  /* Professional gateway link */
+  .mk-gateway-link {
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 12px;
+    font-size: 12px;
+  }
+}
+
+/* Medium screens improvements */
+@media (max-width: 600px) {
+  .mk-auth-tab {
+    font-size: 12px;
+    padding: 10px 8px;
+  }
+  
+  .mk-auth-tab span {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .mk-otp-send-btn {
+    font-size: 12px;
+    padding: 0 12px;
+  }
+}
+
+/* Extra small screens - very narrow devices */
+@media (max-width: 360px) {
+  .mk-auth-switcher {
+    gap: 4px;
+    padding: 3px;
+  }
+  
+  .mk-auth-tab {
+    padding: 8px 6px;
+    font-size: 11px;
+    gap: 4px;
+  }
+  
+  .mk-auth-tab i {
+    font-size: 12px;
+  }
+  
+  .mk-otp-input {
+    font-size: 16px;
+  }
+  
+  .mk-gateway-link {
+    font-size: 11px;
+    padding: 10px 8px;
+  }
+}
+
+/* Hide default Keycloak form */
+.mk-hidden-default-form {
+  display: none !important;
+}
+
+/* Ensure password fields have dark background */
+#kc-form-password input[type="password"],
+#kc-form-password input[type="text"] {
+  background: rgba(255, 255, 255, 0.05) !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Auth Method Switcher - Glassmorphic Segmented Control */
+.mk-auth-switcher {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(229, 168, 123, 0.18);
+  border-radius: 12px;
+}
+
+.mk-auth-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mk-dim);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: "Vazirmatn", "IRANSans", "IRANYekan", sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mk-auth-tab i {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.mk-auth-tab--active {
+  background: rgba(229, 168, 123, 0.15);
+  color: var(--mk-gold-1);
+  border: 1px solid rgba(229, 168, 123, 0.3);
+  box-shadow: 0 2px 8px rgba(229, 168, 123, 0.12);
+}
+
+.mk-auth-tab:hover:not(.mk-auth-tab--active) {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--mk-muted);
+}
+
+.mk-auth-tab:active {
+  transform: scale(0.98);
+}
+
+/* Auth Form Visibility */
+.mk-auth-form {
+  display: none;
+}
+
+.mk-auth-form--active {
+  display: block;
+  animation: mk-fade-in 0.25s ease;
+}
+
+@keyframes mk-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* OTP Input Styling */
+.mk-otp-input-wrapper {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mk-otp-input {
+  flex: 1;
+  min-width: 120px;
+  text-align: center;
+  letter-spacing: 4px;
+  font-family: "Vazirmatn", monospace;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.mk-otp-send-btn {
+  flex-shrink: 0;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mk-gold-2);
+  background: rgba(229, 168, 123, 0.1);
+  border: 1px solid rgba(229, 168, 123, 0.25);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: "Vazirmatn", "IRANSans", sans-serif;
+  white-space: nowrap;
+  min-width: 100px;
+}
+
+.mk-otp-send-btn:hover:not(:disabled) {
+  background: rgba(229, 168, 123, 0.18);
+  border-color: rgba(229, 168, 123, 0.4);
+  transform: translateY(-1px);
+}
+
+.mk-otp-send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.mk-otp-send-btn.mk-timer-active {
+  color: var(--mk-dim);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Professional Gateway */
+.mk-professional-gateway {
+  margin-top: 20px;
+  padding-top: 20px;
+}
+
+.mk-gateway-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(229, 168, 123, 0.3), transparent);
+  margin-bottom: 16px;
+}
+
+.mk-gateway-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mk-gold-2);
+  background: transparent;
+  border: 1px solid rgba(229, 168, 123, 0.2);
+  border-radius: 10px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  font-family: "Vazirmatn", "IRANSans", sans-serif;
+  text-align: center;
+}
+
+.mk-gateway-link:hover {
+  background: rgba(229, 168, 123, 0.08);
+  border-color: rgba(229, 168, 123, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(229, 168, 123, 0.15);
+}
+
+.mk-gateway-link i {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* Registration and real SMS authenticator pages. */
+.mk-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.mk-role-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--mk-border);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.25);
+}
+.mk-role-option input { position: absolute; opacity: 0; pointer-events: none; }
+.mk-role-option span {
+  display: block;
+  padding: 10px 6px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--mk-muted);
+  text-align: center;
+  cursor: pointer;
+}
+.mk-role-option input:checked + span {
+  border-color: var(--mk-border);
+  color: var(--mk-gold-1);
+  background: rgba(229, 168, 123, 0.14);
+}
+.mk-field-note { margin: 8px 0 0; color: var(--mk-dim); font-size: 11px; line-height: 1.8; }
+.mk-professional-fields { margin: 8px 0 20px; padding: 16px; border: 1px dashed var(--mk-border); border-radius: 14px; background: rgba(229, 168, 123, 0.04); }
+.mk-professional-fields[hidden] { display: none; }
+.mk-form-link { margin: 10px 0 16px; font-size: 13px; }
+.mk-form-link--center { margin-top: 18px; text-align: center; }
+.mk-resend-form { margin-top: 14px; text-align: center; }
+.mk-link-button { border: 0; background: transparent; color: var(--mk-gold-2); font: inherit; cursor: pointer; }
+.mk-login-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 18px; }
+.mk-login-tab { min-height: 44px; border: 1px solid var(--mk-border, rgba(255,255,255,.18)); border-radius: 10px; padding: 8px 12px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.mk-login-tab:disabled { cursor: not-allowed; opacity: .55; }
+.mk-sms-unavailable { margin: -8px 0 16px; padding: 10px 12px; border: 1px solid rgba(229,168,123,.35); border-radius: 10px; color: var(--mk-gold-1); font-size: 13px; line-height: 1.8; text-align: right; }
+.mk-login-tab.is-active { border-color: var(--mk-gold-1); background: rgba(255,255,255,.08); color: var(--mk-gold-1); font-weight: 700; }
+.mk-login-tab.is-active { border-color: transparent; background: linear-gradient(135deg, #e5a87b, #c88252); color: #060b13; box-shadow: 0 8px 22px rgba(200,130,82,.18); }
+.mk-login-tab:not(.is-active):hover { border-color: rgba(229,168,123,.45); color: var(--mk-gold-1); }
+.mk-login-tab:focus-visible,
+.mk-link-button:focus-visible { outline: 2px solid var(--mk-gold-1); outline-offset: 2px; }
+#mk-recovery-message { margin: 0 0 16px; }
+.mk-otp-code { text-align: center; font-size: 24px; font-weight: 700; letter-spacing: 8px; }
+
+/* A single accessible OTP input, with six visual cells so paste and mobile
+   one-time-code autofill continue to work without six separate controls. */
+.mk-otp-cell-input {
+  height: 60px !important;
+  text-align: center !important;
+  direction: ltr;
+  font-size: 25px !important;
+  font-weight: 750;
+  letter-spacing: 0.55em;
+  padding-inline: 1.05em 0.5em !important;
+  background-color: rgba(255,255,255,.045) !important;
+  background-image: linear-gradient(to right, transparent calc(100% - 1px), rgba(229,168,123,.25) calc(100% - 1px));
+  background-size: calc(100% / 6) 100%;
+  border-color: rgba(229,168,123,.28) !important;
+}
+.mk-otp-meta { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:12px 0; color:var(--mk-muted); font-size:13px; }
+.mk-otp-message { margin:0 0 14px; padding:10px 12px; border:1px solid rgba(229,168,123,.25); border-radius:10px; color:var(--mk-gold-1); background:rgba(229,168,123,.06); line-height:1.8; }
+.mk-otp-error { color:#fecaca; border-color:rgba(248,113,113,.4); background:rgba(127,29,29,.18); }
+.mk-otp-actions { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:14px; }
+.mk-otp-actions form { margin:0; }
+.mk-otp-resend:disabled { opacity:.5; cursor:not-allowed; }
+.mk-otp-delivery-note { margin:0 0 14px; color:var(--mk-muted); font-size:12px; line-height:1.8; }
+@media (max-width: 767px) {
+  .login-pf-page { justify-content:center; padding:24px 16px; background-position:center,center,58% center !important; }
+  #kc-content { margin-inline:auto; }
+}
+@media (max-width: 380px) {
+  .mk-otp-cell-input { height:54px !important; font-size:21px !important; letter-spacing:.42em; padding-inline:.85em .4em !important; }
+  .mk-otp-actions { align-items:stretch; flex-direction:column; }
+}
+
+/* Accessible local CAPTCHA and password visibility control. */
+.mk-password-field { display: flex; align-items: stretch; gap: 8px; }
+.mk-password-field #password { min-width: 0; flex: 1; }
+.mk-pw-toggle,
+.mk-captcha-refresh {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--mk-border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--mk-gold-2);
+  font: inherit;
+  cursor: pointer;
+}
+.mk-pw-toggle:focus-visible,
+.mk-captcha-refresh:focus-visible,
+.mk-captcha input:focus-visible,
+#kc-login:focus-visible {
+  outline: 3px solid var(--mk-gold-2);
+  outline-offset: 2px;
+}
+.mk-captcha {
+  min-width: 0;
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid var(--mk-border);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.16);
+}
+.mk-captcha-title { padding: 0 6px; color: var(--mk-gold-1); font-weight: 700; }
+.mk-captcha-question {
+  margin: 4px 0 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(229, 168, 123, 0.08);
+  color: var(--mk-text);
+  font-size: 17px;
+  line-height: 1.9;
+}
+.mk-captcha-refresh { margin-top: 10px; }
+.mk-captcha-refresh:hover,
+.mk-pw-toggle:hover { background: rgba(229, 168, 123, 0.12); }
+
+.mk-captcha-challenge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 8px 0 14px;
+}
+.mk-captcha-sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+.mk-captcha-image {
+  display: block;
+  width: min(240px, calc(100% - 56px));
+  height: auto;
+  border: 1px solid rgba(229, 168, 123, 0.28);
+  border-radius: 12px;
+  background: #101a28;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24), inset 0 0 18px rgba(229, 168, 123, 0.08);
+}
+.mk-captcha-challenge .mk-captcha-refresh {
+  display: inline-flex;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-color: rgba(229, 168, 123, 0.38);
+  border-radius: 12px;
+  transition: transform .2s ease, background .2s ease, border-color .2s ease;
+}
+.mk-captcha-challenge .mk-captcha-refresh:hover {
+  transform: translateY(-1px);
+  border-color: var(--mk-gold-1);
+}
+.mk-captcha-challenge .mk-captcha-refresh svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mk-captcha-challenge .mk-captcha-refresh:active svg { transform: rotate(-35deg); }
+.mk-captcha input[name="captchaAnswer"] { letter-spacing: .16em; text-transform: uppercase; }
+
+@media (max-width: 480px) {
+  .mk-password-field { align-items: stretch; }
+  .mk-pw-toggle { max-width: 110px; white-space: normal; }
+  .mk-captcha { margin-inline: 0; padding: 12px; }
+}
+
+@media (max-width: 480px) {
+  .mk-field-grid { grid-template-columns: 1fr; gap: 0; }
+  .mk-role-tabs { grid-template-columns: 1fr; }
+}

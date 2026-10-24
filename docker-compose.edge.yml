@@ -1,0 +1,40 @@
+name: avg-edge
+services:
+  owjfarda:
+    build: ./owjfarda-site
+    image: avg-owjfarda:local
+    container_name: avg_owjfarda
+    restart: unless-stopped
+    expose: ["8080"]
+    networks: [edge]
+    healthcheck:
+      # NOTE: use 127.0.0.1, not localhost -- busybox wget in this image
+      # resolves localhost to ::1 while nginx here listens IPv4.
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  npm:
+    image: jc21/nginx-proxy-manager:2.16.0
+    container_name: avg_npm
+    restart: unless-stopped
+    ports:
+      - "${NPM_HTTP_PORT:-80}:80"
+      - "${NPM_HTTPS_PORT:-443}:443"
+      - "${NPM_ADMIN_BIND:-127.0.0.1}:${NPM_ADMIN_PORT:-81}:81"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - avg_npm_data:/data
+      - avg_npm_letsencrypt:/etc/letsencrypt
+    networks: [edge]
+
+networks:
+  edge:
+    name: avg_edge
+
+volumes:
+  avg_npm_data:
+  avg_npm_letsencrypt:

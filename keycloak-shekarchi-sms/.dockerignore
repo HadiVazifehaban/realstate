@@ -1,0 +1,6 @@
+target
+.git
+docs
+scripts
+_backup_step1
+*.md

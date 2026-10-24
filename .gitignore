@@ -24,6 +24,15 @@ tiles-data/
 **/*precutover*.dump
 **/*.sql.gz
 keycloak-shekarchi-sms/_backup_*/
+keycloak-shekarchi-sms/**/_backup_*/
+**/*-precutover.dump
+**/backup*/
+**/backups/
+**/*.sqlite3
+**/*.db
+frontend/tsconfig.tsbuildinfo
+*.bak
+*.bak[0-9]
 
 # Media vault
 media/

@@ -1,0 +1,1666 @@
+@import "tailwindcss";
+
+@import "tw-animate-css";
+
+/* Leaflet ships plain class rules, so it stays a top-level import (not inside a
+   cascade layer) and lands before the utility overrides further down. */
+@import "leaflet/dist/leaflet.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Base UI exposes orientation as data-orientation="…"; the base-nova
+   components style it via these shorthand variants. */
+@custom-variant data-horizontal (&[data-orientation='horizontal']);
+@custom-variant data-vertical (&[data-orientation='vertical']);
+
+@import "./theme.css";
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Global scrollbar styling to match ScrollArea */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
+  }
+}
+
+/* Scrollbar مخصوص پैनل‌های اسکرول‌خور (مثل فهرست محله‌های بازار) —
+   نوار Scroll مخفی باقی‌مانده است و فقط کارت‌ها داخل پازل Scroll می‌شوند. */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
+}
+
+/* View Transition Wave Effect */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  /* Ensure the outgoing view (old theme) is beneath */
+  z-index: 0;
+}
+
+::view-transition-new(root) {
+  /* Ensure the incoming view (new theme) is always on top */
+  z-index: 1;
+}
+
+@keyframes reveal {
+  from {
+    /* Use CSS variables for the origin, defaulting to center if not set */
+    clip-path: circle(0% at var(--x, 50%) var(--y, 50%));
+    opacity: 0.7;
+  }
+  to {
+    /* Use CSS variables for the origin, defaulting to center if not set */
+    clip-path: circle(150% at var(--x, 50%) var(--y, 50%));
+    opacity: 1;
+  }
+}
+
+::view-transition-new(root) {
+  /* Apply the reveal animation */
+  animation: reveal 0.4s ease-in-out forwards;
+}
+
+/* Base UI sets --accordion-panel-height on Accordion.Panel, but tw-animate-css's
+   accordion keyframes only read the radix-era variable. Redefine them (later in
+   the cascade, so these win) with a Base UI fallback so expand/collapse animates
+   instead of snapping to `auto`. */
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height, var(--accordion-panel-height, auto));
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height, var(--accordion-panel-height, auto));
+  }
+  to {
+    height: 0;
+  }
+}
+
+/* ============================================================
+   shadcn chat utilities — scroll-fade + shimmer
+   Verbatim from shadcn/tailwind.css (shipped by `npx shadcn init`).
+   ============================================================ */
+
+/* scroll-fade */
+@property --scroll-fade-t {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --scroll-fade-b {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --scroll-fade-s {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --scroll-fade-e {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --scroll-fade-mask {
+  syntax: "*";
+  inherits: false;
+}
+
+@theme inline {
+  @keyframes scroll-fade-reveal-t {
+    from {
+      --scroll-fade-t: 0px;
+    }
+    to {
+      --scroll-fade-t: var(
+        --_scroll-fade-size-t,
+        var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+      );
+    }
+  }
+  @keyframes scroll-fade-reveal-b {
+    from {
+      --scroll-fade-b: var(
+        --_scroll-fade-size-b,
+        var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+      );
+    }
+    to {
+      --scroll-fade-b: 0px;
+    }
+  }
+  @keyframes scroll-fade-reveal-s {
+    from {
+      --scroll-fade-s: 0px;
+    }
+    to {
+      --scroll-fade-s: var(
+        --_scroll-fade-size-s,
+        var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+      );
+    }
+  }
+  @keyframes scroll-fade-reveal-e {
+    from {
+      --scroll-fade-e: var(
+        --_scroll-fade-size-e,
+        var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+      );
+    }
+    to {
+      --scroll-fade-e: 0px;
+    }
+  }
+}
+
+@utility scroll-fade {
+  --_scroll-fade-size-t: var(
+    --scroll-fade-t-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --_scroll-fade-size-b: var(
+    --scroll-fade-b-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-block: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--scroll-fade-t, 0px),
+    #000 calc(100% - var(--scroll-fade-b, 0px)),
+    transparent 100%
+  );
+  -webkit-mask-image: var(--scroll-fade-mask, var(--scroll-fade-block));
+  mask-image: var(--scroll-fade-mask, var(--scroll-fade-block));
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation:
+      scroll-fade-reveal-t 1ms ease-in-out,
+      scroll-fade-reveal-b 1ms ease-in-out;
+    animation-timeline: scroll(self y), scroll(self y);
+    animation-range:
+      0 var(--scroll-fade-reveal, calc(var(--spacing) * 24)),
+      calc(100% - var(--scroll-fade-reveal, calc(var(--spacing) * 24))) 100%;
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-t: var(--_scroll-fade-size-t);
+    --scroll-fade-b: var(--_scroll-fade-size-b);
+  }
+}
+
+@utility scroll-fade-y {
+  --_scroll-fade-size-t: var(
+    --scroll-fade-t-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --_scroll-fade-size-b: var(
+    --scroll-fade-b-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-block: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--scroll-fade-t, 0px),
+    #000 calc(100% - var(--scroll-fade-b, 0px)),
+    transparent 100%
+  );
+  -webkit-mask-image: var(--scroll-fade-mask, var(--scroll-fade-block));
+  mask-image: var(--scroll-fade-mask, var(--scroll-fade-block));
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation:
+      scroll-fade-reveal-t 1ms ease-in-out,
+      scroll-fade-reveal-b 1ms ease-in-out;
+    animation-timeline: scroll(self y), scroll(self y);
+    animation-range:
+      0 var(--scroll-fade-reveal, calc(var(--spacing) * 24)),
+      calc(100% - var(--scroll-fade-reveal, calc(var(--spacing) * 24))) 100%;
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-t: var(--_scroll-fade-size-t);
+    --scroll-fade-b: var(--_scroll-fade-size-b);
+  }
+}
+
+@utility scroll-fade-x {
+  --_scroll-fade-size-s: var(
+    --scroll-fade-s-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --_scroll-fade-size-e: var(
+    --scroll-fade-e-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-inline: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--scroll-fade-s, 0px),
+    #000 calc(100% - var(--scroll-fade-e, 0px)),
+    transparent 100%
+  );
+  &:where([dir="rtl"], [dir="rtl"] *) {
+    --scroll-fade-inline: linear-gradient(
+      to left,
+      transparent 0,
+      #000 var(--scroll-fade-s, 0px),
+      #000 calc(100% - var(--scroll-fade-e, 0px)),
+      transparent 100%
+    );
+  }
+  -webkit-mask-image: var(--scroll-fade-mask, var(--scroll-fade-inline));
+  mask-image: var(--scroll-fade-mask, var(--scroll-fade-inline));
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation:
+      scroll-fade-reveal-s 1ms ease-in-out,
+      scroll-fade-reveal-e 1ms ease-in-out;
+    animation-timeline: scroll(self inline), scroll(self inline);
+    animation-range:
+      0 var(--scroll-fade-reveal, calc(var(--spacing) * 24)),
+      calc(100% - var(--scroll-fade-reveal, calc(var(--spacing) * 24))) 100%;
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-s: var(--_scroll-fade-size-s);
+    --scroll-fade-e: var(--_scroll-fade-size-e);
+  }
+}
+
+@utility scroll-fade-t {
+  --_scroll-fade-size-t: var(
+    --scroll-fade-t-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-mask: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--scroll-fade-t, 0px),
+    #000 100%
+  );
+  -webkit-mask-image: var(--scroll-fade-mask);
+  mask-image: var(--scroll-fade-mask);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation: scroll-fade-reveal-t 1ms ease-in-out;
+    animation-timeline: scroll(self y);
+    animation-range: 0 var(--scroll-fade-reveal, calc(var(--spacing) * 24));
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-t: var(--_scroll-fade-size-t);
+  }
+}
+
+@utility scroll-fade-b {
+  --_scroll-fade-size-b: var(
+    --scroll-fade-b-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-mask: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - var(--scroll-fade-b, 0px)),
+    transparent 100%
+  );
+  -webkit-mask-image: var(--scroll-fade-mask);
+  mask-image: var(--scroll-fade-mask);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation: scroll-fade-reveal-b 1ms ease-in-out;
+    animation-timeline: scroll(self y);
+    animation-range: calc(100% - var(--scroll-fade-reveal, calc(var(--spacing) * 24))) 100%;
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-b: var(--_scroll-fade-size-b);
+  }
+}
+
+@utility scroll-fade-l {
+  --_scroll-fade-size-s: var(
+    --scroll-fade-s-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-mask: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--scroll-fade-s, 0px),
+    #000 100%
+  );
+  -webkit-mask-image: var(--scroll-fade-mask);
+  mask-image: var(--scroll-fade-mask);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation: scroll-fade-reveal-s 1ms ease-in-out;
+    animation-timeline: scroll(self x);
+    animation-range: 0 var(--scroll-fade-reveal, calc(var(--spacing) * 24));
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-s: var(--_scroll-fade-size-s);
+  }
+}
+
+@utility scroll-fade-r {
+  --_scroll-fade-size-e: var(
+    --scroll-fade-e-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-mask: linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - var(--scroll-fade-e, 0px)),
+    transparent 100%
+  );
+  -webkit-mask-image: var(--scroll-fade-mask);
+  mask-image: var(--scroll-fade-mask);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation: scroll-fade-reveal-e 1ms ease-in-out;
+    animation-timeline: scroll(self x);
+    animation-range: calc(100% - var(--scroll-fade-reveal, calc(var(--spacing) * 24))) 100%;
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-e: var(--_scroll-fade-size-e);
+  }
+}
+
+@utility scroll-fade-s {
+  --_scroll-fade-size-s: var(
+    --scroll-fade-s-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-mask: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--scroll-fade-s, 0px),
+    #000 100%
+  );
+  &:where([dir="rtl"], [dir="rtl"] *) {
+    --scroll-fade-mask: linear-gradient(
+      to left,
+      transparent 0,
+      #000 var(--scroll-fade-s, 0px),
+      #000 100%
+    );
+  }
+  -webkit-mask-image: var(--scroll-fade-mask);
+  mask-image: var(--scroll-fade-mask);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation: scroll-fade-reveal-s 1ms ease-in-out;
+    animation-timeline: scroll(self inline);
+    animation-range: 0 var(--scroll-fade-reveal, calc(var(--spacing) * 24));
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-s: var(--_scroll-fade-size-s);
+  }
+}
+
+@utility scroll-fade-e {
+  --_scroll-fade-size-e: var(
+    --scroll-fade-e-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-mask: linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - var(--scroll-fade-e, 0px)),
+    transparent 100%
+  );
+  &:where([dir="rtl"], [dir="rtl"] *) {
+    --scroll-fade-mask: linear-gradient(
+      to left,
+      #000 0,
+      #000 calc(100% - var(--scroll-fade-e, 0px)),
+      transparent 100%
+    );
+  }
+  -webkit-mask-image: var(--scroll-fade-mask);
+  mask-image: var(--scroll-fade-mask);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation: scroll-fade-reveal-e 1ms ease-in-out;
+    animation-timeline: scroll(self inline);
+    animation-range: calc(100% - var(--scroll-fade-reveal, calc(var(--spacing) * 24))) 100%;
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-e: var(--_scroll-fade-size-e);
+  }
+}
+
+@utility scroll-fade-* {
+  --scroll-fade-size: calc(var(--spacing) * --value(integer));
+  --scroll-fade-size: --value([length], [percentage]);
+}
+
+@utility scroll-fade-t-* {
+  --scroll-fade-t-size: calc(var(--spacing) * --value(integer));
+  --scroll-fade-t-size: --value([length], [percentage]);
+}
+
+@utility scroll-fade-b-* {
+  --scroll-fade-b-size: calc(var(--spacing) * --value(integer));
+  --scroll-fade-b-size: --value([length], [percentage]);
+}
+
+@utility scroll-fade-s-* {
+  --scroll-fade-s-size: calc(var(--spacing) * --value(integer));
+  --scroll-fade-s-size: --value([length], [percentage]);
+}
+
+@utility scroll-fade-e-* {
+  --scroll-fade-e-size: calc(var(--spacing) * --value(integer));
+  --scroll-fade-e-size: --value([length], [percentage]);
+}
+
+@utility scroll-fade-none {
+  --scroll-fade-mask: none;
+}
+
+/* shimmer */
+@property --shimmer-angle {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 20deg;
+}
+@property --shimmer-image {
+  syntax: "*";
+  inherits: false;
+}
+@property --shimmer-text-fill {
+  syntax: "*";
+  inherits: false;
+}
+
+@theme inline {
+  @keyframes tw-shimmer {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: 0 0;
+    }
+  }
+}
+
+@utility shimmer {
+  --_spread: var(--shimmer-spread, calc(3ch + 40px));
+  --_base: currentColor;
+  --_highlight: var(--shimmer-color, oklch(from currentColor l c h / calc(alpha* 0.2)));
+
+  background-image: var(
+    --shimmer-image,
+    linear-gradient(
+      calc(90deg + var(--shimmer-angle)),
+      var(--_base) calc(50% - var(--_spread)),
+      color-mix(in oklch, var(--_highlight), var(--_base) 50%) calc(50% - var(--_spread) * 0.5),
+      var(--_highlight) 50%,
+      color-mix(in oklch, var(--_highlight), var(--_base) 50%) calc(50% + var(--_spread) * 0.5),
+      var(--_base) calc(50% + var(--_spread))
+    )
+  );
+  background-repeat: no-repeat;
+  background-size: calc(200% + var(--_spread) * 2) 100%;
+  background-position: 0 0;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: var(--shimmer-text-fill, transparent);
+  animation: tw-shimmer var(--shimmer-duration, 2s) linear infinite;
+
+  @variant dark {
+    --_highlight: var(
+      --shimmer-color,
+      oklch(from currentColor max(0.8, calc(l + 0.4)) c h / calc(alpha + 0.4))
+    );
+  }
+
+  &:where([dir="rtl"], [dir="rtl"] *) {
+    animation-direction: reverse;
+  }
+}
+
+@utility shimmer-once {
+  animation-iteration-count: 1;
+}
+
+@utility shimmer-reverse {
+  animation-direction: reverse;
+}
+
+@utility shimmer-none {
+  --shimmer-image: none;
+  --shimmer-text-fill: currentColor;
+}
+
+@utility shimmer-color-* {
+  --shimmer-color: --value(--color, [color]);
+  --shimmer-color: color-mix(
+    in oklch,
+    --value(--color, [color]) calc(--modifier(integer) * 1%),
+    transparent
+  );
+}
+
+@utility shimmer-duration-* {
+  --shimmer-duration: calc(--value(integer) * 1ms);
+}
+
+@utility shimmer-spread-* {
+  --shimmer-spread: calc(var(--spacing) * --value(integer));
+  --shimmer-spread: --value([length], [percentage]);
+}
+
+@utility shimmer-angle-* {
+  --shimmer-angle: calc(--value(integer) * 1deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    animation: none;
+    background-image: none;
+    -webkit-text-fill-color: currentColor;
+  }
+}
+
+/*
+ * Location picker pin.
+ *
+ * Leaflet's default marker icon is referenced by relative CSS URL, which the
+ * bundler cannot resolve, so the map features use an explicit divIcon. A
+ * divIcon's markup lives in a JS string and therefore cannot carry a Tailwind
+ * class -- the one-off shape has to be plain CSS here.
+ */
+.maskanchi-pin {
+  width: 26px;
+  height: 26px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: linear-gradient(135deg, #ffd8be, #e5a87b);
+  border: 2px solid #fff;
+  box-shadow: 0 0 18px rgb(229 168 123 / 55%);
+}
+
+.maskanchi-pin::after {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  left: 7.5px;
+  top: 7.5px;
+  border-radius: 50%;
+  background: #10151d;
+}
+
+/*
+ * Listing-showcase palette (the property detail page).
+ *
+ * This is a deliberate exception to the "no fixed hex" rule the rest of the app
+ * follows, and the reason is that the showcase treatment is a *product* surface,
+ * not a theme: it is the public-facing presentation of a listing, and its
+ * rose-gold-on-navy identity is fixed regardless of which dashboard theme the
+ * office happens to have selected. Every other surface keeps reading
+ * `--card`/`--border`/`--primary` and follows the active theme.
+ *
+ * `--gold-accent` (#e5a87b) is the same hue the CRM stage palette above already
+ * documents as the brand hue, so the two palettes stay in step by construction.
+ *
+ * The tones are exposed twice on purpose:
+ *
+ *   - as plain custom properties, because Leaflet path options and other
+ *     imperative, non-Tailwind call sites cannot resolve a theme token;
+ *   - as `@theme inline` colours, so JSX can write `bg-gold-accent` rather than
+ *     repeating `rgb(229 168 123 / 0.6)` in twenty class strings.
+ */
+:root {
+  --gold-primary: #ffd8be;
+  --gold-accent: #e5a87b;
+  --gold-dark: #b87c4f;
+
+  /* Surfaces. `--showcase-base` is the page backdrop; `-surface` is the glass
+     card wash; `-surface-solid` is the opaque variant used behind modals and
+     scroll rails where translucency would show the map through the text. */
+  --showcase-base: #060b13;
+  --showcase-surface: rgb(14 23 38 / 0.75);
+  --showcase-surface-solid: #0b1320;
+  --showcase-surface-deep: #090e18;
+  --showcase-border: rgb(255 216 190 / 0.16);
+  --showcase-border-strong: rgb(229 168 123 / 0.6);
+
+  --showcase-text: #f8fafc;
+  --showcase-text-muted: #94a3b8;
+  --showcase-text-dim: #64748b;
+
+  /* Status hues the listing surface needs but the dashboard palette lacks a
+     light variant for. `success`/`warning`/`danger` mirror the portal
+     convention; `--destructive` covers the app-wide red, so these are scoped to
+     the showcase rather than overriding it. */
+  --showcase-success: #10b981;
+  --showcase-warning: #f59e0b;
+  --showcase-danger: #ef4444;
+}
+
+@theme inline {
+  --color-gold-primary: var(--gold-primary);
+  --color-gold-accent: var(--gold-accent);
+  --color-gold-dark: var(--gold-dark);
+
+  --color-showcase: var(--showcase-base);
+  --color-showcase-surface: var(--showcase-surface);
+  --color-showcase-surface-solid: var(--showcase-surface-solid);
+  --color-showcase-surface-deep: var(--showcase-surface-deep);
+  --color-showcase-border: var(--showcase-border);
+  --color-showcase-border-strong: var(--showcase-border-strong);
+  --color-showcase-text: var(--showcase-text);
+  --color-showcase-muted: var(--showcase-text-muted);
+  --color-showcase-dim: var(--showcase-text-dim);
+  --color-showcase-success: var(--showcase-success);
+  --color-showcase-warning: var(--showcase-warning);
+  --color-showcase-danger: var(--showcase-danger);
+}
+
+/*
+ * Listing-showcase page shell.
+ *
+ * The gradient field plus glass cards are applied to a single wrapper class
+ * rather than to `body`, because the dashboard's own chrome (header, sidebar)
+ * sits above this page and must keep the active theme's background -- painting
+ * `body` navy would drag the whole admin shell dark on every other route.
+ */
+.showcase-shell {
+  background-color: var(--showcase-base);
+  background-image:
+    radial-gradient(at 0% 0%, rgb(20 35 60 / 0.45) 0px, transparent 55%),
+    radial-gradient(at 100% 100%, rgb(35 22 16 / 0.35) 0px, transparent 60%);
+  color: var(--showcase-text);
+}
+
+/* Glass panel: the shared container for every block of the detail page. */
+.showcase-panel {
+  background: var(--showcase-surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--showcase-border);
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.4);
+}
+
+/*
+ * Dashboard-standard treatment for the property detail route.
+ *
+ * The detail page reuses the showcase class names (shell/panel/section-title)
+ * but must read as one dashboard surface: the shell collapses to the theme
+ * background, and every glass panel becomes a plain `bg-card` container with
+ * the standard border. Brand gold accents (badges, price, section spine) are
+ * preserved; only the fixed navy surfaces, white-on-dark text, and dark tile
+ * filter are neutralised. Scoped under `.mk-detail-standard` so the public
+ * auth showcase keeps its rose-gold-on-navy identity.
+ */
+.mk-detail-standard.showcase-shell {
+  background-color: var(--background);
+  background-image: none;
+  color: var(--foreground);
+}
+
+.mk-detail-standard .showcase-panel {
+  background: var(--card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 0.625rem);
+  box-shadow: none;
+  color: var(--card-foreground);
+}
+
+/* Fixed navy fills inside the stat/price cells and gallery rails. */
+.mk-detail-standard .bg-showcase-surface-solid {
+  background-color: var(--muted);
+}
+
+.mk-detail-standard .bg-showcase-surface-deep {
+  background-color: var(--muted);
+}
+
+.mk-detail-standard .bg-showcase\/90 {
+  background-color: var(--card);
+}
+
+.mk-detail-standard .bg-showcase\/85 {
+  background-color: var(--card);
+}
+
+/* White-on-dark text baked into the showcase components. */
+.mk-detail-standard .text-white {
+  color: var(--foreground);
+}
+
+.mk-detail-standard .text-showcase-muted {
+  color: var(--muted-foreground);
+}
+
+.mk-detail-standard .text-showcase-dim {
+  color: var(--muted-foreground);
+  opacity: 0.75;
+}
+
+.mk-detail-standard .text-showcase-text {
+  color: var(--foreground);
+}
+
+.mk-detail-standard .text-\[\#cbd5e1\] {
+  color: var(--foreground);
+}
+
+.mk-detail-standard .showcase-section-title {
+  color: var(--foreground);
+}
+
+/* Translucent white chips / dividers designed for the dark surface. */
+.mk-detail-standard .border-white\/10,
+.mk-detail-standard .border-white\/8,
+.mk-detail-standard .border-white\/\[0\.06\] {
+  border-color: var(--border);
+}
+
+.mk-detail-standard .bg-white\/\[0\.02\],
+.mk-detail-standard .bg-white\/\[0\.03\],
+.mk-detail-standard .bg-white\/\[0\.04\],
+.mk-detail-standard .bg-white\/5,
+.mk-detail-standard .bg-white\/\[0\.05\],
+.mk-detail-standard .bg-white\/\[0\.06\] {
+  background-color: var(--muted);
+}
+
+.mk-detail-standard .hover\:bg-white\/\[0\.04\]:hover,
+.mk-detail-standard .hover\:bg-white\/\[0\.05\]:hover,
+.mk-detail-standard .hover\:bg-white\/\[0\.06\]:hover {
+  background-color: var(--accent);
+}
+
+/* The POI grid cards carry a `hover:-translate-y-0.5` lift designed for the
+   glass showcase; on the flat dashboard surface that reads as a glitch rather
+   than a hint, so the transform is cancelled. */
+.mk-detail-standard .hover\:-translate-y-0\.5:hover {
+  transform: none;
+}
+
+.mk-detail-standard .hover\:border-gold-accent:hover {
+  border-color: var(--border);
+}
+
+
+.mk-detail-standard .hover\:text-white:hover {
+  color: var(--foreground);
+}
+
+/* Brand gold text (#ffd8be) is designed for navy; on the light dashboard card
+   it drops to the dark gold so prices, counters and icon chips stay legible.
+   Dark dashboard mode keeps the original light gold. */
+.mk-detail-standard .text-gold-primary {
+  color: var(--gold-dark);
+}
+
+.dark .mk-detail-standard .text-gold-primary {
+  color: var(--gold-primary);
+}
+
+/*
+ * Fine engineering grid behind the auth showcase.
+ *
+ * The reference design draws its line grid as an SVG; two repeating gradients
+ * get the same result without an element in the accessibility tree or a
+ * mouse-tracking component, and the fade is applied by the caller as a mask so
+ * the line weight can stay constant while the visible extent changes.
+ */
+.showcase-grid {
+  background-image:
+    linear-gradient(to right, rgb(255 216 190 / 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 216 190 / 0.055) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+/* Small glass capsule: the eyebrow badge and the "secure environment" chip. */
+.showcase-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: 9999px;
+  border: 1px solid var(--showcase-border);
+  background: rgb(6 11 19 / 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/*
+ * Word-by-word headline entrance for the auth showcase.
+ *
+ * `both` fill-mode matters: without it the words would flash at their final
+ * position during the stagger delay and then jump back, so the headline would
+ * read as assembled-then-restarted instead of arriving in sequence.
+ */
+@keyframes showcase-word-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.55em);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+.showcase-word {
+  animation: showcase-word-rise 0.75s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* The reveal is decorative -- the headline is fully legible without it. */
+@media (prefers-reduced-motion: reduce) {
+  .showcase-word {
+    animation: none;
+  }
+}
+
+/* Circular icon button that floats over media (gallery arrows, save, share). */
+.showcase-circle-button {
+  width: 38px;
+  height: 38px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(6 11 19 / 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgb(255 255 255 / 0.15);
+  color: #fff;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.showcase-circle-button:hover {
+  background: var(--gold-accent);
+  border-color: var(--gold-accent);
+  color: var(--showcase-base);
+  transform: scale(1.08);
+}
+
+/* Section heading with the gold spine used by the POI/description blocks. */
+.showcase-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.showcase-section-title::before {
+  content: "";
+  width: 4px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--gold-accent);
+  flex-shrink: 0;
+}
+
+/*
+ * Dark OSM tiles.
+ *
+ * Leaflet writes its own inline `filter` on the tile pane, so the inversion has
+ * to be a class on that pane rather than a utility on a wrapper. Applied only
+ * inside the showcase: the rest of the app's maps stay on the readable default
+ * raster style.
+ */
+.showcase-dark-tiles .leaflet-tile-pane {
+  filter: brightness(0.65) invert(1) contrast(3.2) hue-rotate(200deg) saturate(0.35);
+}
+
+/* Privacy-halo label. Plain CSS because a Leaflet `divIcon` body is a JS string
+   and cannot carry a Tailwind class. */
+.privacy-halo-label {
+  background: rgb(6 11 19 / 0.92) !important;
+  border: 1px solid var(--gold-accent) !important;
+  border-radius: 9999px !important;
+  padding: 3px 10px !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  color: var(--gold-primary) !important;
+  box-shadow: 0 0 12px rgb(229 168 123 / 0.3) !important;
+  white-space: nowrap;
+}
+
+/*
+ * Lead-pipeline stage palette.
+ *
+ * One hue per CRM stage, plus a low-alpha twin used as the card wash. Declared
+ * as plain custom properties (not `@theme` tokens) because they are consumed
+ * from JS via `STAGE_ACCENTS` and injected as inline styles -- a Tailwind token
+ * would not resolve there.
+ *
+ * Hues run cool -> warm as the deal advances, and the terminal sink is a
+ * desaturated slate so "lost" never reads as "nearly closed".
+ */
+:root {
+  --stage-new: #38bdf8; /* فایل جدید */
+  --stage-new-soft: rgb(56 189 248 / 0.09);
+  --stage-contact: #fb923c; /* تماس اولیه */
+  --stage-contact-soft: rgb(251 146 60 / 0.09);
+  --stage-appraisal: #a78bfa; /* کارشناسی و بازدید */
+  --stage-appraisal-soft: rgb(167 139 250 / 0.09);
+  --stage-contract: #e5a87b; /* آمادهٔ قرارداد — rose gold, the brand hue */
+  --stage-contract-soft: rgb(229 168 123 / 0.11);
+  --stage-closed: #34d399; /* معاملهٔ موفق */
+  --stage-closed-soft: rgb(52 211 153 / 0.10);
+  --stage-lost: #64748b; /* از دست رفته */
+  --stage-lost-soft: rgb(100 116 139 / 0.10);
+}
+
+/*
+ * Stage-tinted lead card and column.
+ *
+ * Both read their hue from custom properties set inline by `STAGE_ACCENTS`, so
+ * one rule serves all six stages instead of a class per stage drifting out of
+ * sync with the palette.
+ */
+.crm-lead-card {
+  position: relative;
+  background-color: var(--card-wash, transparent);
+  border-inline-start-width: 3px;
+  border-inline-start-style: solid;
+}
+
+.crm-lead-card:hover {
+  background-color: color-mix(in oklab, var(--card-wash, transparent) 70%, transparent);
+}
+
+.crm-lead-column {
+  border-top: 3px solid var(--column-accent, transparent);
+}
+
+/*
+ * Ultra-luxury showcase rail (Shekarchi buy/rent vitrine).
+ *
+ * Fixed obsidian + champagne rose-gold product surface: it sits inside the
+ * dashboard but keeps its own identity in every theme, light or dark. The
+ * `lux-` prefix keeps these rules clear of the auth/detail `showcase-`
+ * classes above, which belong to different pages.
+ */
+.lux-rail {
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 28px,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 28px,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+}
+
+.lux-rail::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * Swiper's own chrome, retuned to the Obsidian & Rose-Gold showcase.
+ *
+ * Swiper ships blue focus rings and a grey active-slide treatment; neither
+ * belongs next to a #e5a87b hairline, so both are overridden. The rail's fade
+ * mask is re-declared here because Swiper wraps the slides in an extra
+ * `.swiper-wrapper` div that the old `.lux-rail` rule could not reach through.
+ */
+.lux-swiper {
+  scrollbar-width: none;
+
+  /* Same edge fade the rail had, so cards dissolve instead of being cut. */
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 28px,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 28px,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+}
+
+.lux-swiper::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * The grab cursor comes from the component, but the ring it draws on focus does
+ * not match the palette, so it is replaced with the gold hairline used
+ * everywhere else in the showcase.
+ */
+.lux-swiper:focus-visible {
+  outline: 2px solid var(--gold-accent);
+  outline-offset: 2px;
+}
+
+.lux-swiper .swiper-slide {
+  /* Swiper sets an inline height in some modes; the card is the height it is. */
+  height: auto;
+
+  /*
+   * Belt and braces against the inline-width regression. Swiper writes a
+   * computed `width` (and in `slidesPerView="auto"` mode it reads the slide's
+   * own `offsetWidth`), but a fraction-of-container measurement can still
+   * overshoot and put a slide millions of pixels off-screen. Capping the slide
+   * at the card's own width keeps every card reachable even then: the rail
+   * scrolls by card width, not by a runaway number.
+   */
+  max-width: min(78vw, 300px);
+}
+
+@media (min-width: 640px) {
+  .lux-swiper .swiper-slide {
+    max-width: 300px;
+  }
+}
+
+/*
+ * A focused slide is a keyboard-narrated destination, not a state change, so the
+ * gold hairline marks it without moving anything.
+ */
+.lux-swiper .swiper-slide:focus-visible {
+  outline: 2px solid var(--gold-accent);
+  outline-offset: 4px;
+  border-radius: 18px;
+}
+
+.lux-rail > * {
+  scroll-snap-align: start;
+}
+
+/* Card shell: glass obsidian, hairline gold, editorial hover lift. */
+.lux-card {
+  /* Divider hairline above the price HUD. Gold-on-navy in the showcase's
+     fixed dark treatment; the light-mode block below swaps it to the theme
+     border so the hairline stays visible on a light card. */
+  --lux-divider: rgb(229 168 123 / 0.18);
+  background: rgb(18 26 38 / 0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgb(229 168 123 / 0.2);
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.4);
+  transition:
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lux-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--gold-accent);
+  box-shadow:
+    0 20px 44px rgb(0 0 0 / 0.5),
+    0 0 22px rgb(229 168 123 / 0.18);
+}
+
+.lux-card-image {
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lux-card:hover .lux-card-image {
+  transform: scale(1.05);
+}
+
+/* Floating badges over the thumbnail. */
+.lux-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  white-space: nowrap;
+}
+
+.lux-badge-type {
+  color: var(--gold-primary);
+  border: 1px solid rgb(229 168 123 / 0.45);
+  background: rgb(6 11 19 / 0.65);
+}
+
+.lux-badge-source {
+  color: rgb(255 255 255 / 0.9);
+  border: 1px solid rgb(255 255 255 / 0.15);
+  background: rgb(0 0 0 / 0.6);
+}
+
+/* Valuation / exclusivity ribbon pinned to the image bottom-start. */
+.lux-ribbon {
+  position: absolute;
+  bottom: 10px;
+  inset-inline-start: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #052e22;
+  background: linear-gradient(135deg, #6ee7b7, #10b981);
+  box-shadow: 0 4px 14px rgb(16 185 129 / 0.45);
+}
+
+.lux-ribbon-exclusive {
+  color: #3a230f;
+  background: linear-gradient(135deg, var(--gold-primary), var(--gold-accent));
+  box-shadow: 0 4px 14px rgb(229 168 123 / 0.45);
+}
+
+/* ============================================================
+   Market verdict pill — «۱۲٪ زیر عرف» / «۲۳٪ بالای عرف»
+
+   The verdict every listing card carries against its neighbourhood
+   median. Three deliberate departures from the obvious implementation:
+
+   * Palette. Tailwind's `emerald-400`/`red-400` on obsidian reads as a
+     brokerage terminal — high-saturation, urgent, and constant. On a card
+     whose whole argument is "this property is worth your attention" the
+     colour has to be a quality cue, not an alarm. So: soft jade for an
+     under-market ask, warm bronze for an over-market one. Both sit in the
+     brand's own hue family — the over-market mark deliberately avoids red
+     entirely — so a hundred cards on a page still read as one product.
+   * Magnitude. «زیر عرف» is a hint; «۱۲٪ زیر عرف» is a number a broker can
+     quote. The percentage is computed from the two prices on screen (see
+     `marketVerdict`), so the pill can never disagree with the price beside
+     it.
+   * Placement. The pill owns its own row, pinned above the price, and an
+     empty verdict keeps that row rather than dropping it — the same element
+     with `visibility: hidden`. Sitting above vs. below the ask on some cards
+     and not others is what makes the price jump a line between neighbours in
+     the same grid row.
+
+   One glyph states the direction — down for the opportunity side, up for the
+   caution side. An equal price, or one with no neighbourhood median, gets the
+   invisible pill: sitting exactly on the market is not a finding worth a label.
+   ============================================================ */
+.lux-market-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  white-space: nowrap;
+  align-self: flex-start;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  /*
+   * Fixed box, not content-sized. The empty verdict reserve is the *same*
+   * element with no text, and an empty inline-flex child contributes no line
+   * box — so a content-height pill measures 3px shorter when it has nothing
+   * to say, and that is exactly the 3px that drops the price row a fraction
+   * of a line lower on every nearby card. Pinning the box is what makes the
+   * reserve invisible to layout.
+   */
+  height: 1.3rem;
+  min-height: 1.3rem;
+}
+
+/* Under-market ask: soft jade, the opportunity side. */
+.lux-market-below {
+  color: #7fd8ae;
+  border-color: rgb(52 211 153 / 0.22);
+  background: rgb(16 185 129 / 0.1);
+}
+
+/* Over-market ask: warm bronze — the brand's own caution hue, never danger-red. */
+.lux-market-above {
+  color: #e3b98d;
+  border-color: rgb(229 168 123 / 0.28);
+  background: rgb(229 168 123 / 0.1);
+}
+
+/* Rose-gold rail navigation pills. */
+.lux-nav-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /*
+   * 40px rather than the 34px this started at: below ~40px a tap target is
+   * smaller than the 44px minimum, and these are the only way to page the rail
+   * by hand -- on a phone a swipe is unreliable and the arrows are the
+   * dependable path. 40px keeps the header compact without being fiddly.
+   */
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  border: 1px solid rgb(229 168 123 / 0.35);
+  background: rgb(6 11 19 / 0.7);
+  color: var(--gold-primary);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.lux-nav-pill:hover:not(:disabled) {
+  background: var(--gold-accent);
+  border-color: var(--gold-accent);
+  color: var(--showcase-base);
+  box-shadow: 0 0 16px rgb(229 168 123 / 0.4);
+}
+
+.lux-nav-pill:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lux-nav-pill svg {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/*
+ * A gold pill on an obsidian header has no natural focus outline; without this
+ * a keyboard user cannot tell which rail control is active.
+ */
+.lux-nav-pill:focus-visible {
+  outline: 2px solid var(--gold-accent);
+  outline-offset: 2px;
+}
+
+[dir='rtl'] .lux-nav-pill--prev:hover:not(:disabled) svg {
+  transform: translateX(2px);
+}
+
+[dir='rtl'] .lux-nav-pill--next:hover:not(:disabled) svg {
+  transform: translateX(-2px);
+}
+
+/* Section header glow spine. */
+.lux-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 17px;
+  color: #f5f5f7;
+}
+
+.lux-section-title::before {
+  content: '';
+  width: 4px;
+  height: 22px;
+  border-radius: 4px;
+  background: linear-gradient(to bottom, var(--gold-primary), var(--gold-accent));
+  box-shadow: 0 0 12px rgb(229 168 123 / 0.55);
+  flex-shrink: 0;
+}
+
+/* Skeleton shimmer for rail loading state. */
+@keyframes lux-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.lux-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgb(18 26 38 / 0.72) 25%,
+    rgb(35 50 72 / 0.72) 50%,
+    rgb(18 26 38 / 0.72) 75%
+  );
+  background-size: 200% 100%;
+  animation: lux-shimmer 1.6s linear infinite;
+  border: 1px solid rgb(229 168 123 / 0.14);
+  border-radius: 18px;
+}
+
+/* ============================================================
+   Light-mode treatment for the listing showcase (lux-*).
+
+   The rules above are a fixed dark-glass treatment (obsidian
+   background, white-on-dark text, translucent white chips) that
+   was designed for dark mode. On light mode those fixed colors
+   stay dark while the page around them turns light, so the card
+   reads as an unrelated dark slab and the pale text loses
+   contrast. The overrides below re-map only the *fixed* colors
+   onto theme tokens when the page is NOT dark; dark mode keeps
+   every rule above untouched.
+
+   Scoped under `html:not(.dark)` (not `:root` / `.light`) so it
+   follows the `next-themes` class strategy used by
+   `ThemeProvider` (`attribute='class'`, `defaultTheme='system'`):
+   - dark  -> `<html class="dark">`            -> overrides off
+   - light -> `<html>` / `<html class="light">` -> overrides on
+   `next-themes` removes the class for light rather than adding
+   `.light`, so `:not(.dark)` is the only selector that matches
+   both the explicit-light and the system-light states. Component
+   markup is untouched; only the fixed dark fills/text/borders
+   are neutralised, while the brand gold accents are preserved.
+   ============================================================ */
+
+/* Card shell: solid theme card instead of dark glass. */
+html:not(.dark) .lux-card {
+  --lux-divider: var(--border);
+  background: var(--card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+  color: var(--card-foreground);
+}
+
+html:not(.dark) .lux-card:hover {
+  border-color: var(--gold-accent);
+  box-shadow: var(--shadow-md), 0 0 22px rgb(229 168 123 / 0.18);
+}
+
+/* Section header: theme foreground instead of fixed near-white. */
+html:not(.dark) .lux-section-title {
+  color: var(--foreground);
+}
+
+/* Card texts: fixed pale tones -> theme tokens. */
+html:not(.dark) .lux-card .text-\[\#f5f5f7\] {
+  color: var(--card-foreground);
+}
+
+html:not(.dark) .lux-card .text-\[\#94a3b8\] {
+  color: var(--muted-foreground);
+}
+
+/* Rail subtitle under the section header. Scoped to the rail header so the
+   auth showcase (which also uses pale text on dark) is untouched. */
+html:not(.dark) section[aria-label] > div:first-child > div:first-child > p {
+  color: var(--muted-foreground);
+}
+
+/* Brand gold text (#ffd8be) is designed for navy; on a light card
+   it drops to the dark gold so prices and counters stay legible. */
+html:not(.dark) .lux-card .text-gold-primary,
+html:not(.dark) section[aria-label] .text-gold-primary {
+  color: var(--gold-dark);
+}
+
+/* Metric cells: translucent-white chips -> theme wash. */
+html:not(.dark) .lux-card .border-white\/\[0\.06\] {
+  border-color: var(--border);
+}
+
+html:not(.dark) .lux-card .bg-white\/\[0\.03\] {
+  background-color: var(--muted);
+}
+
+/* Card divider hairline: gold-on-navy wash -> theme border. */
+html:not(.dark) .lux-card .border-\[rgba\(229\,168\,123\,0\.14\)\] {
+  border-color: var(--border);
+}
+
+/* Floating badges sit over the photo (still dark there), so keep
+   their dark glass; only lift the text for contrast. */
+html:not(.dark) .lux-badge-type {
+  color: #ffe9d6;
+}
+
+/* Market pills: on the light card the same hues would wash out to grey,
+   so they deepen instead of staying translucent. Jade goes to emerald-700,
+   bronze to amber-800 — both stepping down a shade rather than turning into
+   an alarm, so a page of cards still reads as one product in light mode. */
+html:not(.dark) .lux-market-below {
+  color: #047857;
+  border-color: rgb(5 150 105 / 0.25);
+  background: rgb(16 185 129 / 0.08);
+}
+
+html:not(.dark) .lux-market-above {
+  color: #92610f;
+  border-color: rgb(146 97 15 / 0.25);
+  background: rgb(146 97 15 / 0.08);
+}
+
+/* Cover placeholder plate: navy radial -> theme wash. */
+html:not(.dark) .lux-card .bg-\[radial-gradient\(80\%_80\%_at_50\%_20\%\,rgb\(35\,52\,80\,0\.9\)\,rgb\(6\,11\,19\,1\)\)\] {
+  background: var(--muted);
+}
+
+/* Rail nav pills: dark glass circle -> theme card circle. */
+html:not(.dark) .lux-nav-pill {
+  background: var(--card);
+  border-color: var(--border);
+  color: var(--gold-dark);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--shadow-xs);
+}
+
+html:not(.dark) .lux-nav-pill:hover:not(:disabled) {
+  color: #fff;
+}
+
+/* Empty-rail plate: dark translucent wash -> theme wash. */
+html:not(.dark) .bg-\[rgba\(18\,26\,38\,0\.4\)\] {
+  background-color: var(--muted);
+  border-color: var(--border);
+}
+
+/* Skeleton shimmer: dark navy sweep -> theme wash sweep. */
+html:not(.dark) .lux-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--muted) 25%,
+    var(--accent) 50%,
+    var(--muted) 75%
+  );
+  background-size: 200% 100%;
+  border-color: var(--border);
+}
+
+/* ============================================================
+   Showcase rail scrollbar (Swiper Scrollbar module).
+
+   Swiper injects `.swiper-scrollbar` / `.swiper-scrollbar-drag` when
+   `scrollbar={{ draggable: true }}` is set. The default Swiper theme
+   paints them flat grey, which clashes with the rose-gold rail
+   identity, so they are re-skinned here: a hairline track with a
+   gold thumb that matches the nav pills. The track always shows
+   (`hide: false`) so the rail advertises that more listings sit
+   beyond the visible six.
+   ============================================================ */
+.lux-swiper .swiper-scrollbar {
+  position: relative;
+  margin-top: 10px;
+  height: 5px;
+  border-radius: 9999px;
+  background: rgb(229 168 123 / 0.14);
+  cursor: pointer;
+}
+
+.lux-swiper .swiper-scrollbar-drag {
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--gold-primary), var(--gold-accent));
+  box-shadow: 0 0 10px rgb(229 168 123 / 0.35);
+  cursor: grab;
+}
+
+.lux-swiper .swiper-scrollbar-drag:active {
+  cursor: grabbing;
+}
+
+html:not(.dark) .lux-swiper .swiper-scrollbar {
+  background: var(--border);
+}
+
+html:not(.dark) .lux-swiper .swiper-scrollbar-drag {
+  box-shadow: 0 0 8px rgb(229 168 123 / 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lux-card,
+  .lux-card-image,
+  .lux-nav-pill,
+  .lux-nav-pill svg {
+    transition: none;
+  }
+  .lux-card:hover {
+    transform: none;
+  }
+
+  .lux-card:hover .lux-card-image {
+    transform: none;
+  }
+
+  .lux-skeleton {
+    animation: none;
+  }
+}
+/* Local font family aliases used by the selectable dashboard themes. */
+body {
+  --font-sans: var(--font-latin-sans);
+  --font-serif: Georgia, 'Times New Roman', serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --font-google-sans-flex: var(--font-latin-sans);
+  --font-source-code-pro: var(--font-mono);
+  --font-instrument: var(--font-latin-sans);
+  --font-noto-mono: var(--font-mono);
+  --font-mullish: var(--font-latin-sans);
+  --font-inter: var(--font-latin-sans);
+  --font-architects-daughter: var(--font-latin-sans);
+  --font-dm-sans: var(--font-latin-sans);
+  --font-fira-code: var(--font-mono);
+  --font-outfit: var(--font-latin-sans);
+  --font-space-mono: var(--font-mono);
+  --font-jetbrains-mono: var(--font-mono);
+  --font-merriweather: var(--font-serif);
+  --font-playfair-display: var(--font-serif);
+}
+

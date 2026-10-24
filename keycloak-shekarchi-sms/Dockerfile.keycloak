@@ -1,0 +1,18 @@
+# Reproducible Keycloak 26 image with the tested Shekarchi provider.
+# Build from this directory: docker build -f Dockerfile.keycloak -t shekarchi-keycloak:26.0.0 .
+ARG KEYCLOAK_VERSION=26.0.0
+
+FROM maven:3.9.9-eclipse-temurin-21 AS provider-build
+WORKDIR /workspace
+COPY pom.xml ./pom.xml
+COPY src ./src
+RUN mvn -B -ntp clean package
+
+FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION} AS keycloak-build
+COPY --from=provider-build --chown=keycloak:keycloak \
+    /workspace/target/keycloak-shekarchi-sms-1.0.0.jar \
+    /opt/keycloak/providers/shekarchi-sms.jar
+RUN /opt/keycloak/bin/kc.sh build --db=postgres --health-enabled=true
+
+FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
+COPY --from=keycloak-build --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/

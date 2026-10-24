@@ -1,0 +1,402 @@
+{
+  "realm": "maskanchi",
+  "displayName": "Maskanchi CRM & MLS",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "accessTokenLifespan": 28800,
+  "loginTheme": "shekarchi",
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "fa",
+    "en"
+  ],
+  "defaultLocale": "fa",
+  "roles": {
+    "realm": [
+      {
+        "name": "ROLE_ADMIN",
+        "description": "مدیر ارشد سامانه — full control including the PII vault"
+      },
+      {
+        "name": "ROLE_AGENCY_MANAGER",
+        "description": "مدیر دفتر — manages the office team"
+      },
+      {
+        "name": "ROLE_DATA_ANALYST",
+        "description": "تحلیل‌گر داده — authenticated but vetoed from owner PII"
+      },
+      {
+        "name": "ROLE_JUNIOR_BROKER",
+        "description": "مشاور تازه‌کار — limited desk access"
+      },
+      {
+        "name": "ROLE_OWNER",
+        "description": "مالک ملک (ثبت مستقیم)"
+      },
+      {
+        "name": "ROLE_SENIOR_BROKER",
+        "description": "مشاور ارشد — full desk access"
+      },
+      {
+        "name": "ROLE_SUPERVISOR",
+        "description": "ناظر کیفی و حقوقی — sees owner data and the audit trail"
+      },
+      {
+        "name": "ROLE_UNVERIFIED_USER",
+        "description": "بازدیدکننده ویترین عمومی"
+      },
+      {
+        "name": "ROLE_VERIFIED_USER",
+        "description": "کاربر احراز هویت‌شده"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "maskanchi-backend-api",
+      "name": "Maskanchi API (audience target)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true
+    },
+    {
+      "clientId": "shekarchi-frontend",
+      "name": "Maskanchi Dashboard",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*",
+        "http://87.107.153.123:3000/*",
+        "http://*:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://87.107.153.123:3000",
+        "http://*:3000",
+        "+"
+      ],
+      "attributes": {
+        "access.token.signed.response.alg": "RS256",
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "false",
+        "access.token.lifespan": "28800",
+        "user.session.max.lifespan": "86400"
+      },
+      "protocolMappers": [
+        {
+          "name": "maskanchi-backend-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "maskanchi-backend-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_access.roles",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "kyc_status",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "kyc_status",
+            "claim.name": "kyc_status",
+            "multivalued": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "tenant_id",
+            "claim.name": "tenant_id",
+            "multivalued": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true"
+          }
+        },
+        {
+          "name": "agency_name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "agency_name",
+            "claim.name": "agency_name",
+            "multivalued": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true"
+          }
+        },
+        {
+          "name": "daily_pii_quota",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "daily_pii_quota",
+            "claim.name": "daily_pii_quota",
+            "multivalued": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true"
+          }
+        },
+        {
+          "name": "mobile_verified",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "mobile_verified",
+            "claim.name": "mobile_verified",
+            "multivalued": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "maskanchi-admin-cli",
+      "name": "Maskanchi Backend Service Account",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "secret": "REPLACE_WITH_SECRET_FROM_SECRET_MANAGER",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "email": "admin@maskanchi.dev",
+      "firstName": "مدیر",
+      "lastName": "سامانه",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "ROLE_ADMIN"
+      ],
+      "attributes": {
+        "kyc_status": [
+          "VERIFIED"
+        ],
+        "tenant_id": [
+          "maskanchi-local"
+        ],
+        "agency_name": [
+          "دفتر مرکزی"
+        ],
+        "daily_pii_quota": [
+          "500"
+        ],
+        "mobile_verified": [
+          "true"
+        ]
+      }
+    },
+    {
+      "username": "manager",
+      "email": "manager@maskanchi.dev",
+      "firstName": "مدیر",
+      "lastName": "دفتر",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "ROLE_AGENCY_MANAGER"
+      ],
+      "attributes": {
+        "kyc_status": [
+          "VERIFIED"
+        ],
+        "tenant_id": [
+          "maskanchi-local"
+        ],
+        "agency_name": [
+          "دفتر مرکزی"
+        ],
+        "daily_pii_quota": [
+          "200"
+        ],
+        "mobile_verified": [
+          "true"
+        ]
+      }
+    },
+    {
+      "username": "supervisor",
+      "email": "supervisor@maskanchi.dev",
+      "firstName": "ناظر",
+      "lastName": "کیفی",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "ROLE_SUPERVISOR"
+      ],
+      "attributes": {
+        "kyc_status": [
+          "VERIFIED"
+        ],
+        "tenant_id": [
+          "maskanchi-local"
+        ],
+        "daily_pii_quota": [
+          "300"
+        ],
+        "mobile_verified": [
+          "true"
+        ]
+      }
+    },
+    {
+      "username": "agent",
+      "email": "agent@maskanchi.dev",
+      "firstName": "مشاور",
+      "lastName": "ارشد",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "ROLE_SENIOR_BROKER"
+      ],
+      "attributes": {
+        "kyc_status": [
+          "VERIFIED"
+        ],
+        "tenant_id": [
+          "maskanchi-local"
+        ],
+        "agency_name": [
+          "دفتر مرکزی"
+        ],
+        "daily_pii_quota": [
+          "100"
+        ],
+        "mobile_verified": [
+          "true"
+        ]
+      }
+    },
+    {
+      "username": "junior",
+      "email": "junior@maskanchi.dev",
+      "firstName": "مشاور",
+      "lastName": "تازه‌کار",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "ROLE_JUNIOR_BROKER"
+      ],
+      "attributes": {
+        "kyc_status": [
+          "VERIFIED"
+        ],
+        "tenant_id": [
+          "maskanchi-local"
+        ],
+        "daily_pii_quota": [
+          "20"
+        ],
+        "mobile_verified": [
+          "false"
+        ]
+      }
+    },
+    {
+      "username": "analyst",
+      "email": "analyst@maskanchi.dev",
+      "firstName": "تحلیل‌گر",
+      "lastName": "داده",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "ROLE_DATA_ANALYST"
+      ],
+      "attributes": {
+        "kyc_status": [
+          "VERIFIED"
+        ],
+        "tenant_id": [
+          "maskanchi-local"
+        ],
+        "daily_pii_quota": [
+          "0"
+        ],
+        "mobile_verified": [
+          "false"
+        ]
+      }
+    },
+    {
+      "username": "pending",
+      "email": "pending@maskanchi.dev",
+      "firstName": "کاربر",
+      "lastName": "در انتظار",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "ROLE_VERIFIED_USER"
+      ],
+      "attributes": {
+        "kyc_status": [
+          "PENDING"
+        ],
+        "tenant_id": [
+          "maskanchi-local"
+        ],
+        "daily_pii_quota": [
+          "0"
+        ],
+        "mobile_verified": [
+          "false"
+        ]
+      }
+    },
+    {
+      "username": "service-account-maskanchi-admin-cli",
+      "enabled": true,
+      "serviceAccountClientId": "maskanchi-admin-cli",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "query-users",
+          "manage-users"
+        ]
+      }
+    }
+  ],
+  "accessTokenLifespanForImplicitFlow": 28800
+}

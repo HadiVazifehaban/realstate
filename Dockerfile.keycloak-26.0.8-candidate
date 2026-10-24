@@ -1,0 +1,12 @@
+ARG KEYCLOAK_VERSION=26.0.8
+FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION} AS keycloak-build
+ENV KC_DB=postgres KC_HEALTH_ENABLED=true
+COPY --chown=keycloak:keycloak --chmod=644 \
+    keycloak-shekarchi-sms/build-output/keycloak-shekarchi-sms-1.0.0.jar \
+    /opt/keycloak/providers/shekarchi-sms.jar
+COPY --chown=keycloak:keycloak keycloak/themes/shekarchi /opt/keycloak/themes/shekarchi
+RUN /opt/keycloak/bin/kc.sh --version \
+ && /opt/keycloak/bin/kc.sh build --db=postgres --health-enabled=true
+
+FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
+COPY --from=keycloak-build --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/

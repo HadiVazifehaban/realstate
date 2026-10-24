@@ -1,0 +1,24 @@
+# Recovery candidate only. Build from this directory; never tag as the production image.
+ARG KEYCLOAK_VERSION=26.0.8
+
+FROM maven:3.9.9-eclipse-temurin-21 AS provider-build
+ARG KEYCLOAK_VERSION
+WORKDIR /workspace
+COPY pom.xml ./pom.xml
+COPY src ./src
+RUN mvn -B -ntp -Dkeycloak.version=${KEYCLOAK_VERSION} clean verify \
+ && jar tf target/keycloak-shekarchi-sms-1.0.0.jar \
+    | grep -Fx 'META-INF/services/org.keycloak.authentication.AuthenticatorFactory' \
+ && jar tf target/keycloak-shekarchi-sms-1.0.0.jar \
+    | grep -Fx 'com/shekarchi/auth/authenticator/SmsAuthenticatorFactory.class'
+
+FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION} AS keycloak-build
+ARG KEYCLOAK_VERSION
+COPY --from=provider-build --chown=keycloak:keycloak --chmod=644 \
+    /workspace/target/keycloak-shekarchi-sms-1.0.0.jar \
+    /opt/keycloak/providers/shekarchi-sms.jar
+RUN /opt/keycloak/bin/kc.sh --version \
+ && /opt/keycloak/bin/kc.sh build --db=postgres --health-enabled=true
+
+FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
+COPY --from=keycloak-build --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/

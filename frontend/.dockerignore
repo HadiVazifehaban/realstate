@@ -1,0 +1,7 @@
+# Keep the build context small: the builder installs from package-lock.json
+# and compiles from scratch, so host build artifacts must not leak in (COPY
+# . . would otherwise overwrite the node_modules from the dependencies stage).
+node_modules
+.next
+npm-debug.log*
+.git

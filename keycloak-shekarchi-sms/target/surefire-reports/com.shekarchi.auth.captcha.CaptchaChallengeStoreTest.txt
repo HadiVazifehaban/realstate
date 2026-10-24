@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.shekarchi.auth.captcha.CaptchaChallengeStoreTest
+-------------------------------------------------------------------------------
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.431 s -- in com.shekarchi.auth.captcha.CaptchaChallengeStoreTest

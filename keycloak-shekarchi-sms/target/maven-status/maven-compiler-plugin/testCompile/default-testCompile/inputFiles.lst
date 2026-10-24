@@ -1,0 +1,13 @@
+/workspace/src/test/java/com/shekarchi/auth/authenticator/SmsAuthenticatorFactoryDiscoveryTest.java
+/workspace/src/test/java/com/shekarchi/auth/captcha/CaptchaChallengeStoreTest.java
+/workspace/src/test/java/com/shekarchi/auth/captcha/CaptchaChallengeTest.java
+/workspace/src/test/java/com/shekarchi/auth/captcha/CaptchaFactoryDiscoveryTest.java
+/workspace/src/test/java/com/shekarchi/auth/captcha/CaptchaHmacTest.java
+/workspace/src/test/java/com/shekarchi/auth/config/SmsAuthConfigTest.java
+/workspace/src/test/java/com/shekarchi/auth/otp/OtpRedisStoreFailClosedTest.java
+/workspace/src/test/java/com/shekarchi/auth/otp/OtpRedisStoreIntegrationTest.java
+/workspace/src/test/java/com/shekarchi/auth/sms/provider/FakeSmsSenderServiceTest.java
+/workspace/src/test/java/com/shekarchi/auth/sms/provider/MelliPayamakSmsSenderServiceTest.java
+/workspace/src/test/java/com/shekarchi/auth/util/OtpHmacUtilTest.java
+/workspace/src/test/java/com/shekarchi/auth/util/PhoneNormalizerTest.java
+/workspace/src/test/java/com/shekarchi/auth/util/SecretValueTest.java

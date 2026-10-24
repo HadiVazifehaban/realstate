@@ -1,0 +1,298 @@
+# =============================================================================
+#  AVG CRM & MLS Core - Local On-Premise Node (docker-compose)
+#
+#  Brings up everything the office machine needs:
+#    * db           -> PostgreSQL 16 + PostGIS (local media/geo vault)
+#    * redis        -> optional sync/queue backend for the outbox worker
+#    * keycloak     -> OIDC identity provider; the user directory is sourced from it
+#    * backend      -> FastAPI local engine (also serves the LAN API)
+#    * tiles        -> self-hosted OSM raster tile server (no public tile usage)
+#
+#  NOTE: the company website (owjfarda.ir) and Nginx Proxy Manager live in
+#  docker-compose.edge.yml on the isolated `avg_edge` network -- see EDGE-DEPLOY.md.
+#
+#  Usage:
+#    docker compose up -d
+#    docker compose exec backend alembic upgrade head
+#  Keycloak (first boot imports keycloak/realm-export.json automatically):
+#    console  -> http://localhost:${KEYCLOAK_PORT:-8082}
+#    issuer   -> configure KEYCLOAK_PUBLIC_URL for the URL users open
+#  For LAN use, set KEYCLOAK_PUBLIC_URL to this host's LAN address; for a VPS,
+#  set it to the public HTTPS Keycloak URL. Keep KEYCLOAK_ISSUER and
+#  NEXT_PUBLIC_KEYCLOAK_ISSUER synchronized with it. Compose uses localhost by
+#  default, so a fresh local install works without a machine-specific IP.
+#
+#  Map tiles (one-time, needs internet):
+#    1. mkdir -p tiles-data
+#    2. curl -L -o tiles-data/region.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+#    3. docker compose run --rm tiles import
+#    4. docker compose up -d tiles
+#  Tile URL once serving: http://localhost:8081/tile/{z}/{x}/{y}.png
+#  Iran extract is ~219 MB and the import takes several minutes.
+#  For LAN/VPS clients set NEXT_PUBLIC_TILE_URL to the host address they can reach.
+#
+#  Company website (owjfarda.ir) + Nginx Proxy Manager live in
+#  docker-compose.edge.yml (isolated `avg_edge` network).
+#  Bring them up with: docker compose -f docker-compose.edge.yml up -d --build
+# =============================================================================
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: avg_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-avg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-avg_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-avgcrm}
+      # WAL + durability tuning to survive office power cuts.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=replica"
+      - "-c"
+      - "max_wal_senders=4"
+      - "-c"
+      - "synchronous_commit=on"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - avg_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-avg} -d ${POSTGRES_DB:-avgcrm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - shekarchi_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: avg_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - avg_redisdata:/data
+    networks:
+      - shekarchi_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  iran_locations:
+    # Self-hosted province/county dataset (services/iran-locations-api), the
+    # primary source for the listing filter's city cascade. Built from the
+    # vendored copy, not pulled: the upstream build crashes on every API route
+    # with `TypeError: … is not a function` from its `nextjs-cors` dependency's
+    # dynamic-import interop, which is why the public instance answers 500.
+    build: ./services/iran-locations-api
+    image: real-iran-locations
+    container_name: avg_iran_locations
+    restart: unless-stopped
+    # No host port and no declared network: it rides the compose default bridge,
+    # reachable from the core as `http://iran_locations:3000` like every other
+    # internal service. Publishing it would expose a dataset the dashboard
+    # already renders through the API.
+
+  keycloak-db:
+    # Keycloak owns its own schema. It must NOT share the `db` container: a realm
+    # reset or a Keycloak major upgrade would then run against the office's
+    # property/CRM data.
+    image: postgres:16-alpine
+    container_name: avg_keycloak_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${KEYCLOAK_DB_USER:-keycloak}
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_secret}
+      POSTGRES_DB: ${KEYCLOAK_DB_NAME:-keycloak}
+    volumes:
+      - avg_keycloakpgdata:/var/lib/postgresql/data
+    networks:
+      - shekarchi_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${KEYCLOAK_DB_USER:-keycloak} -d ${KEYCLOAK_DB_NAME:-keycloak}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  keycloak:
+    image: shekarchi-keycloak:26.0.8
+    build:
+      context: ./keycloak-shekarchi-sms
+      dockerfile: Dockerfile.keycloak-26.0.8
+    container_name: avg_keycloak
+    restart: unless-stopped
+    command: >
+      start
+      --optimized
+      --import-realm
+      --http-port=8080
+      --http-management-port=9000
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/${KEYCLOAK_DB_NAME:-keycloak}
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_secret}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # Must be the same public/browser-reachable base URL configured by the
+      # operator in .env. Do not hardcode a host IP here.
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8082}
+      KC_HEALTH_ENABLED: "true"
+      # Fake SMS provider only for local dev/test integration (never Production).
+      # When "true", the Authenticator routes SMS through FakeSmsSenderService which
+      # generates a real SecureRandom OTP but does not call any real gateway.
+      SHEKARCHI_SMS_FAKE: "true"
+      SHEKARCHI_ENV: development
+      SHEKARCHI_REDIS_URL: redis://redis:6379/0
+      SHEKARCHI_OTP_HMAC_SECRET: ${SHEKARCHI_OTP_HMAC_SECRET:-}
+      SHEKARCHI_CAPTCHA_HMAC_SECRET: ${SHEKARCHI_CAPTCHA_HMAC_SECRET:-}
+      # Accept X-Forwarded-* so a reverse proxy in front of Keycloak does not
+      # rewrite the issuer and silently break every token.
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+      # Disable theme cache in dev so CSS/FTL edits apply on plain page refresh
+      KC_THEME_CACHE: ${KC_THEME_CACHE:-false}
+      # Allow cookies in HTTP mode for development
+      KC_SPI_USER_CACHE_CLEAR_ON_UPDATE: "false"
+      KC_SPI_EVENTS_LISTENER_STORE_JPA_CLEAR_CACHE_PERIOD: "60000"
+    networks:
+      - shekarchi_net
+    ports:
+      - "${KEYCLOAK_PORT:-8082}:8080"
+    volumes:
+      # Realm import on first boot only; Keycloak skips an import for a realm
+      # that already exists, so this is safe to leave mounted.
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/maskanchi-realm.json:ro
+      # Custom login theme (shekarchi). Mounted read-only; in start-dev the
+      # theme cache is off so CSS/FTL edits apply on plain page refresh.
+      - ./keycloak/themes/shekarchi:/opt/keycloak/themes/shekarchi:ro
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # The image ships no curl/wget, and /dev/tcp is a *bash* builtin while
+      # CMD-SHELL runs under /bin/sh -- so bash must be named explicitly or the
+      # probe fails even when the server is perfectly healthy.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 40
+      start_period: 60s
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: avg_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_MODE: LOCAL
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-avg}:${POSTGRES_PASSWORD:-avg_secret}@db:5432/${POSTGRES_DB:-avgcrm}
+      REDIS_URL: redis://redis:6379/0
+      # Must exactly match the realm issuer derived from KC_HOSTNAME.
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://localhost:8082/realms/maskanchi}
+      # OSM/Overpass GIS gateway: no API key is required (Nominatim and Overpass
+      # are free public services). The NESHAN_API_KEY variable is removed as the
+      # GIS stack now runs on OpenStreetMap only.
+
+    extra_hosts:
+      - "localhost:host-gateway"
+    networks:
+      - shekarchi_net
+    volumes:
+      - ./data:/app/data
+      - ./app:/app/app
+      # The migration history must travel with the code. Baked into the image it
+      # goes stale the moment a revision is added on the host: `alembic upgrade
+      # head` then stamps a revision the container cannot resolve, and the boot
+      # command crash-loops on "Can't locate revision". `env.py` and
+      # `alembic.ini` are identical in both, so the host tree is a drop-in.
+      - ./alembic:/app/alembic
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # city cascade source; the backend tolerates it being down (Neshan then
+      # inventory cities), so it starts without waiting for a healthcheck.
+      iran_locations:
+        condition: service_started
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8080"
+
+  tiles:
+    # Raster tile server built from a Geofabrik extract. Its own Postgres lives
+    # inside the avg_osmtiles volume and is NOT the app db -- keep them apart.
+    image: overv/openstreetmap-tile-server:latest
+    container_name: avg_tiles
+    restart: unless-stopped
+    # The image has no default Cmd; without the explicit `run` argument
+    # /run.sh just prints its usage banner and exits 1 (crash loop).
+    command: run
+    # Render threads; import used the default too.
+    environment:
+      THREADS: "${TILE_THREADS:-4}"
+    networks:
+      - shekarchi_net
+    volumes:
+      # ONLY the extract is bind-mounted, as a single file. Bind-mounting a
+      # directory over /data masks the /data/style/ that the image ships, which
+      # breaks run.sh at `mv ... /data/style/` -- and it would expose the app's
+      # data/keys and data/license to this container. /data/style must stay
+      # image-owned so the carto style is built in place.
+      - ./tiles-data/region.osm.pbf:/data/region.osm.pbf:ro
+      # The imported osm2pgsql database. Separate from the app's `db`.
+      - avg_osmtiles:/data/database/
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC values are embedded in the browser bundle at build time.
+        # Keep the public issuer equal to the backend issuer.
+        NEXT_PUBLIC_KEYCLOAK_ISSUER: ${NEXT_PUBLIC_KEYCLOAK_ISSUER:-${KEYCLOAK_ISSUER:-http://localhost:8082/realms/maskanchi}}
+        NEXT_PUBLIC_TILE_URL: ${NEXT_PUBLIC_TILE_URL:-http://localhost:8081/tile}
+    container_name: avg_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    env_file:
+      - frontend/.env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://192.168.31.168:3000,https://shekkarchi.ir}
+      NEXT_PUBLIC_TILE_URL: ${NEXT_PUBLIC_TILE_URL:-http://localhost:8081/tile}
+
+    extra_hosts:
+      - "localhost:host-gateway"
+    networks:
+      - shekarchi_net
+    depends_on:
+      backend:
+        condition: service_started
+
+  # NOTE: owjfarda-site (owjfarda.ir) is intentionally NOT in this file.
+  # It lives in docker-compose.edge.yml together with Nginx Proxy Manager
+  # on the isolated `avg_edge` network, so a web-layer restart never touches
+  # db/redis/keycloak. See EDGE-DEPLOY.md for the full routing table.
+
+volumes:
+  avg_pgdata:
+  avg_redisdata:
+  avg_osmtiles:
+  avg_keycloakpgdata:
+
+networks:
+  shekarchi_net:
+    external: true

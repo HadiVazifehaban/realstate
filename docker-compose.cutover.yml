@@ -1,0 +1,73 @@
+# Prepared, non-operational overlay. Use together with docker-compose.yml and
+# explicitly select project `real`; never run this file by itself.
+services:
+  redis:
+    ports: !reset []
+    entrypoint: ["/bin/sh", "/opt/shekarchi/redis-auth-entrypoint.sh"]
+    environment:
+      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+    volumes:
+      - ./keycloak-shekarchi-sms/redis-auth-entrypoint.sh:/opt/shekarchi/redis-auth-entrypoint.sh:ro
+    secrets:
+      - redis_password
+    networks:
+      - redis_internal
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$(cat /run/secrets/redis_password)\" redis-cli --no-auth-warning ping | grep -qx PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  keycloak:
+    image: shekarchi-keycloak:26.0.8-unified-login-sms-20261021-01
+    environment:
+      SHEKARCHI_ENV: production
+      SHEKARCHI_SMS_FAKE: "false"
+      SHEKARCHI_OTP_HMAC_SECRET: null
+      SHEKARCHI_CAPTCHA_HMAC_SECRET: null
+      SHEKARCHI_REDIS_URL: ""
+      SHEKARCHI_OTP_HMAC_SECRET_FILE: /run/secrets/keycloak_otp_hmac
+      SHEKARCHI_CAPTCHA_HMAC_SECRET_FILE: /run/secrets/captcha_hmac
+      SHEKARCHI_REDIS_URL_FILE: /run/secrets/keycloak_redis_url
+      MELLIPAYAMAK_CONFIG_FILE: /run/secrets/mellipayamak_config
+    secrets:
+      - keycloak_otp_hmac
+      - captcha_hmac
+      - keycloak_redis_url
+      - mellipayamak_config
+    networks:
+      - default
+      - redis_internal
+
+  backend:
+    environment:
+      REDIS_URL: ""
+      REDIS_URL_FILE: /run/secrets/backend_redis_url
+      OTP_HMAC_SECRET_FILE: /run/secrets/backend_otp_hmac
+    secrets:
+      - backend_redis_url
+      - backend_otp_hmac
+    networks:
+      - default
+      - redis_internal
+      - shekarchi_net
+
+networks:
+  redis_internal:
+    internal: true
+
+secrets:
+  redis_password:
+    file: /home/app/.config/shekarchi/redis-password.secret
+  keycloak_otp_hmac:
+    file: /home/app/.config/shekarchi/keycloak-otp-hmac.secret
+  captcha_hmac:
+    file: /home/app/.config/shekarchi/captcha-hmac.secret
+  keycloak_redis_url:
+    file: /home/app/.config/shekarchi/keycloak-redis-url.secret
+  backend_redis_url:
+    file: /home/app/.config/shekarchi/backend-redis-url.secret
+  backend_otp_hmac:
+    file: /home/app/.config/shekarchi/backend-otp-hmac.secret
+  mellipayamak_config:
+    file: /home/app/.config/shekarchi/mellipayamak.env

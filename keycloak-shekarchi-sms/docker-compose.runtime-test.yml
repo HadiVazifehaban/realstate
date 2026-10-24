@@ -1,0 +1,53 @@
+name: shekarchi-keycloak-2608-runtime-test
+# Disposable fresh-schema smoke test only; the production DB is never referenced.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: keycloak_test
+      POSTGRES_USER: keycloak_test
+      POSTGRES_PASSWORD: disposable-test-password
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak_test -d keycloak_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks: [test]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    tmpfs: [/data]
+    networks: [test]
+
+  keycloak:
+    build:
+      context: .
+      dockerfile: Dockerfile.keycloak-26.0.8
+    image: shekarchi-keycloak:26.0.8-recovery-test
+    command: ["start", "--optimized", "--http-port=8080", "--http-management-port=9000"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_test
+      KC_DB_USERNAME: keycloak_test
+      KC_DB_PASSWORD: disposable-test-password
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: test-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: disposable-test-password
+      KC_HOSTNAME: http://localhost:18090
+      SHEKARCHI_ENV: test
+      SHEKARCHI_SMS_FAKE: "true"
+      SHEKARCHI_REDIS_URL: redis://redis:6379/0
+      SHEKARCHI_OTP_HMAC_SECRET: disposable-test-hmac-secret-only
+    ports:
+      - "127.0.0.1:18090:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_started}
+    networks: [test]
+
+networks:
+  test:
+    internal: true

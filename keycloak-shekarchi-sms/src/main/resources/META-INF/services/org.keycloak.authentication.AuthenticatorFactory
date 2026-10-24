@@ -1,0 +1,2 @@
+com.shekarchi.auth.authenticator.SmsAuthenticatorFactory
+com.shekarchi.auth.captcha.CaptchaPasswordFormFactory
