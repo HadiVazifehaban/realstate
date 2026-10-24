@@ -71,6 +71,7 @@
     {
       "clientId": "shekarchi-frontend",
       "name": "Maskanchi Dashboard",
+      "baseUrl": "http://localhost:3000/auth/sign-in",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": true,

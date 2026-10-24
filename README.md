@@ -1,355 +1,287 @@
-# AVG CRM & MLS Core
+# AVG CRM & MLS — مستند فنی پروژه
 
-**سامانه مدیریت املاک و شبکه همکاران (MLS) — هلدینگ AVG**
-*Hybrid Edge-Cloud / Offline-First real-estate platform.*
+سامانهٔ مدیریت املاک و شبکهٔ همکاری مشاوران املاک AVG؛ شامل API، داشبورد وب، احراز هویت Keycloak، پایگاه دادهٔ مکانی و سرویس‌های زیرساختی. این مستند با ساختار مخزن و فایل‌های پیکربندی آن هماهنگ شده است؛ تنظیمات runtime را از فایل `.env` محلی بگیرید و هیچ secret واقعی را در مخزن ثبت نکنید.
 
-- **Version:** `2.0.0-SCRAPER-HYBRID` (`pyproject.toml`)
-- **Node modes:** `NODE_MODE=LOCAL` (نرم‌افزار مغازه) / `NODE_MODE=CLOUD_HUB` (هاب ابری)
-- **AI engine:** `FEATURE_FLAG_AI_ENGINE=false` (AI-Ready stubs؛ پردازش قطعی و مکانی)
-- **Auth:** `AUTH_MODE=KEYCLOAK` — Keycloak 26 realm `maskanchi` روی شبکه محلی
-- **Backend:** FastAPI · Python 3.10+ · SQLModel/SQLAlchemy 2.0 · PostgreSQL 16 + PostGIS · Alembic · cryptography · Redis
-- **Frontend:** Next.js 16 (App Router) · React 19 · TypeScript 5.7 · Tailwind v4 · shadcn/ui · next-auth v5 · TanStack Query/Table/Form · Leaflet · Recharts
+> **وضعیت نسخه‌ها:** نسخه‌ها و قابلیت‌های runtime را با محیط مقصد تطبیق دهید. فایل‌های Compose توسعه و تولید پیکربندی‌های متفاوتی دارند؛ به‌ویژه نسخهٔ Keycloak، URLهای عمومی و تنظیمات SMS. این README جایگزین فایل `.env.example` یا راهنمای rollout تولید نیست.
 
-> وضعیت: **فازهای ۱ تا ۵ پیاده‌سازی شد** — اسکفولدینگ، PostGIS، قفل لایسنس تجاری، رمزنگاری PII،
-> موتور تطبیق، ارزش‌گذاری (AVM)، اسکرپر Divar/Sheypoor/Delta، بورد CRM، سهمیه PII،
-> تم ورود کیکلاک و ۳۵۷ تست.
+## فهرست مطالب
 
----
+- [نمای کلی معماری](#نمای-کلی-معماری)
+- [ساختار مخزن](#ساختار-مخزن)
+- [پیش‌نیازها](#پیشنیازها)
+- [اجرای محلی با Docker Compose](#اجرای-محلی-با-docker-compose)
+- [اجرای توسعه بدون Compose کامل](#اجرای-توسعه-بدون-compose-کامل)
+- [تنظیمات و متغیرهای محیطی](#تنظیمات-و-متغیرهای-محیطی)
+- [API و احراز هویت](#api-و-احراز-هویت)
+- [داده، migration و پشتیبان‌گیری](#داده-migration-و-پشتیبانگیری)
+- [ماژول‌های دامنه](#ماژولهای-دامنه)
+- [فرانت‌اند](#فرانتاند)
+- [Keycloak و افزونهٔ SMS/OTP](#keycloak-و-افزونهٔ-smsotp)
+- [تست و کنترل کیفیت](#تست-و-کنترل-کیفیت)
+- [استقرار تولید](#استقرار-تولید)
+- [امنیت و عیب‌یابی](#امنیت-و-عیبیابی)
+- [محدودیت مستند](#محدودیت-مستند)
 
-## Logical architecture
+## نمای کلی معماری
 
-```
-            ┌─────────────────────────────┐
-            │   AVG CENTRAL CLOUD HUB     │  (NODE_MODE=CLOUD_HUB)
-            │  Divar ingress · License    │
-            │  Server · Cloud MLS Hub     │
-            └───────────────┬─────────────┘
-                            │  Sync Outbox / Heartbeat (E2E)
-                            ▼
-            ┌─────────────────────────────┐
-            │   AVG ON-PREMISE NODE       │  (NODE_MODE=LOCAL)
-            │  Local engine · Media vault │
-            │  Encrypted PII · PostGIS    │  :8080  FastAPI
-            └───────────────┬─────────────┘
-                            │  LAN (192.168.31.168)
-       ┌────────────────────┼───────────────────────┐
-       ▼                    ▼                       ▼
-  :3000 Next.js        :8082 Keycloak        :8081 OSM tile server
-  office workspace     realm maskanchi       self-hosted raster tiles
-                       (theme: shekarchi)
-                                 │
-                                 ▼
-                    iran_locations (internal) — استان/شهر
+سامانه یک کدبیس مشترک برای دو نقش است: گرهٔ محلی دفتر (`NODE_MODE=LOCAL`) و هاب مرکزی (`NODE_MODE=CLOUD_HUB`). این دو نقش در `app/main.py` و تنظیمات `app/core/config.py` تعریف شده‌اند؛ جزئیات فعال‌سازی هر قابلیت را از تنظیمات و کد همان سرویس بررسی کنید.
+
+```text
+مرورگر ── Next.js :3000 ── API داخلی Next.js ── FastAPI :8080
+    │              │                                  │
+    └── OIDC ── Keycloak :8082                        ├── PostgreSQL + PostGIS
+                                                      ├── Redis
+                                                      ├── ایران‌مکان‌ها (داخلی)
+                                                      └── OSM / Nominatim / Overpass
+
+توسعه/تست: docker-compose.yml
+تولید:     docker-compose.prod.yml (شبکه‌های internal و edge جدا)
 ```
 
-## Repository layout
+اجزای اصلی:
 
+| بخش | فناوری/مسیر | مسئولیت |
+|---|---|---|
+| API | Python 3.10+، FastAPI، SQLModel/SQLAlchemy async | منطق دامنه و REST API |
+| داده | PostgreSQL 16، PostGIS، Alembic | داده‌های عملیاتی و مکانی |
+| کش/زیرساخت OTP | Redis | کش و مؤلفه‌های وابسته به OTP |
+| وب | Next.js App Router، React، TypeScript | داشبورد و BFF/proxy مرورگر به API |
+| هویت | Keycloak و Auth.js/NextAuth | ورود OIDC و اعتبارسنجی bearer token |
+| مکان | OSM، Nominatim/Overpass، سرویس داخلی استان/شهر | نقشه، geocoding و دادهٔ مکانی |
+| افزونهٔ هویت | Java/Maven در `keycloak-shekarchi-sms/` | افزونهٔ SMS/OTP و CAPTCHA برای Keycloak |
+
+## ساختار مخزن
+
+```text
+app/                         API، مدل‌ها، schemaها و سرویس‌های دامنه
+  api/v1/endpoints/          مسیرهای REST و تجمیع آن‌ها در router.py
+  core/                      تنظیمات، هویت، امنیت، رمزنگاری و لایسنس
+  db/                        engine و session غیرهمزمان
+  models/                    مدل‌های SQLModel
+  schemas/                   قراردادهای ورودی/خروجی API
+  services/                  CRM، matching، valuation، GIS، scraper و غیره
+  cli/                       ابزارهای خط فرمان، از جمله لایسنس
+alembic/versions/            migrationهای پایگاه داده
+frontend/                    اپلیکیشن Next.js و تست‌های Vitest
+keycloak/                    realm export و تم ورود
+keycloak-shekarchi-sms/      افزونهٔ Java برای Keycloak، اسکریپت و مستند خودش
+services/iran-locations-api/ submodule مستقل برای استان/شهر
+tests/                       تست‌های Python
+docs/                        طراحی/برنامه‌ها و مستندات دامنه
+scripts/                     راه‌اندازی محلی و ابزارهای عملیاتی
+docker-compose.yml           پشتهٔ توسعه/محلی
+docker-compose.prod.yml      الگوی Compose تولید
 ```
-app/                FastAPI backend (port 8080)
-  core/             config · licensing · crypto · security · logging
-                    identity.py (Keycloak JWKS verification + role ladder)
-  db/               session.py (async engine + session)
-  models/           Property · ClientDemand · PropertyOwnerPII · PropertyMedia
-                    SyncOutbox · NodeLicense · AgencyUser · OwnerAccessLog
-                    PropertyMatch · PropertyPriceHistory · PropertyReport
-                    ScrapeJob · PropertyBooking · PiiQuota · GeoCache · PoiCache
-  services/         license · matching_engine · matching_repository
-                    mls_masking · pii_vault · valuation · crm · market
-                    keycloak_admin (user directory) · iran_locations
-                    scraper/ (divar · sheypoor · delta + scheduler)
-                    ingestion/ (pipeline · sanitizer · deduplicator)
-                    osm_service · poi_service · geo · ai/stub
-  api/v1/           health · license · users · crm · matching
-                    properties · scraper · gis
-  cli/              license_tool (keygen/fingerprint/issue/verify/install)
-alembic/            env.py + 14 migrations
-frontend/           Next.js 16 workspace (port 3000) — see frontend/AGENTS.md
-keycloak/           realm-export.json + shekarchi login theme + README.md
-services/
-  iran-locations-api/  self-hosted استان/شهر dataset (internal, no host port)
-tiles-data/         Geofabrik Iran extract for the OSM tile server
-docs/               FINAL_PHASE_PLAN.md · divar_taxonomy.md
-scripts/            setup_local.sh · dev.sh · generate_license.sh
-                    keycloak_bootstrap.py (service-account roles + user profile)
-tests/              unit + integration (357 tests)
-docker-compose.yml  db · redis · iran_locations · keycloak · backend · tiles · frontend
-```
 
----
+`services/iran-locations-api` یک **Git submodule** است. پس از clone، آن را با `git submodule update --init --recursive` دریافت کنید. دسترسی clone به مخزن submodule نیز باید برای کاربر/CI فراهم باشد.
 
-## Quick start — full stack (docker compose)
+## پیش‌نیازها
+
+- Docker Engine و Docker Compose plugin برای اجرای پشتهٔ کامل.
+- Python نسخهٔ 3.10 یا بالاتر، برای توسعهٔ API.
+- Node.js سازگار با نسخهٔ Next.js پروژه و یکی از package managerهای سازگار با lockfile فرانت‌اند؛ اسکریپت‌های توسعهٔ مخزن از Bun نیز استفاده می‌کنند.
+- Maven و JDK سازگار با `pom.xml`، فقط برای ساخت/توسعهٔ افزونهٔ Keycloak.
+- Git با پشتیبانی submodule.
+
+## اجرای محلی با Docker Compose
+
+از ریشهٔ مخزن (`/home/app/real`) اجرا کنید. پیکربندی محلی از `.env` استفاده می‌کند؛ نمونه را کپی و مقادیر محیط خود را تنظیم کنید:
 
 ```bash
-# 1) Copy env templates and fill in the secrets
 cp .env.example .env
-cp frontend/env.example.txt frontend/.env
-
-# 2) Keycloak realm imports on first boot; applies the service-account roles
-#    and user-profile attributes the realm export cannot carry
-docker compose up -d keycloak
-python scripts/keycloak_bootstrap.py
-
-# 3) Bring up everything (db · redis · iran_locations · keycloak · backend · tiles · frontend)
+# ویرایش .env: URLهای issuer، رمزهای محلی و تنظیمات لازم را بررسی کنید
+git submodule update --init --recursive
+docker compose config --quiet
 docker compose up -d --build
+docker compose ps
 ```
 
-| Service | Port | Purpose |
-| :--- | :--- | :--- |
-| `frontend` | `3000` | Next.js office workspace |
-| `backend` | `8080` | FastAPI engine + LAN API |
-| `tiles` | `8081` | Self-hosted OSM raster tiles |
-| `keycloak` | `8082` | OIDC identity provider |
-| `db` | `5432` | PostgreSQL 16 + PostGIS |
-| `redis` | `6379` | Sync/queue backend |
-| `iran_locations` | internal | استان/شهر dataset (no host port) |
+سرویس‌های Compose محلی شامل PostgreSQL/PostGIS، Redis، دیتابیس جداگانهٔ Keycloak، Keycloak، API، فرانت‌اند، سرویس ایران‌مکان‌ها و tile server هستند. پورت‌های پیش‌فرض در Compose تعریف شده‌اند؛ پورت‌های قابل انتشار را پیش از اجرا با فایل Compose تطبیق دهید. در Compose محلی، سرویس Iran Locations فقط روی شبکهٔ داخلی Compose در دسترس است و پورت میزبان ندارد.
 
-All services are pinned to the office machine's LAN IP `192.168.31.168` — the
-Keycloak issuer, tile URL and frontend bundle all bake it in at build time, so
-a stale `.env` cannot silently fall back to `localhost`. If the machine's
-address ever changes, edit the literals in `docker-compose.yml`, `.env`,
-`.env.example` and `frontend/.env` together.
-
-**Map tiles** (one-time, needs internet):
+برای مشاهدهٔ وضعیت و گزارش‌ها:
 
 ```bash
-mkdir -p tiles-data
-curl -L -o tiles-data/region.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
-docker compose run --rm tiles import
-docker compose up -d tiles
-# Tile URL: http://192.168.31.168:8081/tile/{z}/{x}/{y}.png
+docker compose ps
+docker compose logs -f backend keycloak frontend
 ```
 
-## Quick start — backend only (local office node)
+برای خاموش‌کردن سرویس‌ها بدون حذف volumeها:
 
 ```bash
-# One command: venv + deps + .env + PostGIS (docker) + migrations + keys
-./scripts/setup_local.sh
-
-# Run the API (also serves the LAN workspace)
-./scripts/dev.sh            # -> http://localhost:8080/api/v1/health
+docker compose down
 ```
 
-If your network blocks the default PyPI mirror, set `PIP_INDEX_URL` first:
+**هشدار:** `docker compose down -v` داده‌های volume از جمله دیتابیس را حذف می‌کند؛ فقط در محیط disposable اجرا شود.
+
+## اجرای توسعه بدون Compose کامل
+
+مسیر bootstrap رسمی مخزن:
 
 ```bash
-PIP_INDEX_URL=https://pypi.org/simple ./scripts/setup_local.sh
+make setup
 ```
 
-Developer shortcuts: `make setup` · `make db` · `make migrate` · `make run`
-· `make test` · `make license-fingerprint`.
-
-## Manual setup
+`make setup` اسکریپت `scripts/setup_local.sh` را اجرا می‌کند و برای تنظیم کامل گرهٔ محلی (محیط Python، وابستگی‌ها، `.env`، دیتابیس و کلیدها) طراحی شده است. پیش از اجرا، محتوای اسکریپت و اثرهای محیطی آن را مرور کنید. مسیر مرحله‌ای:
 
 ```bash
-python3 -m venv .venv
-PIP_INDEX_URL=https://pypi.org/simple .venv/bin/pip install -r requirements.txt
+make venv
+make install
+make db                 # PostgreSQL/PostGIS و Redis با Compose
+make migrate            # alembic upgrade head
+make run                # scripts/dev.sh
+```
 
-cp .env.example .env
-docker compose up -d db redis
+یا اجرای مستقیم API پس از نصب وابستگی‌ها و آماده‌سازی تنظیمات:
+
+```bash
+.venv/bin/python -m pip install -e '.[dev]'
 .venv/bin/alembic upgrade head
-
-.venv/bin/python -m app.cli.license_tool keygen --out-dir data/keys
+.venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
 ```
 
----
-
-## Keycloak and the user directory
-
-`/dashboard/users` is sourced from the **Keycloak realm**, not the local
-`agency_user` table: the identity provider is the authority on who exists and
-what tier they hold, so a user disabled in Keycloak no longer keeps an active
-staff row. `agency_user` is still used for quota accounting and audit rows,
-which have no business living in an external IdP.
-
-With no Keycloak service account configured, the directory falls back to
-`agency_user`, so a fresh clone works before Keycloak is ever started.
-
-```bash
-docker compose up -d keycloak          # realm imports on first boot
-python scripts/keycloak_bootstrap.py   # REQUIRED, see below
-```
-
-Console: <http://192.168.31.168:8082> (`admin` / `admin` — change it).
-
-Two things are **not** in `keycloak/realm-export.json` and cannot be, so
-`scripts/keycloak_bootstrap.py` applies them. It is idempotent:
-
-1. **The service account's roles.** A realm import silently drops the
-   `clientRoles` block on a service-account user, so `maskanchi-admin-cli` gets
-   no `realm-management` roles and every Admin REST call returns 403.
-2. **The user profile attributes.** Keycloak 26 keeps that configuration
-   outside the realm representation entirely. Without it, Keycloak *silently
-   strips* `kyc_status`, `tenant_id`, `daily_pii_quota` and `phone` on any
-   Admin REST write — a user invited from the dashboard would come out with no
-   `kyc_status` and be refused by every API call.
-
-Roles, clients, seed accounts and the sync details are in
-[`keycloak/README.md`](keycloak/README.md).
-
-Realm roles are translated to the internal ladder in `KEYCLOAK_ROLE_MAP`
-(`app/core/identity.py`); a multi-role user resolves to the **highest** tier,
-and an unknown role is ignored rather than trusted.
-
-The login page uses the custom **shekarchi** theme (`keycloak/themes/shekarchi`),
-bind-mounted read-only with `KC_THEME_CACHE=false` so CSS/FTL edits apply on a
-plain page refresh. Its brand logo is
-`keycloak/themes/shekarchi/login/resources/img/logo.png`.
-
-## Frontend (office workspace)
-
-Next.js 16 App Router dashboard served on the office LAN. Full reference in
-[`frontend/AGENTS.md`](frontend/AGENTS.md).
+فرانت‌اند:
 
 ```bash
 cd frontend
-bun install            # or: npm ci
-bun run dev            # http://localhost:3000
-bun run build          # production build
-bun run typecheck      # tsc --noEmit
-bun run lint           # oxlint
+bun install
+bun run dev
 ```
 
-**Authentication** — `next-auth` v5 against the Keycloak realm
-(`frontend/src/lib/auth/config.ts`). The `maskanchi-frontend` client is a
-**public** client (PKCE), so no client secret is needed; the realm access token
-is stashed on the session and forwarded to the FastAPI node as
-`Authorization: Bearer …`. The FastAPI core is the sole enforcement point — it
-re-verifies the token against the realm's JWKS and re-derives role/KYC from the
-signed claims. The issuer is pinned to the LAN IP for the same reason as
-everything else: a baked-in `localhost` would break the token exchange from
-every phone on the network.
+اسکریپت‌های فرانت‌اند در `frontend/package.json` شامل `dev`، `build`، `start`، `typecheck`، `lint` و `test` هستند. در CI، از package manager و lockfile تثبیت‌شدهٔ همان pipeline استفاده کنید.
 
-**Env** (`frontend/.env`, see `frontend/env.example.txt`) — `KEYCLOAK_CLIENT_ID`
-(`maskanchi-frontend`), `KEYCLOAK_AUDIENCE` (`maskanchi-backend-api`),
-`NEXT_PUBLIC_TILE_URL`, `NEXT_PUBLIC_NOMINATIM_URL`, `NEXT_PUBLIC_OSM_ENABLED`.
-`NEXT_PUBLIC_AUTH_BYPASS=false` keeps the bypass off; the API server origin
-stays server-side (`API_SERVER_ORIGIN`) so it never reaches the client bundle.
+## تنظیمات و متغیرهای محیطی
 
-**Feature modules** (`frontend/src/features/`): `properties` (radar، جزییات
-ملک، ویزارد ثبت ۳-مرحله‌ای) · `crm` (بورد ۵-ستونی DnD) · `map` (Leaflet) ·
-`overview` · `users` · `kanban` · `chat` · `ai-chat` · `notifications` ·
-`workspaces` · `billing` · `profile`.
+منبع مرجع نام‌ها و defaultها، `/.env.example` و `app/core/config.py` است. فایل `.env` محلی محرمانه است و نباید commit شود. تنظیمات با Pydantic Settings بارگذاری می‌شوند؛ نام متغیرهای محیطی به حروف کوچک/بزرگ حساس نیست. برخی secretها از فایل Docker secret نیز خوانده می‌شوند.
 
-Data fetching follows a strict layer per feature: `api/types.ts` →
-`api/service.ts` → `api/queries.ts`, with React Query + `nuqs` for URL state.
-Icons are centralised in `src/components/icons.tsx` — never import a tabler
-icon directly.
+مواردی که در هر محیط باید هماهنگ باشند:
 
-## Commercial license lifecycle
+| دسته | نمونه/ملاحظه |
+|---|---|
+| توپولوژی | `NODE_MODE=LOCAL` یا `CLOUD_HUB` |
+| پایگاه داده | `DATABASE_URL`؛ داخل Compose باید hostname سرویس DB را استفاده کند، نه `localhost` |
+| هویت | `AUTH_MODE`، `KEYCLOAK_ISSUER` و تنظیمات audience/client؛ issuer باید دقیقاً با issuer داخل token یکی باشد |
+| فرانت‌اند | `NEXT_PUBLIC_KEYCLOAK_ISSUER` و URLهای عمومی لازم؛ مقادیر `NEXT_PUBLIC_*` در build مرورگر قابل مشاهده‌اند و secret نیستند |
+| کش | `REDIS_URL` و رمز Redis در محیط تولید |
+| داده/کلیدها | مسیرهای `DATA_DIR`، رسانه، فایل لایسنس و کلید عمومی/خصوصی مطابق تنظیمات |
+| جمع‌آوری | پرچم‌ها و پارامترهای scraper؛ زمان‌بند با تنظیمات خودش فعال می‌شود و به‌طور پیش‌فرض نباید فرض کرد فعال است |
+| پیامک | provider و secretهای gateway/HMAC؛ در Compose محلی Fake SMS صریحاً برای توسعه تنظیم شده است، نه ارسال واقعی |
+| نقشه | URL tile server و تنظیمات سرویس مکان؛ OSM/Nominatim/Overpass ممکن است به شبکهٔ بیرونی نیاز داشته باشند |
 
-The node is bound to physical hardware (`motherboard serial + CPU + MAC + machine-id`).
-Licenses are **signed offline** with RSA-4096 and verified locally against an
-embedded public key — no network round-trip is needed to boot the office.
+مقادیر نمونهٔ `.env.example` را در تولید به‌عنوان رمز قابل‌استفاده تلقی نکنید. همهٔ رمزها، secretهای OIDC/HMAC و کلیدهای رمزنگاری باید یکتا، قوی و خارج از Git نگهداری شوند.
+
+## API و احراز هویت
+
+- برنامه در `app/main.py` ساخته می‌شود و API نسخهٔ یک زیر پیشوند `/api/v1` ثبت شده است.
+- مسیرهای health، registration و auth در routerهای جداگانه‌اند؛ بیشتر APIهای عملیاتی زیر `private_router` قرار دارند و به principal معتبر و مجوز API نیاز دارند.
+- مدیریت کاربران Keycloak علاوه بر احراز هویت به نقش مدیریتی محدود شده است.
+- مسیرهای دامنه در `app/api/v1/endpoints/` پیاده‌سازی شده‌اند؛ از جمله properties، CRM، matching، scraper، GIS، billing، network، statistics، users، preferences و license.
+- `app/main.py`، به‌صورت عمدی، OpenAPI/Swagger URL عمومی را غیرفعال می‌کند (`openapi_url=None`, `docs_url=None`). برای کشف قرارداد، router/schemaهای کد و تست‌ها مرجع‌اند؛ در محیط توسعه هم docs بدون تغییر صریح پیکربندی در دسترس نیست.
+- health endpoint برای healthcheck کانتینر استفاده می‌شود؛ مسیر دقیق آن را در `app/api/v1/endpoints/health.py` و Compose بررسی کنید.
+- frontend دارای route واسط در `frontend/src/app/backend/api/v1/[...path]/route.ts` است؛ URL عمومی API و proxy را از تنظیمات همان کد و `.env.example` هماهنگ کنید.
+
+برای درخواست‌های محافظت‌شده، token صادرشده از realm صحیح Keycloak و نقش/permission مجاز لازم است. CORS و اعتبارسنجی issuer را برای دامنهٔ واقعی deployment تنظیم کنید؛ بازکردن CORS عمومی در محیط production توصیه نمی‌شود.
+
+## داده، migration و پشتیبان‌گیری
+
+- اتصال async در `app/db/session.py` ساخته می‌شود؛ مدل‌ها SQLModel/SQLAlchemy هستند.
+- migrationها با Alembic نگهداری می‌شوند. برای اعمال تغییرات:
+
+  ```bash
+  .venv/bin/alembic upgrade head
+  ```
+
+- در Compose تولید، migration پیش از اجرای Uvicorn در command سرویس backend اجرا می‌شود. برای چند replica یا تغییرهای ناسازگار، اجرای migration را به فرایند کنترل‌شدهٔ deployment بسپارید.
+- DB اصلی املاک و DB مستقل Keycloak دو volume/schema مجزا دارند؛ برای بازیابی کامل، هر دو را همراه با داده‌های رسانه، فایل لایسنس و کلیدهای مورد نیاز پشتیبان بگیرید.
+- رسانه، فایل‌های runtime، کلیدها و برخی داده‌ها زیر مسیرهای دادهٔ قابل تنظیم ذخیره می‌شوند؛ همهٔ آن‌ها الزاماً داخل PostgreSQL نیستند.
+- پیش از restore/upgrade، نسخهٔ پشتیبان را در محیط جداگانه آزمایش کنید. حذف volume با `down -v` جایگزین backup نیست.
+
+## ماژول‌های دامنه
+
+- **املاک و PII:** مشخصات ملک از اطلاعات تماس/مالک جدا نگهداری می‌شود؛ دسترسی به دادهٔ حساس، سهمیه و audit مسیرهای مستقلی دارند.
+- **CRM:** leadها، pipeline/board، برنامه‌ریزی بازدید و عملیات کاربرمحور در service و endpointهای CRM.
+- **Matching:** تطبیق تقاضای مشتری و فایل ملک با محاسبات قطعی و قابلیت‌های مکانی؛ persistence در مدل‌های matching.
+- **ارزش‌گذاری (AVM):** برآورد deterministic متکی به داده‌های comparable و سابقهٔ قیمت؛ مسیر فعلی AI به‌صورت stub است و نباید آن را inference واقعی ML تلقی کرد.
+- **Scraper و ingestion:** adapterهای منبع در `app/services/scraper/` و pipeline پاک‌سازی/تشخیص تکرار در `app/services/ingestion/`. اجرا و زمان‌بندی به تنظیمات محیط وابسته است؛ قوانین سایت منبع و شرایط قانونی را رعایت کنید.
+- **GIS:** مسیرهای GIS و سرویس‌های OSM در `app/services/`; دادهٔ استان/شهر از submodule داخلی `services/iran-locations-api` مصرف می‌شود. سرویس مکان در Compose محلی پورت host ندارد.
+- **شبکه و billing:** همکاری دفترها، گزارش‌ها و صورت‌حساب در مدل‌ها/سرویس‌های مستقل.
+- **لایسنس:** ابزار CLI در `app/cli/license_tool.py` و منطق اعتبارسنجی/وضعیت در `app/core/licensing.py` و سرویس لایسنس.
+
+برای جزئیات دقیق قواعد کسب‌وکار، فایل‌های service، schema، endpoint و تست متناظر را مرجع قرار دهید؛ این بخش نمای کلی است، نه قرارداد جامع دامنه.
+
+## فرانت‌اند
+
+فرانت‌اند در `frontend/` با Next.js App Router ساخته شده است. صفحات اصلی داشبورد در `frontend/src/app/dashboard/` و قابلیت‌ها/کامپوننت‌ها در `frontend/src/features/` و `frontend/src/components/` قرار دارند. `frontend/AGENTS.md` راهنمای داخلی ساختار و conventionهای UI است.
+
+احراز هویت وب در `frontend/src/lib/auth/` و `frontend/src/proxy.ts` قرار دارد؛ endpointهای Auth.js، logout و proxy backend را در `frontend/src/app/api/` و `frontend/src/app/backend/` می‌یابید. تنظیم URL عمومی Keycloak در build فرانت‌اند اهمیت دارد. از درج secret در متغیرهای `NEXT_PUBLIC_*` خودداری کنید.
+
+برای توسعه و اعتبارسنجی:
 
 ```bash
-# 1) On the office node — print its fingerprint hash
-python -m app.cli.license_tool fingerprint
-
-# 2) On the hub — sign a license bound to that fingerprint
-python -m app.cli.license_tool issue \
-    --agency "املاک آفتاب" \
-    --fingerprint "<hash>" \
-    --days 365 --max-users 10 \
-    --out node.lic
-
-# 3) On the office node — install + verify
-python -m app.cli.license_tool install node.lic
-python -m app.cli.license_tool verify
+cd frontend
+bun run typecheck
+bun run lint
+bun run test
+bun run build
 ```
 
-Statuses (`LicenseStatus`): `ACTIVE`, `GRACE_PERIOD`, `OFFLINE_GRACE_EXPIRED`,
-`EXPIRED`, `LOCKED_HARDWARE_MISMATCH`, `NOT_INSTALLED`, `INVALID_SIGNATURE`.
-Default offline grace period: **14 days** (`OFFLINE_GRACE_DAYS`).
+برای تغییر تم/لوگوی فرانت‌اند که داخل image بسته‌بندی شده، image را دوباره build کنید. تم Keycloak در Compose از mount جداگانه می‌آید؛ روش اعمال تغییرات آن متفاوت است.
 
----
+## Keycloak و افزونهٔ SMS/OTP
 
-## Security model
+- realm export و تم ورود در `keycloak/` نگهداری می‌شوند. Compose محلی Keycloak را با دیتابیس اختصاصی و Redis اجرا می‌کند.
+- افزونهٔ Java در `keycloak-shekarchi-sms/` است؛ README همان ماژول راهنمای build و نصب است. تغییر فایل‌های این ماژول الزاماً به معنی تغییر image/runtime نیست: image Keycloak باید با Dockerfile و فرایند deployment مربوطه دوباره ساخته شود.
+- آزمون Java:
 
-- **PII vault** — owner name/phone/address/pelak are encrypted with `cryptography.Fernet`
-  using a per-agency key that never leaves the machine (`app/core/crypto.py`).
-  Deterministic HMAC *blind indexes* allow exact-match search without decryption.
-  A phone number is never stored or logged in plain text — only the encrypted
-  value plus its blind index (`encrypted_contact_phone` + `blind_index_phone`).
-- **Access logs** — every owner-PII access is recorded in `owner_access_log`.
-- **PII quota** — per-agency daily reveal budget enforced through `pii_quota`,
-  with the reveal-contact path rate-limited on top of the audit row.
-- **MLS masking** — shared listings strip all owner fields and fuzz coordinates to a
-  ~300 m radius (`app/services/mls_masking.py`).
-- **RBAC** — seven-role ladder (`app/models/enums.py`); Keycloak realm roles map
-  through `KEYCLOAK_ROLE_MAP`, highest tier wins, unknown roles are untrusted.
-- **Passwords** — `scrypt` (stdlib); API tokens via JWT (HS256, `JWT_SECRET`).
+  ```bash
+  cd keycloak-shekarchi-sms
+  mvn test
+  ```
 
-Two architectural invariants that must not regress: `visit_date` never exists as
-a column/schema/payload — a visit time lives only as a `LeadInteraction` of type
-`VISIT_EVENT`; and a WebSocket never carries PII.
+- فایل realm export ممکن است شامل تنظیمات حساس یا دادهٔ قابل‌سوءاستفاده باشد؛ قبل از انتشار/تغییر آن، secretها و credentialهای exportشده را بازبینی کنید. در تولید، از حساب‌های bootstrap پیش‌فرض یا fake SMS استفاده نکنید.
 
-## Deterministic matching engine
+## تست و کنترل کیفیت
 
-Weighted, bounded score `Score = 0.40·S_geo + 0.35·S_price + 0.25·S_specs`
-(`app/services/matching_engine.py`), designed for < 30 ms offline runs using
-PostGIS `ST_Contains` / `ST_Distance` with GiST indexes. Persisted matches live
-in `property_match` (`app/services/matching_repository.py`).
-
-## Valuation / AVM
-
-Deterministic price model with neighbourhood comparables and price-history
-trend (`app/services/valuation.py`, `property_price_history`,
-`property_report`). No ML inference — the AI engine is stubbed by design
-(`FEATURE_FLAG_AI_ENGINE=false`) so every valuation is reproducible offline.
-
-## Scrapers and ingestion
-
-Multi-source listing ingestion (`app/services/scraper/`): **Divar**, **Sheypoor**
-and **Delta**, each with its own client + parser + taxonomy, registered in
-`registry.py` and driven by `scraper_scheduler.py`. The ingestion pipeline
-(`app/services/ingestion/`) sanitises, then deduplicates with a spatial
-Haversine score (merge threshold `0.78`) before a listing ever touches the DB.
-
-Source precedence is fixed: مستقیم مالک (100) > دفتر (80) > اسکرپ (40)
-(`submitter_type` on `Property`).
-
-## GIS stack
-
-OpenStreetMap-only, no API key required: Nominatim (geocoding), Overpass (POI),
-and the self-hosted raster tile server on `:8081`. Province/city cascades read
-the internal `iran_locations` service first and fall back to the inventory when
-it is down. `geo_cache` / `poi_cache` keep repeat lookups off the network.
-
-## Tests
+Python:
 
 ```bash
 .venv/bin/python -m pytest -q
-# 357 tests collected
+make lint
 ```
 
-Integration tests (PostGIS spatial queries, license persistence, matching
-persistence) run automatically when a migrated database is reachable and are
-skipped otherwise. `make test` runs the same suite.
+فرانت‌اند و Keycloak در بخش‌های خود دستورهای test/typecheck/lint دارند. تست‌های integration پایگاه داده و PostGIS به سرویس و schema آماده وابسته‌اند؛ اگر dependency موجود نباشد ممکن است تست مربوطه skip شود. پیش از نتیجه‌گیری دربارهٔ وضعیت integration، خروجی pytest را بررسی کنید.
 
-## Phase map
+برای تست‌های واقعی محیط، سرویس‌های لازم را بالا بیاورید، migration را اعمال کنید و secret/URLهای test-only را جدا نگه دارید. تستی که صرفاً pass می‌شود، به‌تنهایی سلامت deployment، دسترسی Git submodule، ارسال SMS واقعی یا صحت تنظیمات production را ثابت نمی‌کند.
 
-| Phase | Focus | Status |
-| :--- | :--- | :--- |
-| 1 | Scaffolding, PostGIS, license lock, PII crypto, Alembic | ✅ done |
-| 2 | Scraper hybrid — Divar/Sheypoor/Delta ingestion, dedup, sync outbox | ✅ done |
-| 3 | Matching engine, valuation/AVM, media vault, MLS masking, POI/GIS | ✅ done |
-| 4 | Next.js 16 office workspace, Keycloak login, LAN access, OSM map | ✅ done |
-| 5 | CRM 5-column board, PII quota + audit, visit bookings, user directory | ✅ done |
-| 6 | Keycloak wire-up hardening, interactive map picker, theme polish | ⏳ see `docs/FINAL_PHASE_PLAN.md` |
+## استقرار تولید
+
+`docker-compose.prod.yml` الگوی استقرار با شبکه‌های `internal` و `edge` و volumeهای پایدار است؛ پیش از استفاده، آن را با reverse proxy، TLS، DNS، secret manager و سیاست شبکهٔ محیط مقصد تطبیق دهید. این فایل به‌تنهایی reverse proxy/TLS یا مدیریت secretها را فراهم نمی‌کند.
+
+چک‌لیست حداقلی:
+
+1. همهٔ placeholderها را با secretهای مستقل و قوی جایگزین کنید؛ `.env` تولید را commit نکنید.
+2. `KEYCLOAK_PUBLIC_URL`/`KEYCLOAK_ISSUER` و `NEXT_PUBLIC_KEYCLOAK_ISSUER` را با URL قابل دسترس مرورگر و claim واقعی `iss` تطبیق دهید.
+3. redirect URIها، CORS، cookie/HTTPS و تنظیمات proxy را برای hostname واقعی تنظیم و OIDC login/logout را آزمایش کنید.
+4. fake SMS را خاموش کنید، provider واقعی را فقط با تأیید عملیاتی فعال کنید و secretهای HMAC/provider را امن provision کنید.
+5. submoduleها و imageها را از revision مشخص و قابل دسترسی build کنید؛ وضعیت Keycloak توسعه و تولید ممکن است متفاوت باشد.
+6. backup/restore هر دو PostgreSQL، Redis در صورت نیاز عملیاتی، رسانه، کلیدها و license runtime را آزمایش کنید.
+7. rollout migration، healthcheckها، logها، rollback و کنترل دسترسی endpointهای مدیریتی را بررسی کنید.
+
+## امنیت و عیب‌یابی
+
+- **401 یا issuer نامعتبر:** مقدار `KEYCLOAK_ISSUER` باید با `iss` توکن دقیقاً برابر باشد؛ hostname و scheme داخل/خارج proxy را بررسی کنید.
+- **ورود loop یا cookie/session نامعتبر:** URL عمومی HTTPS، hostname/forwarded headers، callback و cookieهای Auth.js را در proxy و Keycloak تطبیق دهید.
+- **API از فرانت‌اند قابل دسترسی نیست:** proxy route، base URL، شبکهٔ Docker، CORS و health backend را بررسی کنید؛ از `localhost` داخل کانتینر برای سرویس دیگر استفاده نکنید.
+- **لیست استان/شهر خالی است:** وضعیت submodule، build سرویس `iran_locations`، دسترسی شبکهٔ داخلی و logهای backend را بررسی کنید.
+- **مهاجرت شکست خورده:** اتصال DB، PostGIS، وضعیت revision Alembic و logهای backend را بررسی کنید؛ migration را روی دادهٔ تنها نسخهٔ موجود آزمایشی نکنید.
+- **OTP/SMS کار نمی‌کند:** وضعیت Redis، flow و provider انتخاب‌شده، secretهای HMAC، تنظیمات realm و تفاوت fake محلی/real تولید را بررسی کنید. پاسخ سرویس را بی‌دلیل با ارسال‌های مکرر واقعی آزمایش نکنید.
+- **scraper اجرا نمی‌شود:** feature flag، scheduler، license، source registry و log سرویس را بررسی کنید؛ اجرای خودکار در حالت خاموش طبیعی است.
+
+داده‌های PII، token، secret، OTP، headerهای Authorization و محتوای `.env` را در log یا issue عمومی قرار ندهید.
+
+## محدودیت مستند
+
+README نقشهٔ راه‌اندازی و معماری کد را خلاصه می‌کند. پیکربندی مؤثر هر محیط می‌تواند به‌واسطهٔ `.env`، Compose override، secretها، وضعیت volume و نسخهٔ submodule با این توصیف فرق کند. در تعارض، فایل اجرایی محیط، کد runtime و خروجی health/log مرجع نهایی‌اند. تغییرات runtime و داده‌های خارج Git را نیز جداگانه بررسی کنید.
 
 ---
 
-## Branding
-
-Site logo and favicon live in `frontend/public/brand/` (`logo.png`,
-`logo-light.png`, `logo-dark.png`, `icon.png`), consumed by
-`frontend/src/components/brand/logo.tsx` per resolved theme. The Keycloak login
-logo is `keycloak/themes/shekarchi/login/resources/img/logo.png`. Because
-`public/` is baked into the frontend image, a logo change requires
-`docker compose build frontend`; the Keycloak theme is bind-mounted with theme
-cache off, so its logo applies on refresh.
-
----
-
-© AVG — گروه چشم‌انداز اوج فردا · `avgcrm.com` · `avgcrm.ir`
-# realstate
+© AVG — گروه چشم‌انداز اوج فردا
