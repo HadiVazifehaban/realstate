@@ -19,6 +19,7 @@ from app.models.enums import PaymentOrderStatus, PaymentReviewDecision
 from app.services import billing
 
 router = APIRouter()
+public_router = APIRouter()
 financial_router = APIRouter(dependencies=[Depends(require_financial_admin)])
 
 
@@ -90,7 +91,7 @@ async def _order_detail(session: SessionDep, order: PaymentOrder, settings: Sett
     return {**billing.payment_order_public(order, settings=settings), "receipt": _receipt_metadata(receipt)}
 
 
-@router.get("/plans")
+@public_router.get("/plans")
 async def get_plans() -> dict:
     return {"plans": [billing.public_plan(plan) for plan in billing.PLANS.values()]}
 

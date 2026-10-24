@@ -6,6 +6,33 @@ from app.core.config import AuthMode, Settings, get_settings
 
 
 @pytest.mark.asyncio
+async def test_plan_catalog_is_public_but_payment_and_account_routes_are_private():
+    from fastapi import FastAPI
+    from app.api.v1.router import api_router
+    from app.services import billing
+
+    application = FastAPI()
+    application.include_router(api_router, prefix="/api/v1")
+    application.dependency_overrides[get_settings] = lambda: Settings(
+        auth_mode=AuthMode.KEYCLOAK, keycloak_issuer="https://id.example/realms/test"
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=application), base_url="http://test"
+    ) as client:
+        response = await client.get("/api/v1/billing/plans")
+        assert response.status_code == 200
+        assert response.json() == {"plans": [billing.public_plan(plan) for plan in billing.PLANS.values()]}
+        for method, path, payload in [
+            ("GET", "/api/v1/billing/orders", None),
+            ("GET", "/api/v1/billing/subscriptions/current", None),
+            ("POST", "/api/v1/billing/orders", {"plan_id": "monthly"}),
+        ]:
+            result = await client.request(method, path, json=payload)
+            assert result.status_code == 401, (path, result.text)
+        assert (await client.post("/api/v1/billing/plans", json={})).status_code == 405
+
+
+@pytest.mark.asyncio
 async def test_property_reads_and_writes_always_require_identity(monkeypatch):
     from types import SimpleNamespace
     from unittest.mock import AsyncMock

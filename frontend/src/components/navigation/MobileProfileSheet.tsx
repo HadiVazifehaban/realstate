@@ -72,26 +72,26 @@ function MenuLink({ item, onNavigate }: { item: MenuEntry; onNavigate: () => voi
   const Icon = item.icon;
   const content = (
     <>
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[#ffd8be]/10 bg-white/[0.035] text-[#ffd8be] transition-colors group-hover:border-[#ffd8be]/25 group-hover:bg-[#ffd8be]/10">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/10 bg-foreground/[0.035] text-primary transition-colors group-hover:border-primary/25 group-hover:bg-[var(--brand-ffd8be)]/10">
         <Icon className="size-5" aria-hidden />
       </span>
       <span className="min-w-0 flex-1 text-right">
-        <span className="flex items-center gap-2 text-sm font-semibold text-white">
+        <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <span>{item.title}</span>
           {item.soon && (
-            <span className="rounded-full border border-[#e5a87b]/20 bg-[#e5a87b]/10 px-2 py-0.5 text-[10px] font-medium text-[#e5a87b]">
+            <span className="rounded-full border border-primary/20 bg-[var(--brand-e5a87b)]/10 px-2 py-0.5 text-[10px] font-medium text-primary">
               به‌زودی
             </span>
           )}
         </span>
-        <span className="mt-0.5 block truncate text-xs leading-5 text-white/50">
+        <span className="mt-0.5 block truncate text-xs leading-5 text-foreground/50">
           {item.description}
         </span>
       </span>
       {item.trailing ? (
-        <span className="shrink-0 text-xs font-semibold text-[#e5a87b]">{item.trailing}</span>
+        <span className="shrink-0 text-xs font-semibold text-primary">{item.trailing}</span>
       ) : (
-        <Icons.chevronLeft className="size-4 shrink-0 text-white/30" aria-hidden />
+        <Icons.chevronLeft className="size-4 shrink-0 text-foreground/30" aria-hidden />
       )}
     </>
   );
@@ -112,7 +112,7 @@ function MenuLink({ item, onNavigate }: { item: MenuEntry; onNavigate: () => voi
     <Link
       href={item.href}
       onClick={onNavigate}
-      className="group flex min-h-[52px] touch-manipulation items-center gap-3 rounded-2xl px-3 py-2 outline-none transition-[background-color,transform] active:scale-[0.985] active:bg-white/[0.07] hover:bg-white/[0.045] focus-visible:ring-2 focus-visible:ring-[#ffd8be]/70"
+      className="group flex min-h-[52px] touch-manipulation items-center gap-3 rounded-2xl px-3 py-2 outline-none transition-[background-color,transform] active:scale-[0.985] active:bg-foreground/[0.07] hover:bg-foreground/[0.045] focus-visible:ring-2 focus-visible:ring-[var(--brand-ffd8be)]/70"
     >
       {content}
     </Link>
@@ -158,34 +158,34 @@ function QuotaWidget({
   return (
     <section
       aria-label="سهمیه‌های اشتراک"
-      className="rounded-2xl border border-[#ffd8be]/12 bg-white/[0.035] p-3.5 shadow-[inset_0_1px_0_rgba(255,216,190,0.04)]"
+      className="rounded-2xl border border-primary/12 bg-foreground/[0.035] p-3.5 shadow-[inset_0_1px_0_rgba(255,216,190,0.04)]"
     >
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <p className="text-sm font-bold text-white">سهمیه پیشرفته</p>
-          <p className="mt-0.5 text-[11px] text-white/45">از اشتراک فعال حساب</p>
+          <p className="text-sm font-bold text-foreground">سهمیه پیشرفته</p>
+          <p className="mt-0.5 text-[11px] text-foreground/45">از اشتراک فعال حساب</p>
         </div>
-        <Icons.activity className="size-5 text-[#ffd8be]" aria-hidden />
+        <Icons.activity className="size-5 text-primary" aria-hidden />
       </div>
 
       {isPending ? (
         <div className="grid grid-cols-2 gap-2" aria-live="polite" aria-label="در حال دریافت سهمیه">
-          <div className="h-[58px] animate-pulse rounded-xl bg-white/[0.04]" />
-          <div className="h-[58px] animate-pulse rounded-xl bg-white/[0.04]" />
+          <div className="h-[58px] animate-pulse rounded-xl bg-foreground/[0.04]" />
+          <div className="h-[58px] animate-pulse rounded-xl bg-foreground/[0.04]" />
         </div>
       ) : isUnavailable ? (
-        <p className="rounded-xl bg-white/[0.03] px-3 py-2.5 text-xs leading-5 text-white/60">
+        <p className="rounded-xl bg-foreground/[0.03] px-3 py-2.5 text-xs leading-5 text-foreground/60">
           سهمیه برای این روش ورود در دسترس نیست.
         </p>
       ) : isError || !subscription ? (
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
-          <p className="text-xs leading-5 text-white/60">خطا در دریافت وضعیت اشتراک</p>
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-foreground/[0.03] px-3 py-2.5">
+          <p className="text-xs leading-5 text-foreground/60">خطا در دریافت وضعیت اشتراک</p>
           <Button
             type="button"
             variant="ghost"
             size="xs"
             onClick={onRetry}
-            className="shrink-0 text-[#ffd8be] hover:bg-[#ffd8be]/10 hover:text-white"
+            className="shrink-0 text-primary hover:bg-[var(--brand-ffd8be)]/10 hover:text-foreground"
           >
             تلاش دوباره
           </Button>
@@ -195,13 +195,13 @@ function QuotaWidget({
           {metrics.map(({ label, quota, consumption, icon: Icon }) => (
             <div
               key={label}
-              className="min-w-0 rounded-xl border border-white/[0.06] bg-[#060b13]/45 px-2.5 py-2"
+              className="min-w-0 rounded-xl border border-foreground/[0.06] bg-background/45 px-2.5 py-2"
             >
-              <div className="flex items-center gap-1.5 text-[10px] leading-4 text-[#ffd8be]">
-                <Icon className="size-3.5 shrink-0 text-[#e5a87b]" aria-hidden />
+              <div className="flex items-center gap-1.5 text-[10px] leading-4 text-primary">
+                <Icon className="size-3.5 shrink-0 text-primary" aria-hidden />
                 <span className="truncate">{quota}</span>
               </div>
-              <p className="mt-1 text-[10px] leading-4 text-white/45" dir="rtl">
+              <p className="mt-1 text-[10px] leading-4 text-foreground/45" dir="rtl">
                 {consumption}
               </p>
             </div>
@@ -212,7 +212,7 @@ function QuotaWidget({
       <Link
         href="/dashboard/billing"
         onClick={onNavigate}
-        className="mt-3 inline-flex min-h-8 items-center gap-1 text-xs font-semibold text-[#e5a87b] outline-none transition-colors hover:text-[#ffd8be] focus-visible:underline"
+        className="mt-3 inline-flex min-h-8 items-center gap-1 text-xs font-semibold text-primary outline-none transition-colors hover:text-primary focus-visible:underline"
       >
         مشاهده جزئیات مصرف
         <Icons.chevronLeft className="size-3.5" aria-hidden />
@@ -247,6 +247,12 @@ export function MobileProfileSheet({
   };
 
   const primaryItems: MenuEntry[] = [
+    {
+      title: "رادار شکار قیمت",
+      description: "مشاهده و جستجوی آگهی‌های املاک",
+      href: "/dashboard/properties",
+      icon: Icons.crosshair
+    },
     {
       title: "سهمیه پیشرفته",
       description: "مدیریت تعداد آگهی‌ها و پیامک‌های رادار",
@@ -308,14 +314,14 @@ export function MobileProfileSheet({
             type="button"
             variant="ghost"
             aria-label="بازکردن منوی پروفایل"
-            className="relative size-10 rounded-full border border-[#ffd8be]/15 bg-white/[0.025] p-0 transition hover:border-[#ffd8be]/35 hover:bg-[#ffd8be]/10 focus-visible:ring-2 focus-visible:ring-[#ffd8be]/70"
+            className="relative size-10 rounded-full border border-primary/15 bg-foreground/[0.025] p-0 transition hover:border-primary/35 hover:bg-[var(--brand-ffd8be)]/10 focus-visible:ring-2 focus-visible:ring-[var(--brand-ffd8be)]/70"
           />
         }
       >
-        <span className="rounded-full border border-[#ffd8be]/30 bg-[#ffd8be]/10 p-0.5">
+        <span className="rounded-full border border-primary/30 bg-[var(--brand-ffd8be)]/10 p-0.5">
           <Avatar className="size-8">
             <AvatarImage src={user.imageUrl || ""} alt={user.fullName || "پروفایل کاربر"} />
-            <AvatarFallback className="bg-[#131b27] text-[#ffd8be]">
+            <AvatarFallback className="bg-[var(--brand-131b27)] text-primary">
               <Icons.user2 className="size-5" aria-hidden />
             </AvatarFallback>
           </Avatar>
@@ -323,36 +329,36 @@ export function MobileProfileSheet({
       </DrawerTrigger>
 
       <DrawerContent
-        overlayClassName="bg-[#060b13]/80 backdrop-blur-md"
-        className="max-h-[92dvh] rounded-t-[28px] border-x border-t border-[#ffd8be]/20 bg-gradient-to-b from-[#0e1622]/95 via-[#0a1019]/95 to-[#060b13]/[0.98] p-0 text-white shadow-[0_-20px_50px_rgba(0,0,0,0.8)] backdrop-blur-md supports-[backdrop-filter]:bg-[#060b13]/90 supports-[backdrop-filter]:backdrop-blur-2xl"
+        overlayClassName="bg-background/80 backdrop-blur-md"
+        className="max-h-[92dvh] rounded-t-[28px] border-x border-t border-primary/20 bg-gradient-to-b from-[var(--brand-0e1622)]/95 via-[var(--brand-0a1019)]/95 to-[var(--brand-060b13)]/[0.98] p-0 text-foreground shadow-[0_-20px_50px_rgba(0,0,0,0.8)] backdrop-blur-md supports-[backdrop-filter]:bg-background/90 supports-[backdrop-filter]:backdrop-blur-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <DrawerSwipeHandle className="mx-auto mt-3 mb-1 h-4 w-12 touch-pan-x after:!h-1.5 after:!w-12 after:!rounded-full after:!bg-[#ffd8be]/30" />
+        <DrawerSwipeHandle className="mx-auto mt-3 mb-1 h-4 w-12 touch-pan-x after:!h-1.5 after:!w-12 after:!rounded-full after:!bg-[var(--brand-ffd8be)]/30" />
         <DrawerTitle className="sr-only">منوی حساب کاربری</DrawerTitle>
         <DrawerDescription className="sr-only">اطلاعات حساب، اشتراک و تنظیمات</DrawerDescription>
 
         <DrawerHeader dir="rtl" className="px-4 pb-3 pt-0 text-right sm:px-5">
-          <div className="flex items-center gap-3 rounded-2xl border border-[#ffd8be]/12 bg-white/[0.035] p-3.5">
-            <div className="shrink-0 rounded-full border border-[#ffd8be]/30 bg-[#ffd8be]/10 p-1.5">
+          <div className="flex items-center gap-3 rounded-2xl border border-primary/12 bg-foreground/[0.035] p-3.5">
+            <div className="shrink-0 rounded-full border border-primary/30 bg-[var(--brand-ffd8be)]/10 p-1.5">
               <Avatar className="size-12">
                 <AvatarImage src={user.imageUrl || ""} alt={user.fullName || "پروفایل کاربر"} />
-                <AvatarFallback className="bg-[#131b27] text-[#ffd8be]">
+                <AvatarFallback className="bg-[var(--brand-131b27)] text-primary">
                   <Icons.user2 className="size-7" aria-hidden />
                 </AvatarFallback>
               </Avatar>
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-bold text-white">
+              <p className="truncate text-base font-bold text-foreground">
                 {user.fullName || "کاربر شکارچی"}
               </p>
               <p
-                className="mt-1 truncate text-sm font-semibold tabular-nums text-white/80"
+                className="mt-1 truncate text-sm font-semibold tabular-nums text-foreground/80"
                 dir="rtl"
               >
                 {phone || "شماره نامشخص"}
               </p>
             </div>
-            <span className="max-w-28 shrink-0 rounded-full border border-[#e5a87b]/25 bg-[#e5a87b]/10 px-2.5 py-1 text-center text-[10px] font-semibold leading-4 text-[#e5a87b]">
+            <span className="max-w-28 shrink-0 rounded-full border border-primary/25 bg-[var(--brand-e5a87b)]/10 px-2.5 py-1 text-center text-[10px] font-semibold leading-4 text-primary">
               {formatPersianDigits(
                 subscriptionQuery.data?.title ??
                   (KEYCLOAK_ENABLED && subscriptionQuery.isPending
@@ -367,7 +373,7 @@ export function MobileProfileSheet({
                   variant="ghost"
                   size="icon-sm"
                   aria-label="بستن منوی حساب"
-                  className="shrink-0 text-white/55 hover:bg-white/10 hover:text-white"
+                  className="shrink-0 text-foreground/55 hover:bg-foreground/10 hover:text-foreground"
                 />
               }
             >
@@ -392,7 +398,7 @@ export function MobileProfileSheet({
             ))}
           </nav>
 
-          <div className="my-3 border-t border-white/10" />
+          <div className="my-3 border-t border-foreground/10" />
 
           <nav aria-label="تنظیمات حساب" className="space-y-1" dir="rtl">
             {systemItems.map((item) => (
@@ -401,7 +407,7 @@ export function MobileProfileSheet({
           </nav>
         </div>
 
-        <div className="shrink-0 border-t border-white/10 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 sm:px-5">
+        <div className="shrink-0 border-t border-foreground/10 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 sm:px-5">
           <Button
             type="button"
             dir="rtl"

@@ -19,7 +19,8 @@ export function MarketLegend({
   scale,
   format,
   unit,
-  note
+  note,
+  compact = false
 }: {
   scale: MarketScale;
   format: (value: number) => string;
@@ -27,16 +28,18 @@ export function MarketLegend({
   unit: string;
   /** Optional caveat, e.g. coverage of the priced files. */
   note?: string;
+  compact?: boolean;
 }) {
   return (
     <section
       aria-label="راهنمای رنگ نقشه بازار"
-      className="border-border/60 bg-card/70 rounded-2xl border p-3 shadow-xs backdrop-blur-sm sm:p-4"
+      dir="rtl"
+      className={`border-border/60 bg-card/70 rounded-2xl border p-3 shadow-xs backdrop-blur-sm sm:p-4 ${compact ? "avm-legend-compact" : ""}`}
     >
       <header className="border-border/50 flex flex-wrap items-center justify-between gap-2 border-b pb-2.5">
         <div className="min-w-0">
           <h3 className="text-sm leading-6 font-semibold text-foreground">راهنمای رنگ</h3>
-          <p className="text-muted-foreground text-xs leading-5">شدت قیمت بر اساس واحد {unit}</p>
+          <p className="text-muted-foreground text-xs leading-5">رنگ حباب بر اساس شاخص ({unit})</p>
         </div>
 
         {scale.median !== null && (
@@ -64,6 +67,10 @@ export function MarketLegend({
           {format(scale.max)}
         </span>
       </div>
+
+      <p className="mt-2 text-[10px] leading-5 text-muted-foreground">
+        اندازهٔ حباب: تعداد فایل‌های محله
+      </p>
 
       <div className="text-muted-foreground/80 mt-1.5 flex justify-between text-[10px] leading-4 sm:hidden">
         <span>کمترین</span>

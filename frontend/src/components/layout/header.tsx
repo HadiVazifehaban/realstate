@@ -1,38 +1,29 @@
-import React from 'react';
-import { SidebarTrigger } from '../ui/sidebar';
-import { Separator } from '../ui/separator';
-import { Breadcrumbs } from '../breadcrumbs';
-import SearchInput from '../search-input';
-import { ThemeSelector } from '../themes/theme-selector';
-import { ThemeModeToggle } from '../themes/theme-mode-toggle';
-import CtaLogin from './cta-login';
-import { NotificationCenter } from '@/features/notifications/components/notification-center';
-import HeaderLocationPicker from './header-location-picker';
-import { UserNav } from './user-nav';
+import React from "react";
+import Link from "next/link";
+import { Icons } from "@/components/icons";
+import { LandingBrand } from "@/features/landing/components/brand";
+import { DashboardTopNav } from "@/features/landing/components/dashboard-top-nav";
+import { OrgSwitcher } from "../org-switcher";
+import "./dashboard-header.css";
+import { ThemeModeToggle } from "../themes/theme-mode-toggle";
+import CtaLogin from "./cta-login";
+import { UserNav } from "./user-nav";
 
 export default function Header() {
   return (
-    <header className='bg-background/80 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-4 px-4 backdrop-blur-md border-b border-border/50 md:h-14 md:px-6'>
-      {/* بخش راست: سایدبار و مسیر ناوبری */}
-      <div className='flex items-center gap-3'>
-        <SidebarTrigger className='-ms-1 hidden md:inline-flex' />
-        <Separator orientation='vertical' className='hidden h-6 md:block' />
-        <Breadcrumbs />
-      </div>
-
-      {/* بخش چپ: ابزارها */}
-      <div className='flex items-center gap-2 md:gap-3'>
-        <HeaderLocationPicker />
-        <div className='hidden lg:flex'>
-          <SearchInput />
+    <header className="dashboard-top-header" dir="rtl">
+      <div className="dashboard-header-primary">
+        <LandingBrand dashboard header />
+        <DashboardTopNav />
+        <div className="dashboard-header-utilities">
+          <OrgSwitcher />
+          <Link className="dashboard-submit" href="/dashboard/properties/submit">
+            <Icons.plusCircle size={18} aria-hidden /> <span>ثبت ملک</span>
+          </Link>
+          <ThemeModeToggle />
+          <CtaLogin />
+          <UserNav />
         </div>
-        <ThemeModeToggle />
-        <div className='hidden sm:block'>
-          <ThemeSelector />
-        </div>
-        <CtaLogin />
-        <UserNav />
-        <NotificationCenter />
       </div>
     </header>
   );

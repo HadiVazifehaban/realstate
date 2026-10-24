@@ -23,6 +23,7 @@ from app.api.v1.endpoints import (
     properties,
     scraper,
     statistics,
+    social_links,
     users,
 )
 
@@ -32,6 +33,12 @@ from app.api.v1.endpoints import (
 API_GUARD = [Depends(get_principal)]
 
 api_router = APIRouter()
+api_router.include_router(billing.public_router, prefix="/billing", tags=["billing-catalog"])
+api_router.include_router(social_links.public_router, prefix="/site", tags=["site"])
+# Own role guard permits super_admin without granting it unrelated admin powers.
+api_router.include_router(
+    social_links.admin_router, prefix="/admin/social-links", tags=["site-admin"]
+)
 api_router.include_router(health.router, tags=["health"])
 
 # The phone-verification registration endpoints are the only non-Keycloak API

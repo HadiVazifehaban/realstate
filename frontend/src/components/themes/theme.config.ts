@@ -1,48 +1,10 @@
-/**
- * Default theme that loads when no user preference is set
- * Change this value to set a different default theme
- */
-export const DEFAULT_THEME = 'vercel';
-
+export const DEFAULT_THEME = "dark";
 export const THEMES = [
-  {
-    name: 'Claude',
-    value: 'claude'
-  },
-  {
-    name: 'Discord',
-    value: 'discord'
-  },
-  {
-    name: 'Supabase',
-    value: 'supabase'
-  },
-  {
-    name: 'Vercel',
-    value: 'vercel'
-  },
-  {
-    name: 'Mono',
-    value: 'mono'
-  },
-  {
-    name: 'Notebook',
-    value: 'notebook'
-  },
-  {
-    name: 'Light Green',
-    value: 'light-green'
-  },
-  {
-    name: 'Zen',
-    value: 'zen'
-  },
-  {
-    name: 'Astro Vista',
-    value: 'astro-vista'
-  },
-  {
-    name: 'WhatsApp',
-    value: 'whatsapp'
-  }
+  { name: "تاریک — شکارچی", value: "dark" },
+  { name: "روشن — Cloud", value: "light" }
 ];
+export function normalizeTheme(value: string | undefined, systemDark = true) {
+  if (value === "light" || value === "dark") return value;
+  if (value === "system") return systemDark ? "dark" : "light";
+  return DEFAULT_THEME;
+}

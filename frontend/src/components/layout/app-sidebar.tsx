@@ -28,16 +28,14 @@ import {
 
 import { Logo } from "@/components/brand/logo";
 import { Badge } from "@/components/ui/badge";
-import { UserAvatarProfile } from "@/components/user-avatar-profile";
 import { navGroups } from "@/config/nav-config";
-import { useAuthOrganization, useAuthSignOut, useAuthUser } from "@/hooks/use-auth";
+import { UserNav } from "./user-nav";
 import { useFilteredNavGroups } from "@/hooks/use-nav";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
-import { Fragment } from "react";
 import { Icons } from "../icons";
 import { OrgSwitcher } from "../org-switcher";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -62,9 +60,6 @@ export default function AppSidebar() {
 
   const { state } = useSidebar();
 
-  const user = useAuthUser();
-  const organization = useAuthOrganization();
-  const signOut = useAuthSignOut();
   const filteredGroups = useFilteredNavGroups(navGroups);
 
   const isCollapsed = state === "collapsed";
@@ -98,9 +93,9 @@ export default function AppSidebar() {
       <ErrorBoundary>
         <SidebarHeader className="gap-0 p-0">
           <Link
-            href="/dashboard/overview"
-            aria-label="شکارچی — داشبورد"
-            title={isCollapsed ? "شکارچی — داشبورد" : undefined}
+            href="/dashboard"
+            aria-label="شکارچی — صفحهٔ اصلی"
+            title={isCollapsed ? "شکارچی — صفحهٔ اصلی" : undefined}
             className="flex w-full shrink-0 items-center justify-center overflow-visible px-0 py-6 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           >
             <Logo
@@ -120,7 +115,9 @@ export default function AppSidebar() {
               <SidebarMenu>
                 {group.items.map((item) => {
                   const IconComponent = item.icon
-                    ? ((Icons[item.icon] as React.ComponentType<{ className?: string }> | undefined) ?? Icons.logo)
+                    ? ((Icons[item.icon] as
+                        | React.ComponentType<{ className?: string }>
+                        | undefined) ?? Icons.logo)
                     : Icons.logo;
 
                   const hasChildren = Boolean(item.items && item.items.length > 0);
@@ -145,7 +142,9 @@ export default function AppSidebar() {
                         <SidebarMenuItem key={item.title}>
                           <DropdownMenu>
                             <DropdownMenuTrigger
-                              render={<SidebarMenuButton tooltip={item.title} isActive={isItemActive} />}
+                              render={
+                                <SidebarMenuButton tooltip={item.title} isActive={isItemActive} />
+                              }
                             >
                               <IconComponent className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
                             </DropdownMenuTrigger>
@@ -154,7 +153,9 @@ export default function AppSidebar() {
                               <DropdownMenuSeparator />
                               {item.items?.map((subItem) => {
                                 const SubIconComponent = subItem.icon
-                                  ? ((Icons[subItem.icon] as React.ComponentType<{ className?: string }> | undefined) ?? Icons.logo)
+                                  ? ((Icons[subItem.icon] as
+                                      | React.ComponentType<{ className?: string }>
+                                      | undefined) ?? Icons.logo)
                                   : null;
 
                                 return (
@@ -168,7 +169,9 @@ export default function AppSidebar() {
                                       }
                                     }}
                                   >
-                                    {SubIconComponent && <SubIconComponent className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />}
+                                    {SubIconComponent && (
+                                      <SubIconComponent className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
+                                    )}
                                     <span>{subItem.title}</span>
                                     {(subItem.badge || subItem.disabled) && (
                                       <NavBadge text={subItem.badge ?? "به‌زودی"} />
@@ -204,7 +207,9 @@ export default function AppSidebar() {
                           <SidebarMenuSub className="mt-1">
                             {item.items?.map((subItem) => {
                               const SubIconComponent = subItem.icon
-                                ? ((Icons[subItem.icon] as React.ComponentType<{ className?: string }> | undefined) ?? Icons.logo)
+                                ? ((Icons[subItem.icon] as
+                                    | React.ComponentType<{ className?: string }>
+                                    | undefined) ?? Icons.logo)
                                 : null;
 
                               return (
@@ -214,7 +219,9 @@ export default function AppSidebar() {
                                       aria-disabled
                                       className="cursor-not-allowed opacity-70"
                                     >
-                                      {SubIconComponent && <SubIconComponent className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />}
+                                      {SubIconComponent && (
+                                        <SubIconComponent className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
+                                      )}
                                       <span>{subItem.title}</span>
 
                                       <NavBadge text={subItem.badge ?? "به‌زودی"} />
@@ -224,7 +231,9 @@ export default function AppSidebar() {
                                       isActive={pathname === subItem.url}
                                       onClick={() => safeNavigate(subItem.url)}
                                     >
-                                      {SubIconComponent && <SubIconComponent className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />}
+                                      {SubIconComponent && (
+                                        <SubIconComponent className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
+                                      )}
                                       <span>{subItem.title}</span>
 
                                       {subItem.badge && <NavBadge text={subItem.badge} />}
@@ -275,50 +284,7 @@ export default function AppSidebar() {
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
-              {/* Separator line */}
-              <div className="h-px bg-border mx-2" />
-
-              {/* User name with link to profile */}
-              <SidebarMenuButton
-                onClick={() => router.push("/dashboard/profile")}
-                tooltip="پروفایل"
-                size="sm"
-              >
-                <Icons.account className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
-                <span>{user ? "کاربر" : "مهمان"}</span>
-              </SidebarMenuButton>
-
-              {/* Other menu items */}
-              {organization && (
-                <SidebarMenuButton
-                  onClick={() => router.push("/dashboard/billing")}
-                  tooltip="امور مالی"
-                  size="sm"
-                >
-                  <Icons.creditCard className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
-                  <span>امور مالی</span>
-                </SidebarMenuButton>
-              )}
-
-              <SidebarMenuButton
-                onClick={() => router.push("/dashboard/notifications")}
-                tooltip="اعلان‌ها"
-                size="sm"
-              >
-                <Icons.notification className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
-                <span>اعلان‌ها</span>
-              </SidebarMenuButton>
-
-              <SidebarMenuButton
-                onClick={async () => {
-                  await signOut({ redirectUrl: "/auth/sign-in" });
-                }}
-                tooltip="خروج"
-                size="sm"
-              >
-                <Icons.logout aria-hidden className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
-                <span>خروج</span>
-              </SidebarMenuButton>
+              <UserNav placement="sidebar" />
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>

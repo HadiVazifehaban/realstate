@@ -4,6 +4,7 @@ Importing this package registers every table on ``SQLModel.metadata`` which is
 what Alembic and ``create_all`` rely on.
 """
 from app.models.property_booking import PropertyVisitBooking
+from app.models.footer_social_link import FooterSocialLink
 
 from app.models.registration import AuthAuditLog, ProfessionalApplication
 from app.models.billing import (
@@ -87,6 +88,7 @@ from app.models.network_collab import (
 )
 
 __all__ = [
+    "FooterSocialLink",
     "AgencyUser",
     "AuthAuditLog",
     "ProfessionalApplication",

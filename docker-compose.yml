@@ -92,10 +92,10 @@ services:
     image: real-iran-locations
     container_name: avg_iran_locations
     restart: unless-stopped
-    # No host port and no declared network: it rides the compose default bridge,
-    # reachable from the core as `http://iran_locations:3000` like every other
-    # internal service. Publishing it would expose a dataset the dashboard
-    # already renders through the API.
+    # Share the backend network so Docker DNS resolves iran_locations there.
+    # No host port: the dashboard reads the dataset through the backend API.
+    networks:
+      - shekarchi_net
 
   keycloak-db:
     # Keycloak owns its own schema. It must NOT share the `db` container: a realm
@@ -241,6 +241,10 @@ services:
     # Render threads; import used the default too.
     environment:
       THREADS: "${TILE_THREADS:-4}"
+    # Raster tiles are fetched directly by the browser, not through the API.
+    # Keep this port aligned with NEXT_PUBLIC_TILE_URL (default: localhost:8081).
+    ports:
+      - "${TILE_PORT:-8081}:80"
     networks:
       - shekarchi_net
     volumes:

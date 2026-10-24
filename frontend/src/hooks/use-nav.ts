@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 /**
  * Fully client-side hook for filtering navigation items based on RBAC
@@ -16,11 +16,11 @@
  * This is only for UI visibility.
  */
 
-import { AUTH_BYPASS_ENABLED, KEYCLOAK_ENABLED } from '@/lib/utils';
-import { useMemo } from 'react';
-import { useOrganization, useUser } from '@clerk/nextjs';
-import { useAuthContext } from '@/hooks/use-auth';
-import type { NavItem, NavGroup } from '@/types';
+import { AUTH_BYPASS_ENABLED, KEYCLOAK_ENABLED } from "@/lib/utils";
+import { useMemo } from "react";
+import { useOrganization, useUser } from "@clerk/nextjs";
+import { useAuthContext } from "@/hooks/use-auth";
+import type { NavItem, NavGroup } from "@/types";
 
 const EMPTY_CONTEXT = {
   organization: undefined,
@@ -77,8 +77,8 @@ function useKeycloakContext() {
       organization: tenantId ?? undefined,
       user: undefined,
       permissions: [] as string[],
-      role: roles.find((r) => !r.startsWith('default-')),
-      allRoles: roles.filter((r) => !r.startsWith('default-roles')),
+      role: roles.find((r) => !r.startsWith("default-")),
+      allRoles: roles.filter((r) => !r.startsWith("default-roles")),
       hasOrg: !!tenantId
     }),
     [tenantId, roles]
@@ -103,130 +103,73 @@ export function useFilteredNavItems(items: NavItem[]) {
 
   // Filter items synchronously (all client-side)
   const filteredItems = useMemo(() => {
-    return items
-      .filter((item) => {
-        // No access restrictions
-        if (!item.access) {
-          return true;
-        }
+    const filterTree = (nodes: NavItem[]): NavItem[] =>
+      nodes
+        .filter((item) => {
+          // No access restrictions
+          if (!item.access) {
+            return true;
+          }
 
-        // Check requireOrg
-        if (item.access.requireOrg && !accessContext.hasOrg) {
-          return false;
-        }
-
-        // Check permission
-        if (item.access.permission) {
-          if (!accessContext.hasOrg) {
+          // Check requireOrg
+          if (item.access.requireOrg && !accessContext.hasOrg) {
             return false;
           }
-          if (!accessContext.permissions.includes(item.access.permission)) {
-            return false;
-          }
-        }
 
-        // Check role
-        if (item.access.role) {
-          if (!accessContext.hasOrg) {
-            return false;
-          }
-          if (accessContext.role !== item.access.role) {
-            return false;
-          }
-        }
-
-        // Check any-of roles (plural). Visible when the caller holds at least
-        // one of the listed roles — the gate an "admin block" needs, since a
-        // single exact `role` match cannot express "admin OR supervisor".
-        if (item.access.roles && item.access.roles.length > 0) {
-          const holds = item.access.roles.some((r) => accessContext.allRoles.includes(r));
-          if (!holds) {
-            return false;
-          }
-        }
-
-        // Note: Plans and features require server-side checks with Clerk's has() function
-        // For navigation visibility, you can either:
-        // 1. Store plan/feature info in organization metadata (client-accessible)
-        // 2. Use server actions (current approach)
-        // 3. Skip plan/feature checks for navigation (recommended for performance)
-
-        // For now, if plan/feature is specified, we'll need to handle it differently
-        // Most navigation items won't need plan/feature checks anyway
-        if (item.access.plan || item.access.feature) {
-          // Option: Return true and let the page handle it, or use server action
-          // For now, we'll show it (page-level protection should handle it)
-          console.warn(
-            `Plan/feature checks for navigation items require server-side verification. ` +
-              `Item '${item.title}' will be shown, but page-level protection should be implemented.`
-          );
-        }
-
-        return true;
-      })
-      .map((item) => {
-        // Recursively filter child items
-        if (item.items && item.items.length > 0) {
-          const filteredChildren = item.items.filter((childItem) => {
-            // No access restrictions
-            if (!childItem.access) {
-              return true;
-            }
-
-            // Check requireOrg
-            if (childItem.access.requireOrg && !accessContext.hasOrg) {
+          // Check permission
+          if (item.access.permission) {
+            if (!accessContext.hasOrg) {
               return false;
             }
-
-            // Check permission
-            if (childItem.access.permission) {
-              if (!accessContext.hasOrg) {
-                return false;
-              }
-              if (!accessContext.permissions.includes(childItem.access.permission)) {
-                return false;
-              }
+            if (!accessContext.permissions.includes(item.access.permission)) {
+              return false;
             }
+          }
 
-            // Check role
-            if (childItem.access.role) {
-              if (!accessContext.hasOrg) {
-                return false;
-              }
-              if (accessContext.role !== childItem.access.role) {
-                return false;
-              }
+          // Check role
+          if (item.access.role) {
+            if (!accessContext.hasOrg) {
+              return false;
             }
-
-            // Check any-of roles (plural) — see the top-level filter for why.
-            if (childItem.access.roles && childItem.access.roles.length > 0) {
-              const holds = childItem.access.roles.some((r) =>
-                accessContext.allRoles.includes(r)
-              );
-              if (!holds) {
-                return false;
-              }
+            if (accessContext.role !== item.access.role) {
+              return false;
             }
+          }
 
-            // Plan/feature checks (same warning as above)
-            if (childItem.access.plan || childItem.access.feature) {
-              console.warn(
-                `Plan/feature checks for navigation items require server-side verification. ` +
-                  `Item '${childItem.title}' will be shown, but page-level protection should be implemented.`
-              );
+          // Check any-of roles (plural). Visible when the caller holds at least
+          // one of the listed roles — the gate an "admin block" needs, since a
+          // single exact `role` match cannot express "admin OR supervisor".
+          if (item.access.roles && item.access.roles.length > 0) {
+            const holds = item.access.roles.some((r) => accessContext.allRoles.includes(r));
+            if (!holds) {
+              return false;
             }
+          }
 
-            return true;
-          });
+          // Note: Plans and features require server-side checks with Clerk's has() function
+          // For navigation visibility, you can either:
+          // 1. Store plan/feature info in organization metadata (client-accessible)
+          // 2. Use server actions (current approach)
+          // 3. Skip plan/feature checks for navigation (recommended for performance)
 
-          return {
-            ...item,
-            items: filteredChildren
-          };
-        }
+          // For now, if plan/feature is specified, we'll need to handle it differently
+          // Most navigation items won't need plan/feature checks anyway
+          if (item.access.plan || item.access.feature) {
+            // Option: Return true and let the page handle it, or use server action
+            // For now, we'll show it (page-level protection should handle it)
+            console.warn(
+              `Plan/feature checks for navigation items require server-side verification. ` +
+                `Item '${item.title}' will be shown, but page-level protection should be implemented.`
+            );
+          }
 
-        return item;
-      });
+          return true;
+        })
+        .map((item) => ({
+          ...item,
+          ...(item.items ? { items: filterTree(item.items) } : {})
+        }));
+    return filterTree(items);
   }, [items, accessContext]);
 
   return filteredItems;

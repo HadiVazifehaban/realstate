@@ -91,7 +91,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const themeToApply = isValidTheme ? activeThemeValue! : DEFAULT_THEME;
 
   return (
-    <html lang='fa' dir='rtl' suppressHydrationWarning data-theme={themeToApply}>
+    <html lang='fa' dir='rtl' suppressHydrationWarning className={themeToApply}>
       <body
         className={cn(
           "bg-background overflow-x-hidden overscroll-none font-sans antialiased",
@@ -102,8 +102,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <NuqsAdapter>
           <ThemeProvider
             attribute='class'
-            defaultTheme='system'
-            enableSystem
+            defaultTheme={themeToApply}
+            enableSystem={false}
             disableTransitionOnChange
             enableColorScheme
           >

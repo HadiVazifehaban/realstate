@@ -44,7 +44,7 @@ export function MarketList({
 
   return (
     <div
-      className="flex-1 overflow-y-auto min-h-0 custom-scrollbar pr-1 space-y-2 pb-2 font-[family-name:var(--font-vazir)]"
+      className="custom-scrollbar min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain p-2 font-[family-name:var(--font-vazir)]"
       dir="rtl"
     >
       {rows.map((row, index) => (
@@ -54,40 +54,40 @@ export function MarketList({
           onClick={() => onSelect(row.id)}
           aria-current={row.id === selectedId ? "true" : undefined}
           className={cn(
-            "group relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card/70 text-right shadow-xs transition-[border-color,background-color,box-shadow,transform] duration-200 hover:-translate-y-px hover:border-primary/50 hover:bg-primary/5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2",
-            row.id === selectedId && "border-primary bg-primary/10 shadow-md ring-1 ring-primary/20"
+            "group relative w-full overflow-hidden rounded-xl border border-transparent bg-white/[0.02] text-right transition-colors hover:border-[#e5a87b]/30 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ffd8be]/60",
+            row.id === selectedId &&
+              "border-[#e5a87b]/50 bg-[#e5a87b]/10 ring-1 ring-inset ring-[#e5a87b]/20"
           )}
         >
-          <div
-            className="flex items-center gap-3 rounded-xl border border-border/50 bg-card/60 p-3.5 text-right backdrop-blur-md sm:gap-4"
-            dir="rtl"
-          >
+          <div className="flex items-center justify-between gap-2 p-2 text-right" dir="rtl">
             {/* Right side in RTL: rank, market indicator and neighborhood. */}
-            <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
               <span
                 className={cn(
-                  "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold",
+                  "flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
                   row.id === selectedId
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
+                    ? "bg-[#ffd8be] text-[#060b13]"
+                    : "bg-[#e5a87b]/10 text-[#ffd8be]"
                 )}
               >
                 {toPersianDigits(String(index + 1))}
               </span>
 
               <span
-                className="size-2.5 shrink-0 rounded-full ring-2 ring-background"
+                className="size-1.5 shrink-0 rounded-full"
                 style={{ backgroundColor: row.color }}
                 aria-hidden
               />
 
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                {/* No truncation: long neighborhood names wrap instead of being cut. */}
-                <span className="break-words text-sm leading-6 font-bold text-foreground sm:text-base">
+                <span
+                  title={row.neighborhood}
+                  className="block truncate text-xs font-semibold leading-5 text-white transition-colors group-hover:text-[#ffd8be]"
+                >
                   {row.neighborhood}
                 </span>
 
-                <span className="flex flex-wrap items-center gap-1.5 text-xs leading-5 text-muted-foreground">
+                <span className="flex flex-wrap items-center gap-1 text-[10px] leading-4 text-white/50">
                   <span className="whitespace-nowrap">{row.city || "شهر نامشخص"}</span>
                   <span className="text-muted-foreground/50" aria-hidden>
                     ·
@@ -96,7 +96,7 @@ export function MarketList({
                   {row.bargainShare > 0 && (
                     <Badge
                       variant="secondary"
-                      className="h-4 shrink-0 rounded-md px-1 py-0 text-[9px] leading-none"
+                      className="h-4 shrink-0 rounded-md bg-[#e5a87b]/10 px-1 py-0 text-[9px] leading-none text-[#ffd8be]"
                     >
                       <Icons.trendingDown className="size-2.5" />
                       {toPersianDigits((row.bargainShare * 100).toFixed(0))}٪ ارزان
@@ -107,27 +107,11 @@ export function MarketList({
             </div>
 
             {/* Left side in RTL: a dedicated, non-overlapping price column. */}
-            <div className="flex shrink-0 flex-col items-start gap-0.5 pl-2 text-left" dir="ltr">
-              <span
-                className={cn(
-                  "text-sm leading-6 font-extrabold tabular-nums whitespace-nowrap sm:text-base",
-                  row.id === selectedId ? "text-primary" : "text-foreground"
-                )}
-              >
+            <div className="max-w-[48%] shrink-0 text-left" dir="rtl">
+              <span className="block text-xs font-bold leading-5 text-[#ffd8be] tabular-nums">
                 {row.value}
               </span>
-              <span className="text-xs leading-4 whitespace-nowrap text-muted-foreground">
-                تومان/متر
-              </span>
             </div>
-
-            <Icons.chevronRight
-              className={cn(
-                "-rotate-180 size-4 shrink-0 text-muted-foreground/60 transition-transform duration-200",
-                row.id === selectedId && "-rotate-90 text-primary"
-              )}
-              aria-hidden
-            />
           </div>
         </button>
       ))}

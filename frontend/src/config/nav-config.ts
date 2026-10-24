@@ -1,4 +1,4 @@
-import { NavGroup } from '@/types';
+import { NavGroup } from "@/types";
 
 /**
  * Navigation configuration with RBAC support.
@@ -34,140 +34,196 @@ import { NavGroup } from '@/types';
  */
 export const navGroups: NavGroup[] = [
   {
-    label: 'نمای کلی',
+    label: "نمای کلی",
     items: [
       {
-        title: 'داشبورد مدیریتی',
-        url: '/dashboard/overview',
-        icon: 'dashboard',
+        title: "خانهٔ شکارچی",
+        url: "/dashboard",
+        icon: "home",
         isActive: false,
-        shortcut: ['d', 'd'],
+        items: []
+      },
+      {
+        title: "داشبورد مدیریتی",
+        url: "/dashboard/overview",
+        icon: "dashboard",
+        isActive: false,
+        shortcut: ["d", "d"],
         items: []
       }
     ]
   },
   {
-    label: 'رادار و املاک',
+    label: "رادار و املاک",
     items: [
       {
-        title: 'رادار شکار قیمت',
-        url: '/dashboard/properties',
-        icon: 'crosshair',
-        badge: 'زنده',
+        title: "رادار شکار قیمت",
+        url: "/dashboard/properties",
+        icon: "crosshair",
+        badge: "زنده",
         isActive: false,
-        shortcut: ['p', 'r'],
+        shortcut: ["p", "r"],
         items: []
       },
       {
-        title: 'ثبت و فایلینگ ملک',
-        url: '/dashboard/properties/submit',
-        icon: 'plusCircle',
-        isActive: false,
-        items: []
-      },
-      {
-        title: 'کارتابل فایل‌های دفتر',
-        url: '/dashboard/workspaces',
-        icon: 'workspace',
+        title: "ثبت و فایلینگ ملک",
+        url: "/dashboard/properties/submit",
+        icon: "plusCircle",
         isActive: false,
         items: []
       },
       {
-        title: 'تحلیل بازار و ارزش‌گذاری (AVM)',
-        url: '/dashboard/avm',
-        icon: 'trendingUp',
+        title: "کارتابل فایل‌های دفتر",
+        url: "/dashboard/workspaces",
+        icon: "workspace",
         isActive: false,
-        shortcut: ['a', 'v'],
+        items: []
+      },
+      {
+        title: "تحلیل بازار و ارزش‌گذاری (AVM)",
+        url: "/dashboard/avm",
+        icon: "trendingUp",
+        isActive: false,
+        shortcut: ["a", "v"],
         items: []
       }
     ]
   },
   {
-    label: 'معاملات و شبکه',
+    label: "معاملات و شبکه",
     items: [
       {
-        title: 'میز کار معاملات',
-        url: '/dashboard/crm',
-        icon: 'kanban',
-        description: 'پایپ‌لاین معاملات، پرونده‌ها و کمیسیون',
+        title: "میز کار معاملات",
+        url: "/dashboard/crm",
+        icon: "kanban",
+        description: "پایپ‌لاین معاملات، پرونده‌ها و کمیسیون",
         isActive: false,
-        shortcut: ['c', 'r'],
+        shortcut: ["c", "r"],
         items: []
       },
       {
-        title: 'شبکه همکاری دفاتر',
-        url: '/dashboard/network/agencies',
-        icon: 'network',
-        badge: 'جدید',
+        title: "شبکه همکاری دفاتر",
+        url: "/dashboard/network/agencies",
+        icon: "network",
+        badge: "جدید",
         isActive: false,
         items: [
-          { title: 'دفاتر همکار', url: '/dashboard/network/agencies', icon: 'office' },
-          { title: 'درخواست‌های همکاری', url: '/dashboard/network/requests', icon: 'handshake' },
-          { title: 'فایل‌های اشتراکی', url: '/dashboard/network/shared-listings', icon: 'share' },
-          { title: 'ارجاع‌ها', url: '/dashboard/network/referrals', icon: 'referral' },
-          { title: 'انتقال فایل‌ها', url: '/dashboard/network/transfers', icon: 'transfer' },
-          { title: 'کمیسیون و تسویه', url: '/dashboard/network/commissions', icon: 'split' },
-          { title: 'اختلافات', url: '/dashboard/network/disputes', icon: 'gavel' },
-          { title: 'گزارش همکاری‌ها', url: '/dashboard/network/reports', icon: 'chart' },
-          { title: 'رهگیری و لاگ', url: '/dashboard/network/audit', icon: 'audit' }
+          { title: "دفاتر همکار", url: "/dashboard/network/agencies", icon: "office" },
+          { title: "درخواست‌های همکاری", url: "/dashboard/network/requests", icon: "handshake" },
+          { title: "فایل‌های اشتراکی", url: "/dashboard/network/shared-listings", icon: "share" },
+          { title: "ارجاع‌ها", url: "/dashboard/network/referrals", icon: "referral" },
+          { title: "انتقال فایل‌ها", url: "/dashboard/network/transfers", icon: "transfer" },
+          { title: "کمیسیون و تسویه", url: "/dashboard/network/commissions", icon: "split" },
+          { title: "اختلافات", url: "/dashboard/network/disputes", icon: "gavel" },
+          { title: "گزارش همکاری‌ها", url: "/dashboard/network/reports", icon: "chart" },
+          { title: "رهگیری و لاگ", url: "/dashboard/network/audit", icon: "audit" }
         ]
       },
       {
-        title: 'مرکز ارتباطات',
-        url: '/dashboard/chat',
-        icon: 'chat',
+        title: "مرکز ارتباطات",
+        url: "/dashboard/chat",
+        icon: "chat",
         isActive: false,
         items: [
-          { title: 'گفتگوهای همکاران', url: '/dashboard/chat', icon: 'chat', shortcut: ['c', 'c'] },
-          { title: 'دستیار هوشمند شکارچی', url: '/dashboard/ai-chat', icon: 'sparkles', badge: 'به‌زودی', disabled: true, shortcut: ['a', 'i'] }
+          { title: "گفتگوهای همکاران", url: "/dashboard/chat", icon: "chat", shortcut: ["c", "c"] },
+          {
+            title: "دستیار هوشمند شکارچی",
+            url: "/dashboard/ai-chat",
+            icon: "sparkles",
+            badge: "به‌زودی",
+            disabled: true,
+            shortcut: ["a", "i"]
+          }
         ]
       }
     ]
   },
   {
-    label: 'مدیریت و زیرساخت',
+    label: "مدیریت و زیرساخت",
     items: [
       {
-        title: 'تیم و سطوح دسترسی',
-        url: '/dashboard/users',
-        icon: 'teams',
-        description: 'مدیریت مشاوران، سرپرستان و نقش‌ها',
-        isActive: false,
-        shortcut: ['u', 'u'],
-        items: [
-          { title: 'اعضای دفتر', url: '/dashboard/workspaces/team', icon: 'employee', access: { requireOrg: true } }
-        ]
-      },
-      {
-        title: 'رویدادها و تقویم CRM',
-        url: '/dashboard/events',
-        icon: 'calendar',
-        isActive: false,
-        shortcut: ['e', 'v'],
+        title: "پیوندهای شبکه‌های اجتماعی",
+        url: "/dashboard/settings/social-links",
+        icon: "settings",
+        access: { roles: ["ROLE_ADMIN", "ROLE_SUPER_ADMIN", "admin", "super_admin"] },
         items: []
       },
       {
-        title: 'نقش‌های کاربر',
-        url: '/dashboard/roles',
-        icon: 'badgeCheck',
-        description: 'مشاهده نقش‌های Keycloak و وضعیت احراز هویت',
+        title: "تیم و سطوح دسترسی",
+        url: "/dashboard/users",
+        icon: "teams",
+        description: "مدیریت مشاوران، سرپرستان و نقش‌ها",
+        isActive: false,
+        shortcut: ["u", "u"],
+        items: [
+          {
+            title: "اعضای دفتر",
+            url: "/dashboard/workspaces/team",
+            icon: "employee",
+            access: { requireOrg: true }
+          }
+        ]
+      },
+      {
+        title: "رویدادها و تقویم CRM",
+        url: "/dashboard/events",
+        icon: "calendar",
+        isActive: false,
+        shortcut: ["e", "v"],
+        items: []
+      },
+      {
+        title: "نقش‌های کاربر",
+        url: "/dashboard/roles",
+        icon: "badgeCheck",
+        description: "مشاهده نقش‌های Keycloak و وضعیت احراز هویت",
         isActive: false,
         items: []
       },
       {
         // Admin-only ops block: any-of role gate keeps it hidden from ordinary
         // brokers. A normal user should never see a job queue or an audit log.
-        title: 'مرکز امنیت و عملیات',
-        url: '/dashboard/otp',
-        icon: 'lock',
+        title: "مرکز امنیت و عملیات",
+        url: "/dashboard/otp",
+        icon: "lock",
         isActive: false,
         items: [
-          { title: 'مدیریت OTP', url: '/dashboard/otp', icon: 'lock', shortcut: ['o', 't'] },
-          { title: 'خزانه هویت و مالکیت', url: '/dashboard/pii', icon: 'badgeCheck', shortcut: ['p', 'i'], access: { roles: ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_DATA_ANALYST'] } },
-          { title: 'صف پردازش و خزش', url: '/dashboard/streams', icon: 'inbox', shortcut: ['s', 't'], access: { roles: ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_DATA_ANALYST'] } },
-          { title: 'لاگ ممیزی', url: '/dashboard/audit', icon: 'fileTypeDoc', shortcut: ['a', 'u'], access: { roles: ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_DATA_ANALYST'] } }
+          { title: "مدیریت OTP", url: "/dashboard/otp", icon: "lock", shortcut: ["o", "t"] },
+          {
+            title: "خزانه هویت و مالکیت",
+            url: "/dashboard/pii",
+            icon: "badgeCheck",
+            shortcut: ["p", "i"],
+            access: { roles: ["ROLE_ADMIN", "ROLE_SUPERVISOR", "ROLE_DATA_ANALYST"] }
+          },
+          {
+            title: "صف پردازش و خزش",
+            url: "/dashboard/streams",
+            icon: "inbox",
+            shortcut: ["s", "t"],
+            access: { roles: ["ROLE_ADMIN", "ROLE_SUPERVISOR", "ROLE_DATA_ANALYST"] }
+          },
+          {
+            title: "لاگ ممیزی",
+            url: "/dashboard/audit",
+            icon: "fileTypeDoc",
+            shortcut: ["a", "u"],
+            access: { roles: ["ROLE_ADMIN", "ROLE_SUPERVISOR", "ROLE_DATA_ANALYST"] }
+          }
         ]
       }
     ]
   }
+];
+
+/** Shared by the sidebar footer and the dashboard landing; logout remains an action. */
+export const accountNavItems: import("@/types").NavItem[] = [
+  { title: "پروفایل", url: "/dashboard/profile", icon: "account" },
+  {
+    title: "امور مالی",
+    url: "/dashboard/billing",
+    icon: "creditCard",
+    access: { requireOrg: true }
+  },
+  { title: "اعلان‌ها", url: "/dashboard/notifications", icon: "notification" }
 ];

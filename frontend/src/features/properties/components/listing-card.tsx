@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Icons } from "@/components/icons";
 import { cn, formatPricePerMeter, formatToman, toPersianDigits } from "@/lib/utils";
 import type { PropertySummary } from "../types";
-import { mediaUrl } from '@/lib/media-url';
+import { mediaUrl } from "@/lib/media-url";
 import {
   DEAL_TYPE_LABELS,
   PROPERTY_TYPE_LABELS,
@@ -35,13 +35,11 @@ interface ListingCardProps {
   className?: string;
   /** Highlights the row in the bargain radar. */
   emphasis?: boolean;
+  /** Dense cards for the six-column AVM grid; the property feed stays unchanged. */
+  compact?: boolean;
 }
 
-export function ListingCard({
-  property,
-  className,
-  emphasis
-}: ListingCardProps) {
+export function ListingCard({ property, className, emphasis, compact = false }: ListingCardProps) {
   const location = [property.neighborhood, property.city].filter(Boolean).join("، ");
   const age = formatBuildingAge(property.year_built);
   const floor = formatFloor(property.floor, property.total_floors);
@@ -62,7 +60,12 @@ export function ListingCard({
         aria-label={property.title || PROPERTY_TYPE_LABELS[property.property_type]}
         className="flex h-full flex-col rounded-[inherit] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-accent"
       >
-        <div className="relative aspect-4/3 w-full shrink-0 overflow-hidden">
+        <div
+          className={cn(
+            "relative w-full shrink-0 overflow-hidden",
+            compact ? "aspect-video" : "aspect-4/3"
+          )}
+        >
           <Cover property={property} />
           <div
             aria-hidden
@@ -70,7 +73,12 @@ export function ListingCard({
           />
           {/* Provenance first (reads as "where from"), property type second.
               Compact badge text over the photo; the full label is the tooltip. */}
-          <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2.5">
+          <div
+            className={cn(
+              "absolute inset-x-0 top-0 flex items-start justify-between gap-1",
+              compact ? "p-1 [&_.lux-badge]:px-1 [&_.lux-badge]:text-[9px]" : "p-2.5"
+            )}
+          >
             <span
               className="lux-badge lux-badge-source min-w-0 max-w-[58%] truncate"
               title={SOURCE_LABELS[property.source]}
@@ -95,13 +103,28 @@ export function ListingCard({
           )}
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col justify-between gap-3 p-3.5">
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col justify-between",
+            compact ? "gap-2 p-2" : "gap-3 p-3.5"
+          )}
+        >
           <div className="flex min-w-0 flex-col gap-1">
-            <h3 className="truncate text-sm font-bold leading-6 text-[#f5f5f7] transition-colors group-hover:text-gold-primary">
+            <h3
+              className={cn(
+                "truncate font-bold text-[#f5f5f7] transition-colors group-hover:text-gold-primary",
+                compact ? "text-xs leading-5" : "text-sm leading-6"
+              )}
+            >
               {property.title ||
                 `${PROPERTY_TYPE_LABELS[property.property_type]}${location ? ` در ${location}` : ""}`}
             </h3>
-            <div className="flex min-w-0 items-center gap-1 text-[11px] text-[#94a3b8]">
+            <div
+              className={cn(
+                "flex min-w-0 items-center gap-1 text-[#94a3b8]",
+                compact ? "text-[10px]" : "text-[11px]"
+              )}
+            >
               <Icons.mapPin aria-hidden className="size-3.5 shrink-0 text-gold-accent/80" />
               <span className="truncate">{location || "موقعیت نامشخص"}</span>
               <span aria-hidden>·</span>
@@ -109,11 +132,34 @@ export function ListingCard({
             </div>
           </div>
 
-          <SpecGrid property={property} floor={floor} age={age} />
+          {compact ? (
+            <div className="grid min-w-0 grid-cols-2 gap-1 rounded-lg border border-white/10 bg-white/5 p-1.5 text-[10px] text-[#cbd5e1]">
+              <span className="truncate">
+                {property.area == null ? "—" : toPersianDigits(String(property.area))} م²
+              </span>
+              <span className="truncate">
+                {property.rooms == null ? "—" : toPersianDigits(String(property.rooms))} خواب
+              </span>
+              <span className="truncate" title={floor ?? age ?? ""}>
+                {floor ?? age ?? "—"}
+              </span>
+              <span className="truncate">{property.has_parking ? "پارکینگ" : "بدون پارکینگ"}</span>
+            </div>
+          ) : (
+            <SpecGrid property={property} floor={floor} age={age} />
+          )}
 
           <div className="h-px w-full bg-gradient-to-r from-transparent via-[var(--lux-divider)] to-transparent" />
 
-          <PriceBlock property={property} isRent={isRent} />
+          <div
+            className={
+              compact
+                ? "[&>div]:flex-col [&>div]:items-stretch [&_p]:text-[10px] [&_.text-end]:text-start"
+                : undefined
+            }
+          >
+            <PriceBlock property={property} isRent={isRent} />
+          </div>
         </div>
       </Link>
     </article>
@@ -194,10 +240,7 @@ function SpecGrid({
     {
       icon: <Icons.statBed aria-hidden className="size-3.5 text-gold-accent" />,
       label: "خواب",
-      value:
-        property.rooms !== null
-          ? toPersianDigits(property.rooms.toLocaleString("en-US"))
-          : "—"
+      value: property.rooms !== null ? toPersianDigits(property.rooms.toLocaleString("en-US")) : "—"
     },
     {
       icon: <Icons.statAge aria-hidden className="size-3.5 text-gold-accent" />,
@@ -245,9 +288,7 @@ function PriceBlock({ property, isRent }: { property: PropertySummary; isRent: b
         <div className="min-w-0">
           <p className="text-[10px] font-medium text-[#94a3b8]">رهن</p>
           <p className="truncate text-sm font-extrabold tabular-nums text-gold-primary">
-            {property.deposit_amount !== null
-              ? formatToman(property.deposit_amount)
-              : "—"}
+            {property.deposit_amount !== null ? formatToman(property.deposit_amount) : "—"}
           </p>
         </div>
         <div className="min-w-0 text-end">

@@ -1,0 +1,324 @@
+/* Shared legacy glass tokens: dark values are the original landing palette. */
+:root {
+  --brand-000: #000;
+  --brand-0003: #0003;
+  --brand-0008: #0008;
+  --brand-0009: #0009;
+  --brand-000b: #000b;
+  --brand-040810: #040810;
+  --brand-050a12b3: #050a12b3;
+  --brand-060b13: #060b13;
+  --brand-060b1310: #060b1310;
+  --brand-060b131a: #060b131a;
+  --brand-060b1320: #060b1320;
+  --brand-060b1326: #060b1326;
+  --brand-060b134d: #060b134d;
+  --brand-060b1359: #060b1359;
+  --brand-060b1366: #060b1366;
+  --brand-060b1380: #060b1380;
+  --brand-060b138c: #060b138c;
+  --brand-060b1399: #060b1399;
+  --brand-060b13b3: #060b13b3;
+  --brand-060b13ba: #060b13ba;
+  --brand-060b13cc: #060b13cc;
+  --brand-060b13d9: #060b13d9;
+  --brand-060b13e6: #060b13e6;
+  --brand-060b13eb: #060b13eb;
+  --brand-060b13ed: #060b13ed;
+  --brand-060b13f5: #060b13f5;
+  --brand-080d16d6: #080d16d6;
+  --brand-080d16f5: #080d16f5;
+  --brand-0a1019f2: #0a1019f2;
+  --brand-0a111c: #0a111c;
+  --brand-0a111c8c: #0a111c8c;
+  --brand-0a111cb3: #0a111cb3;
+  --brand-0a111ccc: #0a111ccc;
+  --brand-0a111cf0: #0a111cf0;
+  --brand-0b1018: #0b1018;
+  --brand-10151de6: #10151de6;
+  --brand-15100d: #15100d;
+  --brand-1a2332b3: #1a2332b3;
+  --brand-8eacb2: #8eacb2;
+  --brand-94a3b8: #94a3b8;
+  --brand-94a3b81a: #94a3b81a;
+  --brand-999da8: #999da8;
+  --brand-a2a5b0: #a2a5b0;
+  --brand-a4a2a7: #a4a2a7;
+  --brand-aba7a5: #aba7a5;
+  --brand-b3aaa4: #b3aaa4;
+  --brand-b6a99f: #b6a99f;
+  --brand-b6bc9c: #b6bc9c;
+  --brand-b7b7be: #b7b7be;
+  --brand-b7b7becc: #b7b7becc;
+  --brand-bcb3ac: #bcb3ac;
+  --brand-bda58f: #bda58f;
+  --brand-c1b6ad: #c1b6ad;
+  --brand-c3b9b1: #c3b9b1;
+  --brand-c3bac0: #c3bac0;
+  --brand-c4b9b0: #c4b9b0;
+  --brand-c4c0bf: #c4c0bf;
+  --brand-c7b7ab: #c7b7ab;
+  --brand-c7bdb4: #c7bdb4;
+  --brand-c88252: #c88252;
+  --brand-c8825219: #c8825219;
+  --brand-c8825280: #c8825280;
+  --brand-c88252aa: #c88252aa;
+  --brand-d8cabe: #d8cabe;
+  --brand-d9e1ec: #d9e1ec;
+  --brand-d9e1ec59: #d9e1ec59;
+  --brand-dfd5d0: #dfd5d0;
+  --brand-e4d7cc: #e4d7cc;
+  --brand-e4dcd5: #e4dcd5;
+  --brand-e4dcd5bf: #e4dcd5bf;
+  --brand-e5a87b: #e5a87b;
+  --brand-e5a87b05: #e5a87b05;
+  --brand-e5a87b06: #e5a87b06;
+  --brand-e5a87b0a: #e5a87b0a;
+  --brand-e5a87b0c: #e5a87b0c;
+  --brand-e5a87b0d: #e5a87b0d;
+  --brand-e5a87b0e: #e5a87b0e;
+  --brand-e5a87b12: #e5a87b12;
+  --brand-e5a87b14: #e5a87b14;
+  --brand-e5a87b1a: #e5a87b1a;
+  --brand-e5a87b1f: #e5a87b1f;
+  --brand-e5a87b26: #e5a87b26;
+  --brand-e5a87b29: #e5a87b29;
+  --brand-e5a87b33: #e5a87b33;
+  --brand-e5a87b40: #e5a87b40;
+  --brand-e5a87b4d: #e5a87b4d;
+  --brand-e5a87b50: #e5a87b50;
+  --brand-e5a87b55: #e5a87b55;
+  --brand-e5a87b59: #e5a87b59;
+  --brand-e5a87b66: #e5a87b66;
+  --brand-e5a87b6b: #e5a87b6b;
+  --brand-e5a87b80: #e5a87b80;
+  --brand-e5a87b88: #e5a87b88;
+  --brand-e5a87b99: #e5a87b99;
+  --brand-e5a87bb3: #e5a87bb3;
+  --brand-e5d5c9: #e5d5c9;
+  --brand-e8e0da: #e8e0da;
+  --brand-eebc96: #eebc96;
+  --brand-f4c4a1: #f4c4a1;
+  --brand-f4e9dfbf: #f4e9dfbf;
+  --brand-f4e9dfe6: #f4e9dfe6;
+  --brand-f4ece7: #f4ece7;
+  --brand-f5f5f7: #f5f5f7;
+  --brand-ffd8be: #ffd8be;
+  --brand-ffd8be08: #ffd8be08;
+  --brand-ffd8be12: #ffd8be12;
+  --brand-ffd8be14: #ffd8be14;
+  --brand-ffd8be1a: #ffd8be1a;
+  --brand-ffd8be20: #ffd8be20;
+  --brand-ffd8be26: #ffd8be26;
+  --brand-ffd8be33: #ffd8be33;
+  --brand-ffd8be40: #ffd8be40;
+  --brand-ffd8be55: #ffd8be55;
+  --brand-ffd8be66: #ffd8be66;
+  --brand-ffd8be80: #ffd8be80;
+  --brand-ffd8beb3: #ffd8beb3;
+  --brand-ffd8becc: #ffd8becc;
+  --brand-ffd8bee6: #ffd8bee6;
+  --brand-fff3e8: #fff3e8;
+  --brand-fff3e84d: #fff3e84d;
+  --brand-fff4ec: #fff4ec;
+  --brand-fff4ec12: #fff4ec12;
+  --brand-fff4ec14: #fff4ec14;
+  --brand-ffffff02: #ffffff02;
+  --brand-ffffff03: #ffffff03;
+  --brand-ffffff04: #ffffff04;
+  --brand-ffffff05: #ffffff05;
+  --brand-ffffff06: #ffffff06;
+  --brand-ffffff08: #ffffff08;
+  --brand-ffffff0a: #ffffff0a;
+  --brand-ffffff0c: #ffffff0c;
+  --brand-ffffff0d: #ffffff0d;
+  --brand-ffffff10: #ffffff10;
+  --brand-ffffff1a: #ffffff1a;
+  --brand-ffffff29: #ffffff29;
+}
+html:not(.dark) {
+  --brand-000: #f8fafc;
+  --brand-0003: #f8fafc33;
+  --brand-0008: #f8fafc88;
+  --brand-0009: #f8fafc99;
+  --brand-000b: #f8fafcbb;
+  --brand-040810: #f8fafc;
+  --brand-050a12b3: #f8fafcb3;
+  --brand-060b13: #f8fafc;
+  --brand-060b1310: #f8fafc10;
+  --brand-060b131a: #f8fafc1a;
+  --brand-060b1320: #f8fafc20;
+  --brand-060b1326: #f8fafc26;
+  --brand-060b134d: #f8fafc4d;
+  --brand-060b1359: #f8fafc59;
+  --brand-060b1366: #f8fafc66;
+  --brand-060b1380: #f8fafc80;
+  --brand-060b138c: #f8fafc8c;
+  --brand-060b1399: #f8fafc99;
+  --brand-060b13b3: #f8fafcb3;
+  --brand-060b13ba: #f8fafcba;
+  --brand-060b13cc: #f8fafccc;
+  --brand-060b13d9: #f8fafcd9;
+  --brand-060b13e6: #f8fafce6;
+  --brand-060b13eb: #f8fafceb;
+  --brand-060b13ed: #f8fafced;
+  --brand-060b13f5: #f8fafcf5;
+  --brand-080d16d6: #f8fafcd6;
+  --brand-080d16f5: #f8fafcf5;
+  --brand-0a1019f2: #f8fafcf2;
+  --brand-0a111c: #f8fafc;
+  --brand-0a111c8c: #f8fafc8c;
+  --brand-0a111cb3: #f8fafcb3;
+  --brand-0a111ccc: #f8fafccc;
+  --brand-0a111cf0: #f8fafcf0;
+  --brand-0b1018: #f8fafc;
+  --brand-10151de6: #f8fafce6;
+  --brand-15100d: #f8fafc;
+  --brand-1a2332b3: #f1f5f9b3;
+  --brand-8eacb2: #526176;
+  --brand-94a3b8: #526176;
+  --brand-94a3b81a: #5261761a;
+  --brand-999da8: #526176;
+  --brand-a2a5b0: #526176;
+  --brand-a4a2a7: #526176;
+  --brand-aba7a5: #526176;
+  --brand-b3aaa4: #526176;
+  --brand-b6a99f: #526176;
+  --brand-b6bc9c: #526176;
+  --brand-b7b7be: #526176;
+  --brand-b7b7becc: #526176cc;
+  --brand-bcb3ac: #526176;
+  --brand-bda58f: #925b39;
+  --brand-c1b6ad: #526176;
+  --brand-c3b9b1: #526176;
+  --brand-c3bac0: #526176;
+  --brand-c4b9b0: #526176;
+  --brand-c4c0bf: #526176;
+  --brand-c7b7ab: #526176;
+  --brand-c7bdb4: #526176;
+  --brand-c88252: #925b39;
+  --brand-c8825219: #925b3919;
+  --brand-c8825280: #925b3980;
+  --brand-c88252aa: #925b39aa;
+  --brand-d8cabe: #526176;
+  --brand-d9e1ec: #1e293b;
+  --brand-d9e1ec59: #1e293b59;
+  --brand-dfd5d0: #1e293b;
+  --brand-e4d7cc: #1e293b;
+  --brand-e4dcd5: #1e293b;
+  --brand-e4dcd5bf: #1e293bbf;
+  --brand-e5a87b: #925b39;
+  --brand-e5a87b05: #925b3905;
+  --brand-e5a87b06: #925b3906;
+  --brand-e5a87b0a: #925b390a;
+  --brand-e5a87b0c: #925b390c;
+  --brand-e5a87b0d: #925b390d;
+  --brand-e5a87b0e: #925b390e;
+  --brand-e5a87b12: #925b3912;
+  --brand-e5a87b14: #925b3914;
+  --brand-e5a87b1a: #925b391a;
+  --brand-e5a87b1f: #925b391f;
+  --brand-e5a87b26: #925b3926;
+  --brand-e5a87b29: #925b3929;
+  --brand-e5a87b33: #925b3933;
+  --brand-e5a87b40: #925b3940;
+  --brand-e5a87b4d: #925b394d;
+  --brand-e5a87b50: #925b3950;
+  --brand-e5a87b55: #925b3955;
+  --brand-e5a87b59: #925b3959;
+  --brand-e5a87b66: #925b3966;
+  --brand-e5a87b6b: #925b396b;
+  --brand-e5a87b80: #925b3980;
+  --brand-e5a87b88: #925b3988;
+  --brand-e5a87b99: #925b3999;
+  --brand-e5a87bb3: #925b39b3;
+  --brand-e5d5c9: #1e293b;
+  --brand-e8e0da: #1e293b;
+  --brand-eebc96: #925b39;
+  --brand-f4c4a1: #925b39;
+  --brand-f4e9dfbf: #1e293bbf;
+  --brand-f4e9dfe6: #1e293be6;
+  --brand-f4ece7: #1e293b;
+  --brand-f5f5f7: #1e293b;
+  --brand-ffd8be: #925b39;
+  --brand-ffd8be08: #925b3908;
+  --brand-ffd8be12: #925b3912;
+  --brand-ffd8be14: #925b3914;
+  --brand-ffd8be1a: #925b391a;
+  --brand-ffd8be20: #925b3920;
+  --brand-ffd8be26: #925b3926;
+  --brand-ffd8be33: #925b3933;
+  --brand-ffd8be40: #925b3940;
+  --brand-ffd8be55: #925b3955;
+  --brand-ffd8be66: #925b3966;
+  --brand-ffd8be80: #925b3980;
+  --brand-ffd8beb3: #925b39b3;
+  --brand-ffd8becc: #925b39cc;
+  --brand-ffd8bee6: #925b39e6;
+  --brand-fff3e8: #1e293b;
+  --brand-fff3e84d: #1e293b4d;
+  --brand-fff4ec: #1e293b;
+  --brand-fff4ec12: #1e293b12;
+  --brand-fff4ec14: #1e293b14;
+  --brand-ffffff02: #1e293b02;
+  --brand-ffffff03: #1e293b03;
+  --brand-ffffff04: #1e293b04;
+  --brand-ffffff05: #1e293b05;
+  --brand-ffffff06: #1e293b06;
+  --brand-ffffff08: #1e293b08;
+  --brand-ffffff0a: #1e293b0a;
+  --brand-ffffff0c: #1e293b0c;
+  --brand-ffffff0d: #1e293b0d;
+  --brand-ffffff10: #1e293b10;
+  --brand-ffffff1a: #1e293b1a;
+  --brand-ffffff29: #1e293b29;
+}
+
+:root {
+  --brand-131b27: #131b27;
+}
+html:not(.dark) {
+  --brand-131b27: var(--card);
+}
+
+:root {
+  --brand-0e1622: #0e1622;
+}
+html:not(.dark) {
+  --brand-0e1622: var(--card);
+}
+
+:root {
+  --brand-0a1019: #0a1019;
+}
+html:not(.dark) {
+  --brand-0a1019: var(--card);
+}
+
+:root {
+  --brand-0b1019: #0b1019;
+}
+html:not(.dark) {
+  --brand-0b1019: var(--card);
+}
+
+:root {
+  --brand-141b27: #141b27;
+}
+html:not(.dark) {
+  --brand-141b27: var(--card);
+}
+
+:root {
+  --brand-121824: #121824;
+}
+html:not(.dark) {
+  --brand-121824: var(--card);
+}
+
+:root {
+  --brand-1a2332: #1a2332;
+}
+html:not(.dark) {
+  --brand-1a2332: var(--card);
+}

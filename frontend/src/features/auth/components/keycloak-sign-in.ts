@@ -1,10 +1,10 @@
-import { signIn } from 'next-auth/react';
+import { signIn } from "next-auth/react";
 
 /**
  * Where the user lands when they did not ask for anything specific. Matches the
  * post-login default the middleware already uses.
  */
-export const DEFAULT_SIGN_IN_CALLBACK = '/dashboard/properties';
+export const DEFAULT_SIGN_IN_CALLBACK = "/dashboard";
 
 /**
  * Only same-origin paths are honoured. Auth.js would reject an absolute
@@ -12,8 +12,8 @@ export const DEFAULT_SIGN_IN_CALLBACK = '/dashboard/properties';
  * bouncing them to an error screen.
  */
 export function resolveCallbackUrl(search: string): string {
-  const requested = new URLSearchParams(search).get('callbackUrl');
-  return requested && requested.startsWith('/') && !requested.startsWith('//')
+  const requested = new URLSearchParams(search).get("callbackUrl");
+  return requested && requested.startsWith("/") && !requested.startsWith("//")
     ? requested
     : DEFAULT_SIGN_IN_CALLBACK;
 }
@@ -43,9 +43,5 @@ export async function beginKeycloakSignIn(options?: {
   const callbackUrl = options?.callbackUrl ?? DEFAULT_SIGN_IN_CALLBACK;
   const hint = options?.loginHint?.trim();
 
-  await signIn(
-    'keycloak',
-    { callbackUrl },
-    hint ? { login_hint: hint } : undefined
-  );
+  await signIn("keycloak", { callbackUrl }, hint ? { login_hint: hint } : undefined);
 }

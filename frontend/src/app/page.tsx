@@ -1,8 +1,18 @@
-import { redirect } from 'next/navigation';
+import type { Metadata } from "next";
+import { LandingPage } from "@/features/landing/components/landing-page";
 
-export default async function Page() {
-  // The root URL is the application entry point, not the public property feed.
-  // Send signed-out visitors to the supported sign-in page; its callback flow
-  // returns authenticated users to the dashboard.
-  redirect('/auth/sign-in');
+export const metadata: Metadata = {
+  title: { absolute: "شکارچی | SHEKARCHI — تحلیل هوشمند بازار املاک" },
+  description:
+    "شکارچی برای بازار املاک ایران؛ تحلیل AVM، رادار قیمت و نقشه در شهرها و محله‌های دارای داده.",
+  openGraph: {
+    title: "شکارچی | SHEKARCHI",
+    description: "دیدی روشن‌تر به بازار املاک؛ تحلیل محله‌ها، ارزش‌گذاری و رادار قیمت.",
+    locale: "fa_IR",
+    type: "website"
+  }
+};
+
+export default function Page() {
+  return <LandingPage />;
 }

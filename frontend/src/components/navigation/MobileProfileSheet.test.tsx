@@ -160,6 +160,15 @@ describe("MobileProfileSheet", () => {
     expect(screen.getAllByText("مصرف: نامشخص (در انتظار API)")).toHaveLength(2);
   });
 
+  it("links to the property radar and closes the profile menu on navigation", () => {
+    render(<MobileProfileSheet user={user} onSignOut={() => undefined} />);
+    fireEvent.click(screen.getByRole("button", { name: "بازکردن منوی پروفایل" }));
+    const radar = screen.getByRole("link", { name: /رادار شکار قیمت/ });
+    expect(radar.getAttribute("href")).toBe("/dashboard/properties");
+    fireEvent.click(radar);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("keeps developer platform disabled and identifies unavailable wallet balance", () => {
     render(<MobileProfileSheet user={user} onSignOut={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "بازکردن منوی پروفایل" }));
