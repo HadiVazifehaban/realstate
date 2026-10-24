@@ -1,0 +1,3 @@
+[submodule "services/iran-locations-api"]
+	path = services/iran-locations-api
+	url = https://github.com/hamidrezaramzani/iran-locations-api.git
