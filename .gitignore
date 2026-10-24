@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Secrets & runtime data (NEVER commit)
+/mellipayamak.env
+keycloak-shekarchi-sms/build-output/
+.env
+.env.*
+!.env.example
+data/
+*.pem
+*.key
+*.lic
+.setup/
+deploy-export/
+tiles-data/
+**/*precutover*.dump
+**/*.sql.gz
+keycloak-shekarchi-sms/_backup_*/
+
+# Media vault
+media/
+
+# Node
+node_modules/
+.next/
+out/
+
+# Cython binaries
+*.so
+*.pyd
+build/
+dist/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
