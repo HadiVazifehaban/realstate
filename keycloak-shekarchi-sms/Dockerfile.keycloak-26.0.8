@@ -6,7 +6,7 @@ ARG KEYCLOAK_VERSION
 WORKDIR /workspace
 COPY pom.xml ./pom.xml
 COPY src ./src
-RUN mvn -B -ntp -Dkeycloak.version=${KEYCLOAK_VERSION} clean verify \
+RUN mvn -B -ntp -Dkeycloak.version=${KEYCLOAK_VERSION} verify \
  && jar tf target/keycloak-shekarchi-sms-1.0.0.jar \
     | grep -Fx 'META-INF/services/org.keycloak.authentication.AuthenticatorFactory' \
  && jar tf target/keycloak-shekarchi-sms-1.0.0.jar \

@@ -19,4 +19,12 @@ class CaptchaFactoryDiscoveryTest {
             assertTrue(descriptor.contains("com.shekarchi.auth.captcha.CaptchaPasswordFormFactory"));
         }
     }
+
+    @Test
+    void passwordCaptchaStartsAfterThreeFailedAttempts() {
+        assertFalse(CaptchaPasswordForm.isCaptchaRequired(0));
+        assertFalse(CaptchaPasswordForm.isCaptchaRequired(1));
+        assertFalse(CaptchaPasswordForm.isCaptchaRequired(2));
+        assertTrue(CaptchaPasswordForm.isCaptchaRequired(3));
+    }
 }

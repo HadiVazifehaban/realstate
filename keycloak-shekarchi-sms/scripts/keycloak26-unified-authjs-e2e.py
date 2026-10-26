@@ -172,9 +172,8 @@ def start_authjs(require_captcha=False):
         asset_status, _, asset_body, _ = request(opener, asset_url)
         if asset_status != 200 or not asset_body:
             raise RuntimeError("a linked Shekarchi CSS/JavaScript asset did not load")
-    # The adaptive CAPTCHA is intentionally absent until three failed logins.
-    # Prime those failures inside this synthetic OIDC session so the remaining
-    # checks can exercise CAPTCHA validation without weakening production.
+    # Prove the adaptive CAPTCHA is absent initially and appears only after
+    # three incorrect password submissions in this isolated OIDC session.
     if require_captcha and not any(page.questions.values()):
         for _ in range(3):
             form = dict(page.forms["kc-form-login"]["fields"])
@@ -187,6 +186,8 @@ def start_authjs(require_captcha=False):
             if status != 200:
                 raise RuntimeError("synthetic CAPTCHA priming attempt did not return the login page")
             page = parse(body.decode("utf-8", "replace"))
+            if any(page.questions.values()) and _ < 2:
+                raise RuntimeError("CAPTCHA appeared before three failed password attempts")
         if not any(page.questions.values()):
             raise RuntimeError("adaptive CAPTCHA question missing after three synthetic failures")
     if require_captcha:

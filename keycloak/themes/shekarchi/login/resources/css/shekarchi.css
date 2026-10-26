@@ -93,6 +93,28 @@ body {
   text-align: center;
   margin-bottom: 24px;
 }
+.mk-register-brand {
+  text-align: start;
+  margin-bottom: 22px;
+}
+.mk-register-brand .mk-title {
+  color: var(--mk-text);
+  font-size: 21px;
+  font-weight: 700;
+}
+.mk-register-brand .mk-subtitle {
+  margin-top: 5px;
+}
+.mk-register-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+}
+@media (max-width: 480px) {
+  .mk-register-field-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .mk-logo {
   display: block;
   width: 88px;
