@@ -122,6 +122,7 @@ class Principal:
     realm_roles: frozenset[str] = field(default_factory=frozenset)
     roles: frozenset[UserRole] = field(default_factory=frozenset)
     tenant_id: str | None = None
+    active_agency_id: str | None = None
     agency_name: str = ""
     kyc_status: str = "PENDING"
     saas_tier: SaasTier = SaasTier.FREE
@@ -148,6 +149,7 @@ class Principal:
             "subject": self.subject,
             "username": self.username,
             "tenant_id": self.tenant_id,
+            "active_agency_id": self.active_agency_id,
             "roles": sorted(self.realm_roles),
             "kyc_status": self.kyc_status,
             "saas_tier": self.saas_tier.value,
@@ -245,6 +247,25 @@ def _decode_verified(token: str, key: Any, s: Settings) -> dict[str, Any]:
         raise IdentityError(401, "token_invalid", "توکن نامعتبر است.") from exc
 
 
+def _first_claim(value: Any) -> Any:
+    """Keycloak user attributes may be emitted as singleton arrays."""
+    return value[0] if isinstance(value, (tuple, list)) and value else value
+
+
+def _user_attribute(claims: dict[str, Any], name: str) -> Any:
+    attributes = claims.get("user_attributes") or {}
+    return attributes.get(name) if isinstance(attributes, dict) else None
+
+
+def _claim_bool(value: Any) -> bool:
+    value = _first_claim(value)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value == 1
+    return isinstance(value, str) and value.strip().casefold() in {"true", "1", "yes"}
+
+
 def principal_from_claims(
     claims: dict[str, Any], settings: Settings | None = None
 ) -> Principal:
@@ -259,6 +280,15 @@ def principal_from_claims(
     raw_roles = frozenset(str(role) for role in realm_access.get("roles", []))
     # Drop the realm's auto-assigned baseline role so it never reads as a grant.
     raw_roles = frozenset(r for r in raw_roles if not r.startswith("default-roles"))
+    mobile_verified = _claim_bool(
+        claims.get("mobile_verified", _user_attribute(claims, "mobile_verified"))
+    )
+    # A stale/misconfigured token must not be rejected as malformed, but its
+    # verified-user grant is not trusted until the independent mobile claim is
+    # present. Removing the effective role makes all downstream RBAC guards
+    # treat this request as unverified while preserving safe audit context.
+    if "ROLE_VERIFIED_USER" in raw_roles and not mobile_verified:
+        raw_roles = frozenset(role for role in raw_roles if role != "ROLE_VERIFIED_USER")
 
     mapped = {
         KEYCLOAK_ROLE_MAP[name] for name in raw_roles if name in KEYCLOAK_ROLE_MAP
@@ -280,16 +310,16 @@ def principal_from_claims(
 
     return Principal(
         subject=str(claims.get("sub", "")),
-        username=str(claims.get("preferred_username", "")),
-        full_name=str(claims.get("name", "")),
+        username=str(_first_claim(claims.get("preferred_username")) or ""),
+        full_name=str(_first_claim(claims.get("name")) or ""),
         realm_roles=raw_roles,
         roles=frozenset(effective),
-        tenant_id=claims.get("tenant_id"),
-        agency_name=str(claims.get("agency_name", "")),
-        kyc_status=str(claims.get("kyc_status", "PENDING")),
+        tenant_id=_first_claim(claims.get("tenant_id", _user_attribute(claims, "tenant_id"))),
+        agency_name=str(_first_claim(claims.get("agency_name", _user_attribute(claims, "agency_name"))) or ""),
+        kyc_status=str(_first_claim(claims.get("kyc_status", _user_attribute(claims, "kyc_status"))) or "PENDING"),
         saas_tier=tier,
         daily_pii_quota=max(0, min(quota, s.pii_quota_hard_cap)),
-        mobile_verified=bool(claims.get("mobile_verified", False)),
+        mobile_verified=mobile_verified,
         token_id=str(claims.get("jti", "")),
     )
 
@@ -409,5 +439,3 @@ def bootstrap_principal() -> Principal:
         kyc_status="VERIFIED",
         saas_tier=SaasTier.ENTERPRISE,
     )
-
-

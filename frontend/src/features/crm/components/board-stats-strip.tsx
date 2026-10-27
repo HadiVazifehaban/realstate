@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
 
-import { Icons } from '@/components/icons';
-import { cn, formatToman } from '@/lib/utils';
+import { Icons } from "@/components/icons";
+import { cn, formatToman } from "@/lib/utils";
 
-import { useBoardStats } from '../hooks';
+import { useBoardStats } from "../hooks";
 import {
   KANBAN_COLUMNS,
   LEAD_STAGE_LABELS,
@@ -13,9 +13,9 @@ import {
   type Actor,
   type BoardStats,
   type LeadStage
-} from '../types';
+} from "../types";
 
-const fa = new Intl.NumberFormat('fa-IR');
+const fa = new Intl.NumberFormat("fa-IR");
 
 /**
  * Desk totals above the board.
@@ -34,11 +34,15 @@ export function BoardStatsStrip({ actor }: { actor?: Actor }) {
 
   if (isPending) {
     return (
-      <div className='mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6'>
+      <div
+        role="status"
+        aria-label="در حال دریافت آمار میز کار"
+        className="crm-stats-grid grid grid-cols-2 gap-3 xl:grid-cols-5"
+      >
         {KANBAN_COLUMNS.map((stage) => (
-          <div key={stage} className='bg-card/60 rounded-xl border p-3'>
-            <div className='bg-muted h-3 w-2/3 rounded' />
-            <div className='bg-muted mt-2 h-4 w-1/3 rounded' />
+          <div key={stage} className="bg-card/60 rounded-xl border p-3">
+            <div className="bg-muted h-3 w-2/3 rounded" />
+            <div className="bg-muted mt-2 h-4 w-1/3 rounded" />
           </div>
         ))}
       </div>
@@ -47,22 +51,27 @@ export function BoardStatsStrip({ actor }: { actor?: Actor }) {
 
   if (isError || !data) {
     return (
-      <p className='text-muted-foreground mb-4 flex items-center gap-2 rounded-xl border border-dashed px-4 py-3 text-xs'>
-        <Icons.warning className='size-4' />
+      <p className="text-muted-foreground mb-4 flex items-center gap-2 rounded-xl border border-dashed px-4 py-3 text-xs">
+        <Icons.warning className="size-4" />
         آمار تخته در دسترس نیست؛ ستون‌ها با همان داده‌های قبلی کار می‌کنند.
       </p>
     );
   }
 
   return (
-    <div className='mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6'>
+    <div className="crm-stats-grid grid grid-cols-2 gap-3 xl:grid-cols-5">
+      <DeskTotals stats={data} />
       {KANBAN_COLUMNS.map((stage) => {
         const stat = data.columns.find((column) => column.stage === stage);
         return (
-          <ColumnChip key={stage} stage={stage} count={stat?.count ?? 0} value={stat?.total_value ?? 0} />
+          <ColumnChip
+            key={stage}
+            stage={stage}
+            count={stat?.count ?? 0}
+            value={stat?.total_value ?? 0}
+          />
         );
       })}
-      <DeskTotals stats={data} />
     </div>
   );
 }
@@ -75,21 +84,20 @@ function ColumnChip({ stage, count, value }: { stage: LeadStage; count: number; 
     <div
       style={
         {
-          '--chip-accent': accent.stripe,
-          borderTopColor: 'var(--chip-accent)'
+          "--chip-accent": accent.stripe,
+          borderTopColor: "var(--chip-accent)"
         } as React.CSSProperties
       }
-      className='bg-card/60 rounded-xl border border-t-2 px-3 py-2'
+      className="crm-stage-stat bg-card/60 rounded-xl border border-t-2 px-4 py-3 last:col-span-2 xl:last:col-span-1"
     >
-      <div className='flex items-baseline justify-between gap-2'>
-        <span className='text-muted-foreground truncate text-xs'>
-          {LEAD_STAGE_LABELS[stage]}
-        </span>
-        <span className='text-sm font-semibold tabular-nums'>
-          {fa.format(count)}
-        </span>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-muted-foreground truncate text-xs">{LEAD_STAGE_LABELS[stage]}</span>
+        <span className="text-xl font-semibold tabular-nums">{fa.format(count)}</span>
       </div>
-      <span className='text-muted-foreground block truncate text-[11px] tabular-nums'>
+      <span
+        className="text-muted-foreground mt-2 block truncate text-[11px] tabular-nums"
+        title="مجموع قیمت آگهی‌های این مرحله"
+      >
         {formatToman(value)}
       </span>
     </div>
@@ -105,28 +113,29 @@ function ColumnChip({ stage, count, value }: { stage: LeadStage; count: number; 
  */
 function DeskTotals({ stats }: { stats: BoardStats }) {
   return (
-    <div className='bg-card/60 rounded-xl border px-3 py-2 sm:col-span-2 lg:col-span-1'>
-      <dl className='flex h-full flex-col justify-between gap-1.5'>
-        <Total label='کل لیدهای تخته' value={fa.format(stats.total)} />
+    <div className="crm-desk-totals col-span-full rounded-xl border bg-card/60 px-4 py-4">
+      <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Total label="کل لیدهای تخته" value={fa.format(stats.total)} />
         <Total
-          label='ارزش خط لوله'
+          label="قیمت آگهی‌های در جریان"
           value={formatToman(stats.open_value)}
-          hint='فایل‌های در جریان'
+          hint="فایل‌های در جریان"
         />
         <Total
-          label='نرخ برد'
+          label="نرخ برد پرونده‌های نهایی"
           value={`${fa.format(stats.conversion_pct)}٪`}
-          hint={`بسته‌شده: ${formatToman(stats.closed_value)}`}
+          hint={`قیمت آگهی‌های بسته‌شده: ${formatToman(stats.closed_value)}`}
         />
-        <div className='flex items-center gap-2'>
-          <span className='text-muted-foreground flex items-center gap-1 text-[11px]'>
-            <Icons.trendingDown className='size-3.5' />
+        <div className="flex flex-wrap items-center gap-3">
+          <dt className="sr-only">شکار و بایگانی</dt>
+          <dd className="text-muted-foreground flex items-center gap-1 text-[11px]">
+            <Icons.trendingDown className="size-3.5" />
             شکار: {fa.format(stats.bargains)}
-          </span>
-          <span className='text-muted-foreground flex items-center gap-1 text-[11px]'>
-            <Icons.archive className='size-3.5' />
+          </dd>
+          <dd className="text-muted-foreground flex items-center gap-1 text-[11px]">
+            <Icons.archive className="size-3.5" />
             بایگانی: {fa.format(stats.lost)}
-          </span>
+          </dd>
         </div>
       </dl>
     </div>
@@ -145,11 +154,11 @@ function Total({
   className?: string;
 }) {
   return (
-    <div className={cn('flex items-baseline justify-between gap-2', className)}>
-      <dt className='text-muted-foreground text-[11px]'>{label}</dt>
-      <dd className='flex items-baseline gap-1.5'>
-        {hint && <span className='text-muted-foreground text-[10px]'>{hint}</span>}
-        <span className='text-sm font-semibold tabular-nums'>{value}</span>
+    <div className={cn("flex min-w-0 flex-col gap-2", className)}>
+      <dt className="text-muted-foreground text-[11px]">{label}</dt>
+      <dd className="flex flex-col gap-1.5">
+        <span className="text-lg font-semibold tabular-nums">{value}</span>
+        {hint && <span className="text-muted-foreground text-[10px]">{hint}</span>}
       </dd>
     </div>
   );

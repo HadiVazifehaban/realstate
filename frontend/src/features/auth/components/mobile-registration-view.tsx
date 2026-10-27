@@ -10,6 +10,9 @@ import { Icons } from '@/components/icons';
 import { api } from '@/features/auth/api/registration';
 import { KEYCLOAK_ENABLED } from '@/lib/utils';
 import { signIn } from 'next-auth/react';
+import Link from 'next/link';
+import { AuthPanel, ShowcasePanel } from './sign-in-view';
+import { cn } from '@/lib/utils';
 
 function toAsciiDigits(raw: string): string {
   return raw
@@ -153,6 +156,9 @@ export default function MobileRegistrationView() {
       cities: professionalForm.cities ? professionalForm.cities.split(',').map((c) => c.trim()).filter(Boolean) : [],
       accepted_terms: true,
     };
+    if (track === 'ROLE_AGENCY_MANAGER') {
+      payload.referral_code = (professionalForm.referral_code ?? '').trim();
+    }
     for (const field of trackRequired(track)) {
       payload[field] = professionalForm[field] ?? '';
     }
@@ -174,8 +180,9 @@ export default function MobileRegistrationView() {
   const initialProfessionalFields = (): Record<string, string> => ({
     first_name: '', last_name: '', email: '', cities: '',
     agency_name: '', experience_years: '', specialty: '', certificate_ref: '',
-    agency_official_name: '', agency_brand_name: '', trade_code: '', national_id: '', office_address: '',
-    latitude: '', longitude: '', consultant_count: '', agency_docs_ref: '',
+    agency_official_name: '', agency_brand_name: '', trade_code: '', registration_no: '', national_id: '', landline: '', office_address: '', consultant_count: '1', agency_docs_ref: 'provided',
+    referral_code: '',
+    latitude: '', longitude: '',
     organization: '', position: '', invite_code: '', data_purpose: '', analysis_type: '',
   });
 
@@ -212,81 +219,140 @@ export default function MobileRegistrationView() {
   };
 
   return (
-    <div className="mx-auto max-w-lg p-6 space-y-6">
-      <div className="flex flex-col items-center gap-2">
-        <Icons.phone className="h-12 w-12 text-blue-600" />
-        <h2 className="text-xl font-bold text-slate-900">ثبت‌نام سریع با موبایل</h2>
-        <p className="text-sm text-slate-500">یک کد یک‌بار مصرف به شماره شما ارسال می‌شود.</p>
-      </div>
-
-      {step === 'mobile' && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-700">شماره موبایل</label>
-          <Input
-            value={mobile}
-            onChange={(e) => setMobile(e.target.value)}
-            placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-            className="text-right dir-rtl"
-          />
-          <p className="text-xs text-slate-500">فرم معتبر: ۰۹۱۲…، +۹۸۹…، یا ۰۰۹۸۹…</p>
-          <Button type="button" onClick={requestOtp} disabled={!MOBILE_RE.test(normalizeMobile(mobile))} className="w-full">
-            ارسال کد تأیید
-          </Button>
-        </div>
-      )}
-
-      {step === 'otp' && (
-        <div className="space-y-4">
-          <label className="text-sm font-medium text-slate-700">کد تأیید از {currentMobile}</label>
-          <Input
-  value={otpCode}
-  onChange={(e) => setOtpCode(e.target.value)}
-  maxLength={6}
-  placeholder="123456"
-  className="text-center letter-spacing-wide dir-rtl"
-/>
-          {otpError && <div className="text-sm text-destructive">{otpError}</div>}
-          <div className="flex justify-between items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => { setStep('mobile'); setOtpError(null); }}>
-              تغییر شماره
-            </Button>
-            <Button type="button" onClick={verifyOtp} disabled={!/^\d{6}$/.test(otpCode.trim())} className="w-1/3">
-              تایید کد
-            </Button>
+    <div className="showcase-shell grid min-h-screen lg:grid-cols-2">
+      <AuthPanel
+        title="ثبت‌نام در شکارچی"
+        description="با شمارهٔ موبایل خود حساب بسازید و به امکانات سامانه دسترسی پیدا کنید."
+        icon={<Icons.phone aria-hidden className="h-6 w-6" />}
+      >
+        <div className="space-y-6">
+          <div className="flex flex-col items-center gap-2">
+            <h3 className="text-showcase-text text-lg font-semibold">ثبت‌نام سریع با موبایل</h3>
+            <p className="text-showcase-muted text-center text-sm leading-6">یک کد یک‌بارمصرف به شمارهٔ شما ارسال می‌شود.</p>
           </div>
-        </div>
-      )}
 
-      {step === 'done' && !outcome?.hasAccount && (
-        <div className="space-y-4">
-          <label className="text-sm font-medium text-slate-700">ثبت‌نام کاربری</label>
-          <p className="text-sm text-slate-600">ثبت‌نام کردن یا ثبت‌نام حرفه‌ای</p>
-          <div className="space-y-3">
-            <Button onClick={submitQuickRegistration} disabled={registering} className="w-full">
-              ثبت‌نام سریع (کاربر عادی)
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setTrack('ROLE_JUNIOR_BROKER')} className="w-full">
-              ثبت‌نام حرفه‌ای (مشاور)
-            </Button>
-          </div>
-        </div>
-      )}
+          {step === 'mobile' && (
+            <div className="space-y-2">
+              <label htmlFor="registration-mobile" className="text-showcase-text block text-sm font-medium">شمارهٔ موبایل</label>
+              <Input
+                id="registration-mobile"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+                placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+                className="border-showcase-border text-showcase-text placeholder:text-showcase-dim h-12 rounded-xl bg-white/5 text-right dir-rtl"
+              />
+              <p className="text-showcase-dim text-xs leading-5">فرمت معتبر: ۰۹۱۲…، ‎+۹۸۹…، یا ‎۰۰۹۸۹…</p>
+              <Button
+                type="button"
+                onClick={requestOtp}
+                disabled={!MOBILE_RE.test(normalizeMobile(mobile))}
+                className={cn('h-12 w-full rounded-xl border-0 bg-linear-to-l from-gold-primary to-gold-dark text-showcase hover:opacity-90')}
+              >
+                ارسال کد تأیید
+              </Button>
+            </div>
+          )}
 
-      {step === 'done' && outcome?.hasAccount && (
-        <div className="space-y-4">
-          <label className="text-sm font-medium text-slate-700">حساب پیدا شد</label>
-          <p className="text-sm text-slate-600">شماره شما ثبت‌شده است؛ در حال ورود به سیستم…</p>
-          <div className="space-y-2">
-            <p className="text-xs text-amber-600">اگر کد شما منقضی شده است، دوباره درخواست دهید.</p>
-          </div>
-        </div>
-      )}
+          {step === 'otp' && (
+            <div className="space-y-4">
+              <label htmlFor="registration-otp" className="text-showcase-text block text-sm font-medium">کد تأیید ارسال‌شده به {currentMobile}</label>
+              <Input
+                id="registration-otp"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value)}
+                maxLength={6}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="۱۲۳۴۵۶"
+                className="border-showcase-border text-showcase-text h-12 rounded-xl bg-white/5 text-center tracking-[0.35em]"
+              />
+              {otpError && <div role="alert" className="text-showcase-danger text-sm">{otpError}</div>}
+              <div className="flex items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => { setStep('mobile'); setOtpError(null); }}
+                  className="border-showcase-border text-showcase-text h-11 rounded-xl bg-white/5 hover:bg-white/10"
+                >
+                  تغییر شماره
+                </Button>
+                <Button
+                  type="button"
+                  onClick={verifyOtp}
+                  disabled={!/^\d{6}$/.test(otpCode.trim())}
+                  className="h-11 rounded-xl bg-linear-to-l from-gold-primary to-gold-dark text-showcase hover:opacity-90"
+                >
+                  تایید کد
+                </Button>
+              </div>
+            </div>
+          )}
 
-      {lastMessage && (
-        <div className="p-3 rounded-md border bg-amber-50 border-amber-200 text-amber-800 text-sm">
-          {lastMessage}
+          {step === 'done' && !outcome?.hasAccount && (
+            <div className="space-y-4">
+              <label className="text-showcase-text block text-sm font-medium">نوع حساب</label>
+              <p className="text-showcase-muted text-sm">روش ثبت‌نام موردنظر را انتخاب کنید.</p>
+              <div className="space-y-3">
+                <Button onClick={submitQuickRegistration} disabled={registering} className="h-12 w-full rounded-xl bg-linear-to-l from-gold-primary to-gold-dark text-showcase hover:opacity-90">
+                  ثبت‌نام سریع (کاربر عادی)
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setTrack('ROLE_JUNIOR_BROKER')} className="border-showcase-border text-showcase-text h-12 w-full rounded-xl bg-white/5 hover:bg-white/10">
+                  ثبت‌نام حرفه‌ای (مشاور)
+                </Button>
+                <Button type="button" variant="outline" onClick={() => { setTrack('ROLE_AGENCY_MANAGER'); setProfessionalForm(initialProfessionalFields()); }} className="border-showcase-border text-showcase-text h-12 w-full rounded-xl bg-white/5 hover:bg-white/10">
+                  ثبت دفتر املاک
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {track === 'ROLE_AGENCY_MANAGER' && step === 'done' && !outcome?.hasAccount && (
+            <div className="space-y-2">
+              <label className="text-showcase-text block text-sm font-medium">اطلاعات دفتر</label>
+              <Input aria-label="نام رسمی دفتر" placeholder="نام رسمی دفتر" value={professionalForm.agency_official_name ?? ''} onChange={(event) => setProfessionalForm((current) => ({ ...current, agency_official_name: event.target.value }))} />
+              <Input aria-label="نام تجاری دفتر" placeholder="نام تجاری دفتر (اختیاری)" value={professionalForm.agency_brand_name ?? ''} onChange={(event) => setProfessionalForm((current) => ({ ...current, agency_brand_name: event.target.value }))} />
+              <Input aria-label="شناسه صنفی" placeholder="شناسه صنفی" value={professionalForm.trade_code ?? ''} onChange={(event) => setProfessionalForm((current) => ({ ...current, trade_code: event.target.value }))} />
+              <Input aria-label="شناسه ملی" placeholder="شناسه ملی" value={professionalForm.national_id ?? ''} onChange={(event) => setProfessionalForm((current) => ({ ...current, national_id: event.target.value }))} />
+              <Input aria-label="نشانی دفتر" placeholder="نشانی دفتر" value={professionalForm.office_address ?? ''} onChange={(event) => setProfessionalForm((current) => ({ ...current, office_address: event.target.value }))} />
+              <label htmlFor="agency-referral-code" className="text-showcase-text block text-sm font-medium">کد معرف (اختیاری)</label>
+              <Input
+                id="agency-referral-code"
+                autoComplete="off"
+                maxLength={16}
+                value={professionalForm.referral_code ?? ''}
+                onChange={(event) => setProfessionalForm((current) => ({ ...current, referral_code: event.target.value.toUpperCase() }))}
+                placeholder="کد دفتر همکار"
+                className="border-showcase-border text-showcase-text h-11 rounded-xl bg-white/5"
+              />
+              <p className="text-showcase-dim text-xs leading-5">این فرم فقط درخواست حرفه‌ای را ثبت می‌کند. ثبت دفتر و کد معرف هنگام ایجاد دفتر در بخش «دفاتر همکار» انجام می‌شود.</p>
+              <Button type="button" disabled={!canSubmitProfessional(track)} onClick={submitProfessional} className="h-11 w-full">ثبت درخواست دفتر</Button>
+            </div>
+          )}
+
+          {step === 'done' && outcome?.hasAccount && (
+            <div className="space-y-4">
+              <label className="text-showcase-text block text-sm font-medium">حساب پیدا شد</label>
+              <p className="text-showcase-muted text-sm leading-6">شمارهٔ شما قبلاً ثبت شده است؛ در حال انتقال به صفحهٔ ورود…</p>
+              <p className="text-showcase-dim text-xs">اگر کد منقضی شده است، دوباره درخواست دهید.</p>
+            </div>
+          )}
+
+          {lastMessage && (
+            <div role="status" className="border-showcase-border bg-white/5 text-showcase-muted rounded-xl border p-3 text-sm leading-6">
+              {lastMessage}
+            </div>
+          )}
+
+          <p className="text-showcase-dim border-showcase-border border-t pt-5 text-center text-xs">
+            حساب دارید؟{' '}
+            <Link href="/auth/sign-in" className="text-gold-accent hover:underline">وارد شوید</Link>
+          </p>
         </div>
-      )}
+      </AuthPanel>
+      <ShowcasePanel />
     </div>
   );
 }

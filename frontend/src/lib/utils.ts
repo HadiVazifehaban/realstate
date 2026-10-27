@@ -40,7 +40,7 @@ export const KEYCLOAK_ENABLED = Boolean(process.env.NEXT_PUBLIC_KEYCLOAK_ISSUER)
 
 /** Realm + audience the dashboard expects; must match the API core's config. */
 export const KEYCLOAK_ISSUER = process.env.NEXT_PUBLIC_KEYCLOAK_ISSUER ?? '';
-export const KEYCLOAK_CLIENT_ID = process.env.KEYCLOAK_CLIENT_ID ?? 'maskanchi-frontend';
+export const KEYCLOAK_CLIENT_ID = process.env.KEYCLOAK_CLIENT_ID ?? 'shekarchi-frontend';
 
 /**
  * True only when `<ClerkProvider />` is actually mounted.

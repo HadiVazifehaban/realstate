@@ -8,6 +8,7 @@ import "./dashboard-header.css";
 import { ThemeModeToggle } from "../themes/theme-mode-toggle";
 import CtaLogin from "./cta-login";
 import { UserNav } from "./user-nav";
+import HeaderLocationPicker from "./header-location-picker";
 
 export default function Header() {
   return (
@@ -17,6 +18,7 @@ export default function Header() {
         <DashboardTopNav />
         <div className="dashboard-header-utilities">
           <OrgSwitcher />
+          <div className="dashboard-header-city-picker"><HeaderLocationPicker /></div>
           <Link className="dashboard-submit" href="/dashboard/properties/submit">
             <Icons.plusCircle size={18} aria-hidden /> <span>ثبت ملک</span>
           </Link>

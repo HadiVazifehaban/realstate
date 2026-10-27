@@ -24,6 +24,7 @@ type AuthUrlEnvironment = {
   AUTH_URL?: string;
   NEXTAUTH_URL?: string;
   AUTH_ALLOWED_ORIGINS?: string;
+  AUTH_TRUST_HOST?: string;
 };
 
 const UNTRUSTED_ROUTING_HEADER_NAMES = new Set([
@@ -40,7 +41,8 @@ export function resolveAuthOrigin(
   env: AuthUrlEnvironment = {
     AUTH_URL: process.env.AUTH_URL,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
-    AUTH_ALLOWED_ORIGINS: process.env.AUTH_ALLOWED_ORIGINS
+    AUTH_ALLOWED_ORIGINS: process.env.AUTH_ALLOWED_ORIGINS,
+    AUTH_TRUST_HOST: process.env.AUTH_TRUST_HOST
   }
 ): OriginValidation {
   // NextAuth v5 replaces the request URL with this static origin when either
@@ -91,10 +93,13 @@ export function resolveAuthOrigin(
     const forwardedProto = request.headers.get("x-forwarded-proto");
     const forwardedPort = request.headers.get("x-forwarded-port");
     const allowed = new URL(matched);
+    const trustedProxy = env.AUTH_TRUST_HOST?.toLowerCase() === "true";
     if (
-      (forwardedHost && forwardedHost.toLowerCase() !== allowed.host.toLowerCase()) ||
-      (forwardedProto && forwardedProto.toLowerCase().replace(/:$/, "") !== allowed.protocol.slice(0, -1)) ||
-      (forwardedPort && forwardedPort !== (allowed.port || (allowed.protocol === "https:" ? "443" : "80")))
+      !trustedProxy && (
+        (forwardedHost && forwardedHost.toLowerCase() !== allowed.host.toLowerCase()) ||
+        (forwardedProto && forwardedProto.toLowerCase().replace(/:$/, "") !== allowed.protocol.slice(0, -1)) ||
+        (forwardedPort && forwardedPort !== (allowed.port || (allowed.protocol === "https:" ? "443" : "80")))
+      )
     ) {
       return { ok: false, reason: "forwarded-header" };
     }

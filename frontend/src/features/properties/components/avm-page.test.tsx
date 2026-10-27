@@ -38,6 +38,9 @@ vi.mock("../hooks", () => ({
   useNeighbourhoodProperties: () => ({ data: { items: [] }, isPending: false, isError: false })
 }));
 vi.mock("@/store/useCityStore", () => ({ useActiveCityName: () => "تهران" }));
+vi.mock("../hooks/use-location-filter", () => ({
+  useLocationFilter: () => ({ cities: ["تهران"], setCities: vi.fn() })
+}));
 vi.mock("./market-map", () => ({
   MarketMap: ({ bubbles }: { bubbles: { id: string }[] }) => (
     <div data-testid="map-bubbles">{bubbles.map((b) => b.id).join(",")}</div>
@@ -75,7 +78,7 @@ describe("AVM three-column workspace", () => {
     fireEvent.change(screen.getByRole("spinbutton", { name: "حداقل مقدار شاخص محله" }), {
       target: { value: "150000000" }
     });
-    expect(screen.getByTestId("map-bubbles").textContent).toBe("ولنجک");
+    expect(screen.getByTestId("map-bubbles").textContent).toBe(JSON.stringify(["تهران", "ولنجک"]));
     const ranking = screen.getByRole("complementary", { name: "رتبه‌بندی محله‌ها" });
     expect(within(ranking).queryByText("یوسف‌آباد")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "پاک‌کردن محدوده" }));

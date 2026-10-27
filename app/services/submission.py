@@ -11,6 +11,7 @@ traceable.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -144,6 +145,9 @@ async def record_price(
     source: PriceChangeSource,
     source_ref: str | None = None,
     created_by_id: uuid.UUID | None = None,
+    agency_id: uuid.UUID | None = None,
+    prepare_new: Callable[[], Awaitable[None]] | None = None,
+    check_new_quota: Callable[[], Awaitable[None]] | None = None,
 ) -> PropertyPriceHistory | None:
     """Append a price-history row when the price actually moved.
 
@@ -226,6 +230,9 @@ async def submit_property(
     settings: Settings | None = None,
     cipher: PiiCipher | None = None,
     created_by_id: uuid.UUID | None = None,
+    agency_id: uuid.UUID | None = None,
+    prepare_new: Callable[[], Awaitable[None]] | None = None,
+    check_new_quota: Callable[[], Awaitable[None]] | None = None,
     #: Who pressed submit. Set by the endpoint from the signed token, never from
     #: the request body -- see ``app.models.enums.SUBMITTER_TYPE_BY_ROLE``. Left
     #: ``None`` only by internal callers (backfills, tests) that have no caller
@@ -253,27 +260,43 @@ async def submit_property(
     from app.services.city_normalizer import normalize_city_neighborhood
 
     located_city, _ = normalize_city_neighborhood(located.get("city"), district)
+    from app.services.location_catalog import resolve_city
+
+    canonical = resolve_city(located_city, located.get("province") or "")
+    if canonical:
+        located_city = canonical["name"]
+        located = {**located, "province": canonical["province"]}
     located = {**located, "city": located_city}
     content_hash = compute_content_hash(located.get("city"), district, area, floor, total_price)
 
-    # 1) Exact structural fingerprint match (the same unit re-posted).
-    existing = None
-    if content_hash:
-        existing = (
-            await session.exec(select(Property).where(Property.content_hash == content_hash))
-        ).first()
+    async def find_existing() -> Property | None:
+        # 1) Exact structural fingerprint match (the same unit re-posted).
+        candidate = None
+        if content_hash:
+            candidate = (
+                await session.exec(select(Property).where(Property.content_hash == content_hash))
+            ).first()
+        # 2) Otherwise a spatial + specs match inside the near-duplicate radius.
+        if candidate is None:
+            for nearby, _distance in await find_nearby(
+                session, latitude=latitude, longitude=longitude
+            ):
+                if specs_match(nearby, area=area, rooms=rooms, property_type=property_type):
+                    candidate = nearby
+                    break
+        return candidate
 
-    # 2) Otherwise a spatial + specs match inside the near-duplicate radius.
-    if existing is None:
-        for candidate, _distance in await find_nearby(
-            session, latitude=latitude, longitude=longitude
-        ):
-            if specs_match(candidate, area=area, rooms=rooms, property_type=property_type):
-                existing = candidate
-                break
+    existing = await find_existing()
+    if existing is None and prepare_new is not None:
+        # Serialize same-workspace creates, then repeat dedupe while holding the
+        # lock so concurrent submissions of the same unit consume only one slot.
+        await prepare_new()
+        existing = await find_existing()
 
     created = existing is None
     if existing is None:
+        if check_new_quota is not None:
+            await check_new_quota()
         existing = Property(
             title=title or district or "فهرست جدید",
             description=description,
@@ -292,6 +315,7 @@ async def submit_property(
             storage_node_id="local",
             content_hash=content_hash,
             created_by_id=created_by_id,
+            agency_id=agency_id,
         )
     elif submitter_type is not None:
         # A merge into an existing row. Both provenance fields follow the rule

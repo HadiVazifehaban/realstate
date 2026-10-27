@@ -4,16 +4,22 @@ Importing this package registers every table on ``SQLModel.metadata`` which is
 what Alembic and ``create_all`` rely on.
 """
 from app.models.property_booking import PropertyVisitBooking
+from app.models.chat import ChatConversation, ChatMembership, ChatMessage
 from app.models.footer_social_link import FooterSocialLink
 
 from app.models.registration import AuthAuditLog, ProfessionalApplication
 from app.models.billing import (
     AgencySubscription,
     AgencyWallet,
+    AgencyReferral,
     FinancialAuditLog,
+    PaymentAttempt,
     PaymentOrder,
+    SubscriptionPlan,
+    ZibalGatewayConfiguration,
     PaymentReceipt,
     PaymentReview,
+    ReferralCredit,
     WalletTransaction,
 )
 
@@ -73,7 +79,7 @@ from app.models.property_report import PropertyReport
 from app.models.scrape_job import ScrapeJob
 from app.models.sync_outbox import SyncOutbox
 from app.models.user_preference import UserPreference
-from app.models.agency_network import Agency, AgencyCooperation
+from app.models.agency_network import Agency, AgencyCooperation, AgencyMembership
 from app.models.network_collab import (
     AuditEvent,
     CommissionAgreement,
@@ -88,14 +94,22 @@ from app.models.network_collab import (
 )
 
 __all__ = [
+    "ChatConversation",
+    "ChatMembership",
+    "ChatMessage",
     "FooterSocialLink",
     "AgencyUser",
     "AuthAuditLog",
     "ProfessionalApplication",
     "AgencySubscription",
+    "AgencyReferral",
+    "ReferralCredit",
     "AgencyWallet",
+    "PaymentAttempt",
     "WalletTransaction",
     "PaymentOrder",
+    "SubscriptionPlan",
+    "ZibalGatewayConfiguration",
     "PaymentReceipt",
     "PaymentReview",
     "FinancialAuditLog",
@@ -118,6 +132,7 @@ __all__ = [
     "UserPreference",
     "Agency",
     "AgencyCooperation",
+    "AgencyMembership",
     "ListingShare",
     "ListingSharePermission",
     "LeadReferral",
@@ -153,4 +168,3 @@ __all__ = [
     "CooperationStatus",
     "UserRole",
 ]
-

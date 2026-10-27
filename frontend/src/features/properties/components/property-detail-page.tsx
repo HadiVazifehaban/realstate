@@ -55,7 +55,7 @@ export default function PropertyDetailPage({ propertyId }: { propertyId: string 
 
   if (isPending) {
     return (
-      <div className='mk-detail-standard showcase-shell grid min-w-0 overflow-x-clip gap-2 rounded-2xl p-2 sm:p-3 lg:grid-cols-[1fr_320px]'>
+      <div className='property-detail-viewport mk-detail-standard showcase-shell grid min-w-0 overflow-x-clip gap-2 rounded-2xl p-2 sm:p-3 lg:grid-cols-[1fr_320px]'>
         <Skeleton className='aspect-[3/2] w-full rounded-[14px]' />
         <div className='hidden flex-col gap-2 lg:flex'>
           <Skeleton className='h-28 w-full rounded-[14px]' />
@@ -81,9 +81,9 @@ export default function PropertyDetailPage({ propertyId }: { propertyId: string 
   const galleryTitle = property.title || `${property.property_type} در ${location}`;
   const hasPin = property.latitude !== null && property.longitude !== null;
 
-return (
-    <div className='mk-detail-standard showcase-shell min-h-full min-w-0 overflow-x-clip rounded-2xl p-3 sm:p-5'>
-      <div className='mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3'>
+  return (
+    <div className='property-detail-viewport mk-detail-standard showcase-shell min-h-0 min-w-0 overflow-x-clip rounded-2xl p-2 sm:p-3'>
+      <div className='property-detail-toolbar mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2'>
         <nav className='text-showcase-dim flex flex-wrap items-center gap-1.5 text-[0.68rem]'>
           <Link href='/dashboard/properties' className='hover:text-gold-primary transition-colors'>
             فایل‌ها
@@ -117,19 +117,23 @@ return (
         </div>
       </div>
 
-      <div className='grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]'>
+      <div className='property-detail-grid grid min-w-0 grid-cols-1 items-start gap-3'>
         {/* ------------------------------------------------- media column --- */}
-        <div className='flex min-w-0 flex-col gap-3'>
+        <div className='property-detail-media flex min-w-0 flex-col gap-2'>
           <HeroGallery
+            className='property-detail-gallery'
+            compact
             images={media?.items ?? []}
             title={galleryTitle}
             placeholderLabel='تصویری برای این ملک ثبت نشده است'
             loading={mediaPending}
           />
 
-          <section className='showcase-panel min-w-0 overflow-hidden'>
-            {hasPin ? (
-              <>
+          <section className='showcase-panel property-detail-location min-w-0 overflow-hidden'>
+            <div className='property-detail-location-grid min-w-0'>
+              <div className='property-detail-map-panel min-w-0 overflow-hidden'>
+                {hasPin ? (
+                  <>
                 <PropertyMap
                   pins={[
                     {
@@ -143,46 +147,43 @@ return (
                     }
                   ]}
                   zoom={15}
-                  height={260}
+                  height={150}
                   className='!rounded-none !border-0'
                 />
-                <p className='text-muted-foreground flex flex-wrap items-center justify-center gap-1.5 border-t border-border bg-muted/60 px-3 py-2.5 text-center text-[0.78rem] font-semibold'>
+                <p className='property-detail-map-caption text-muted-foreground flex flex-wrap items-center justify-center gap-1.5 border-t border-border bg-muted/60 px-3 py-2 text-center text-[0.72rem] font-semibold'>
                   <Icons.mapPin className='text-gold-accent size-4 shrink-0' />
                   موقعیت تقریبی/امنیتی ملک روی نقشه
                   <span className='text-showcase-dim font-normal'>
                     {` — شعاع ${toPersianDigits(property.privacy_radius_m.toLocaleString('en-US'))} متر`}
                   </span>
                 </p>
-              </>
-            ) : (
-              <p className='text-muted-foreground px-4 py-6 text-center text-xs'>
+                  </>
+                ) : (
+              <p className='text-muted-foreground px-3 py-4 text-center text-xs'>
                 این آگهی مختصات دقیقی ندارد، بنابراین روی نقشه نمایش داده نمی‌شود.
               </p>
-            )}
-            {/* Nearby amenities belong to the same location section: a second
-                panel + heading below the map reads as a duplicate « site » block. */}
-            {hasPin && (
-              <div className='border-t border-border px-3 py-3 sm:px-4 sm:py-3.5'>
-                <h3 className='showcase-section-title mb-2.5 text-xs'>امکانات نزدیک به این ملک</h3>
-                <NearbyPoiBlock propertyId={property.id} bare />
+                )}
               </div>
-            )}
+              {hasPin && <div className='property-detail-poi-panel min-w-0 border-s border-border px-2 py-2'>
+                <h3 className='showcase-section-title mb-1.5 text-[0.68rem]'>امکانات نزدیک</h3>
+                  <NearbyPoiBlock propertyId={property.id} bare compact className='property-detail-poi-compact' />
+              </div>}
+            </div>
           </section>
 
-          <PriceHistoryCard entries={priceHistory} loading={historyPending} />
+          <PriceHistoryCard entries={priceHistory} loading={historyPending} compact />
         </div>
 
-        {/* ----------------------------------------------- sticky column --- */}
-        <aside className='flex min-w-0 max-w-full flex-col gap-3 lg:sticky lg:top-[76px]'>
+        {/* ----------------------------------------------- compact facts column --- */}
+        <div className='property-detail-facts min-w-0'>
           <PropertyShowcaseSidebar
             property={property}
+            compact
             onLeadCreated={() => toast.success('این آگهی به کارتابل پیگیری اضافه شد.')}
           />
-          {/* The scheduler sits under the contact action: it is the next thing
-              an advisor does after reading the sidebar, and it must be
-              reachable without scrolling back up the gallery. */}
-          <VisitSchedulerWidget propertyId={property.id} />
-        </aside>
+        </div>
+
+        <VisitSchedulerWidget propertyId={property.id} compact />
       </div>
     </div>
   );
@@ -196,13 +197,15 @@ return (
  */
 function PriceHistoryCard({
   entries,
-  loading
+  loading,
+  compact = false
 }: {
   entries: ReturnType<typeof usePriceHistory>['data'];
   loading: boolean;
+  compact?: boolean;
 }) {
   return (
-    <section className='showcase-panel min-w-0 p-3 sm:p-4'>
+    <section className={cn('showcase-panel min-w-0 p-3 sm:p-4', compact && 'property-detail-history')}>
       <h2 className='showcase-section-title mb-2.5 text-sm'>تاریخچه قیمت</h2>
       {loading ? (
         <Skeleton className='h-20 w-full' />
@@ -210,49 +213,51 @@ function PriceHistoryCard({
         <p className='text-muted-foreground py-5 text-center text-xs'>
           تا این لحظه تنها یک قیمت برای این فایل مشاهده شده است.
         </p>
+      ) : compact && entries.length > 2 ? (
+        <>
+          <PriceHistoryTable entries={entries.slice(0, 2)} />
+          <details className='mt-1 border-t pt-1 text-xs'>
+            <summary className='cursor-pointer py-1 text-muted-foreground'>مشاهدهٔ {toPersianDigits(String(entries.length - 2))} سابقهٔ دیگر</summary>
+            <div className='max-h-40 overflow-y-auto'>
+              <PriceHistoryTable entries={entries.slice(2)} />
+            </div>
+          </details>
+        </>
       ) : (
-        /* The source column is the first thing a narrow screen drops: the
-           reference is provenance, not a decision input, and the price and
-           its change carry the row. The container scrolls rather than
-           squashing the figures below a legible width. */
-        <Table className='text-xs sm:text-sm [&_td]:py-2 [&_th]:h-8'>
-          <TableHeader>
-            <TableRow>
-              <TableHead className='ps-0'>قیمت</TableHead>
-              <TableHead>تغییر</TableHead>
-              <TableHead className='hidden text-start md:table-cell'>منبع</TableHead>
-              <TableHead className='text-start'>تاریخ</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {entries.map((entry) => {
-              const dropped = entry.price_difference < 0;
-              return (
-                <TableRow key={entry.id}>
-                  <TableCell className='ps-0 font-medium tabular-nums'>
-                    {formatToman(entry.new_price)}
-                  </TableCell>
-                  <TableCell
-                    className={cn(
-                      'font-medium tabular-nums',
-                      dropped ? 'text-destructive' : 'text-muted-foreground'
-                    )}
-                  >
-                    {formatDeviation(entry.change_percentage)}
-                  </TableCell>
-                  <TableCell className='hidden text-muted-foreground md:table-cell'>
-                    {PRICE_SOURCE_LABELS[entry.source]}
-                    {entry.source_ref ? ` — ${entry.source_ref}` : ''}
-                  </TableCell>
-                  <TableCell className='text-muted-foreground text-start'>
-                    {new Date(entry.recorded_at).toLocaleDateString('fa-IR')}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+        <PriceHistoryTable entries={entries} />
       )}
     </section>
+  );
+}
+
+function PriceHistoryTable({ entries }: { entries: NonNullable<ReturnType<typeof usePriceHistory>['data']> }) {
+  return (
+    <Table className='text-xs sm:text-sm [&_td]:py-2 [&_th]:h-8'>
+      <TableHeader>
+        <TableRow>
+          <TableHead className='ps-0'>قیمت</TableHead>
+          <TableHead>تغییر</TableHead>
+          <TableHead className='hidden text-start md:table-cell'>منبع</TableHead>
+          <TableHead className='text-start'>تاریخ</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {entries.map((entry) => {
+          const dropped = entry.price_difference < 0;
+          return (
+            <TableRow key={entry.id}>
+              <TableCell className='ps-0 font-medium tabular-nums'>{formatToman(entry.new_price)}</TableCell>
+              <TableCell className={cn('font-medium tabular-nums', dropped ? 'text-destructive' : 'text-muted-foreground')}>
+                {formatDeviation(entry.change_percentage)}
+              </TableCell>
+              <TableCell className='hidden text-muted-foreground md:table-cell'>
+                {PRICE_SOURCE_LABELS[entry.source]}{entry.source_ref ? ` — ${entry.source_ref}` : ''}
+              </TableCell>
+              <TableCell className='text-muted-foreground text-start'>{new Date(entry.recorded_at).toLocaleDateString('fa-IR')}</TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
   );
 }

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Icons } from "@/components/icons";
+import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, toPersianDigits } from "@/lib/utils";
 import { useNearbyPoi } from "../hooks";
@@ -70,9 +71,10 @@ interface NearbyPoiBlockProps {
    * block.
    */
   bare?: boolean;
+  compact?: boolean;
 }
 
-export function NearbyPoiBlock({ propertyId, className, bare = false }: NearbyPoiBlockProps) {
+export function NearbyPoiBlock({ propertyId, className, bare = false, compact = false }: NearbyPoiBlockProps) {
   const { data, isPending, isError } = useNearbyPoi(propertyId);
 
   // A listing without coordinates resolves with radius 0 and every bucket empty,
@@ -99,6 +101,7 @@ export function NearbyPoiBlock({ propertyId, className, bare = false }: NearbyPo
           items={buckets[key] ?? []}
           radiusM={data?.radius_m ?? 0}
           spanClass={CARD_SPANS[i]}
+          compact={compact}
         />
       ))}
     </div>
@@ -120,14 +123,18 @@ function PoiCard({
   icon,
   items,
   radiusM,
-  spanClass
+  spanClass,
+  compact
 }: {
   label: string;
   icon: React.ReactNode;
   items: NearbyPoiItem[];
   radiusM: number;
   spanClass: string;
+  compact: boolean;
 }) {
+  const [fullListOpen, setFullListOpen] = React.useState(false);
+  const shownItems = compact ? items.slice(0, 1) : items;
   return (
     <div
       className={cn(
@@ -150,7 +157,7 @@ function PoiCard({
         </p>
       ) : (
         <ul className="flex flex-1 flex-col gap-1.5">
-          {items.map((item) => (
+           {shownItems.map((item) => (
             <li
               key={`${item.name}-${item.lat}-${item.lng}`}
               className="text-showcase-muted relative ps-3.5 text-[0.7rem] leading-6"
@@ -166,6 +173,17 @@ function PoiCard({
           ))}
         </ul>
       )}
+      {compact && items.length > 1 && <button type='button' className='mt-1 text-start text-[0.58rem] font-medium text-gold-accent underline-offset-2 hover:underline' onClick={() => setFullListOpen(true)}>
+        {`مشاهدهٔ ${toPersianDigits((items.length - 1).toLocaleString("en-US"))} مورد دیگر`}
+      </button>}
+      <Modal title={label} description='فهرست کامل امکانات نزدیک ثبت‌شده برای این موقعیت' isOpen={fullListOpen} onClose={() => setFullListOpen(false)}>
+        <ul className='max-h-[60dvh] space-y-2 overflow-y-auto text-sm'>
+          {items.map((item) => <li key={`${item.name}-${item.lat}-${item.lng}`} className='flex items-center justify-between gap-3 border-b pb-2'>
+            <span>{item.name}</span>
+            <span className='shrink-0 text-muted-foreground'>{`${toPersianDigits(Math.round(item.distance_m).toLocaleString("en-US"))} متر`}</span>
+          </li>)}
+        </ul>
+      </Modal>
     </div>
   );
 }

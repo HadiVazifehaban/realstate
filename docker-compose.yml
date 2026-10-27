@@ -119,7 +119,7 @@ services:
       retries: 20
 
   keycloak:
-    image: shekarchi-keycloak:26.0.8
+    image: shekarchi-keycloak:26.0.8-captcha-threshold-v2
     build:
       context: ./keycloak-shekarchi-sms
       dockerfile: Dockerfile.keycloak-26.0.8

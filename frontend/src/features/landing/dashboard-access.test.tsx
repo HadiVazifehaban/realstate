@@ -44,11 +44,11 @@ describe("dashboard landing navigation parity", () => {
     state.pathname = "/dashboard";
   });
 
-  it("inventories all four groups, thirteen parents and sixteen nested items before filtering", () => {
+  it("inventories all four groups, current parents and nested items before filtering", () => {
     expect(navGroups).toHaveLength(4);
     const parents = navGroups.flatMap((g) => g.items);
-    expect(parents).toHaveLength(14);
-    expect(flatten(parents)).toHaveLength(30);
+    expect(parents).toHaveLength(15);
+    expect(flatten(parents)).toHaveLength(32);
     expect(accountNavItems).toHaveLength(3);
   });
 

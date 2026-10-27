@@ -86,6 +86,12 @@ def test_search_page_is_one_based() -> None:
     assert build_search_params("iran", "land", page=0)["p"] == "1"
 
 
+def test_demand_location_routes_to_all_verified_supported_sources():
+    from app.services.scraper.demand_locations import source_city_targets
+    assert source_city_targets('تهران') == {'sheypoor': 'tehran', 'delta': 'tehran'}
+    assert source_city_targets('مراغه') == {'sheypoor': 'maragheh'}
+
+
 def test_search_rejects_a_category_with_no_id() -> None:
     with pytest.raises(ValueError):
         build_search_params("iran", "atlantis")
@@ -100,9 +106,8 @@ def test_search_hits_the_verified_api_endpoint() -> None:
 
     method, url, params = _run(_inner())
     assert method == "GET"
-    assert url.endswith("/api/v10.0.0/search")
-    assert params["category"] == "43604"
-    assert params["location"] == "iran"
+    assert url.endswith("/api/v10.0.0/search/iran/houses-apartments-for-sale")
+    assert params == {"p": "1"}
 
 
 def test_search_ignores_districts_instead_of_pretending_to_honour_them() -> None:
@@ -205,6 +210,15 @@ def test_parse_search_drops_duplicates_and_id_less_items() -> None:
 def test_parse_search_empty_envelope_is_empty_list() -> None:
     assert parse_sheypoor_search({}) == []
     assert parse_sheypoor_search({"unexpected": 1}) == []
+
+
+def test_city_scoped_search_unwraps_sections_and_keeps_city():
+    payload = {"data": [{"type": "normal", "items": [
+        {"id": "maragheh-1", "attributes": {"title": "خانه", "location": "مراغه"}}
+    ]}]}
+    rows = parse_sheypoor_search(payload)
+    assert len(rows) == 1
+    assert rows[0].city == "مراغه"
 def test_parse_detail_maps_core_fields() -> None:
     payload = {
         "id": "SP-1",

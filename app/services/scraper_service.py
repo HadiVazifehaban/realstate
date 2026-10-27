@@ -10,7 +10,7 @@ import asyncio
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
@@ -27,11 +27,17 @@ from app.schemas.scraper import ScrapeJobCreate
 from app.services.ingestion.pipeline import run_search_job
 from app.services.scraper.phone_extractor import PhoneExtractor
 from app.services.scraper.registry import DEFAULT_SOURCE_KEY, get_source
+from app.services.scraper.category_mapping import (
+    JobValidationError,
+    resolve_categories,
+    validate_job_target,
+)
 
 logger = get_logger("app.services.scraper_service")
 
 # One shared background task set so fire-and-forget jobs are not GC'd.
 _background_tasks: set[asyncio.Task] = set()
+_execution_slots = asyncio.Semaphore(2)
 
 
 def get_pii_cipher(settings: Settings | None = None) -> PiiCipher:
@@ -59,23 +65,136 @@ async def create_job(
     s = settings or get_settings()
     city = payload.city or (s.city_list[0] if s.city_list else "")
     category = payload.category or (s.category_list[0] if s.category_list else "")
-    # Resolved (not merely stored) so an unknown portal fails here, at trigger
-    # time, with a readable message instead of failing later inside the job.
-    source = get_source(payload.source or None)
+    # Resolve and validate the effective target before touching persistence.
+    # Generic categories are converted to the verified source-owned slug here,
+    # so every caller (API, scheduler and demand collection) gets the same gate.
+    requested_source = payload.source or DEFAULT_SOURCE_KEY
+    try:
+        mapping = validate_job_target(requested_source, city, category, s)
+    except JobValidationError:
+        # Legacy category compatibility must never bypass source/city checks.
+        raise
+    source = get_source(requested_source)
+    if requested_source.strip().lower() == "delta":
+        from app.services.scraper.delta_taxonomy import normalise_city
+
+        try:
+            city = normalise_city(city)
+        except ValueError:
+            # Existing callers may persist an unsupported placeholder; runtime
+            # dispatch remains fail-closed in the client before network I/O.
+            pass
+    elif requested_source.strip().lower() == "divar":
+        from app.services.scraper.cities import normalize_city_slug
+
+        city = normalize_city_slug(city)
+    source_category = mapping.categories[0]
+    resolved_source_category = source_category
+
+    # Demand collection already owns an explicit source crosswalk and passes a
+    # source-specific slug. Keep canonical UI categories for all other jobs;
+    # the worker resolves them to `source_category` at execution time.
+    internal_demand = (
+        payload.params.get("execution_scope", "").startswith("demand:")
+        and payload.params.get("source_category") in mapping.categories
+    )
+    internal_schedule = (
+        trigger == ScrapeJobTrigger.SCHEDULED
+        and payload.params.get("execution_scope", "").startswith("schedule:")
+        and payload.params.get("source_category") in mapping.categories
+        and source.key == "sheypoor"
+    )
+    if payload.params.get("source_category") and not (internal_demand or internal_schedule):
+        raise JobValidationError("UNSUPPORTED_CATEGORY", "source category override is reserved for internal mapped jobs")
+    if payload.params.get("property_type_hint") is not None:
+        raise JobValidationError("UNSUPPORTED_CATEGORY", "property type hints are not trusted for listing classification")
+    if source.key == "divar" and category not in {
+        "apartment-sell", "apartment-rent", "house-villa-sell", "house-villa-rent"
+    }:
+        from app.services.scraper.parser import map_category
+
+        if map_category(category) is None:
+            raise JobValidationError("UNSUPPORTED_CATEGORY", "Divar category is not recognized")
+        source_category = category
+    if internal_demand or internal_schedule:
+        source_category = str(payload.params["source_category"]).strip().lower()
+        try:
+            mapping = resolve_categories(source.key, category)
+            if source_category not in mapping.categories:
+                raise JobValidationError("UNSUPPORTED_CATEGORY", "source category does not match verified mapping")
+        except JobValidationError:
+            from app.services.scraper.sheypoor_taxonomy import resolve_slug
+
+            if source.key != "sheypoor" or resolve_slug(source_category) is None:
+                raise
+    if internal_demand:
+        from app.services.scraper.demand_locations import source_city_targets
+
+        location_id = payload.params["execution_scope"].split(":", 1)[1]
+        expected = source_city_targets(location_id).get(source.key)
+        if expected != city:
+            raise JobValidationError("UNMAPPED_CITY", "demand execution city does not match curated source crosswalk")
+    elif internal_schedule and source.key == "sheypoor":
+        from app.services.scraper.demand_locations import demand_location
+
+        city_row = demand_location(city)
+        if city_row is None or city_row.get("slug") != city:
+            raise JobValidationError("UNMAPPED_CITY", "scheduled Sheypoor city does not match curated source crosswalk")
+    elif trigger == ScrapeJobTrigger.SCHEDULED and source.key == "sheypoor":
+        source_category = resolved_source_category
+    elif source.key == "sheypoor":
+        from app.services.scraper.sheypoor_taxonomy import resolve_slug
+
+        if resolve_slug(source_category) is None:
+            raise JobValidationError("UNSUPPORTED_CATEGORY", "category has no verified Sheypoor taxonomy entry")
+    effective_category = category
+    effective_scope = str(payload.params.get("execution_scope") or "")
+
+    # Serialize check/create for a target, then suppress only active duplicate
+    # work. Completed work can be explicitly run again on a later trigger.
+    bind = getattr(session, "bind", None)
+    if bind is None:
+        try:
+            bind = session.get_bind()
+        except Exception:
+            bind = None
+    if bind is not None and bind.dialect.name == "postgresql":
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"scrape-target:{source.key}:{city}:{effective_category}:{payload.kind.value}:{effective_scope}"},
+        )
+    duplicate = await session.execute(
+        select(ScrapeJob).where(
+            ScrapeJob.source == source.key,
+            ScrapeJob.city == city,
+            ScrapeJob.category == effective_category,
+            ScrapeJob.kind == payload.kind,
+            ScrapeJob.params["execution_scope"].as_string() == effective_scope,
+            ScrapeJob.status.in_((ScrapeJobStatus.PENDING, ScrapeJobStatus.RUNNING)),
+        ).limit(1)
+    )
+    existing = duplicate.scalar_one_or_none()
+    if existing is not None:
+        return existing
+
+    job_params = {
+        "max_pages": payload.max_pages,
+        "fetch_phones": payload.fetch_phones,
+        "requested_city": payload.city,
+        "source_category": source_category,
+        "execution_scope": effective_scope,
+        "districts": list(payload.districts),
+    }
+    if payload.params.get("dry_run") is True:
+        raise JobValidationError("DRY_RUN", "dry-run requests cannot persist or launch jobs")
+
     job = ScrapeJob(
         kind=payload.kind,
         status=ScrapeJobStatus.PENDING,
         trigger=trigger,
         city=city,
-        category=category,
-        source=source.key,
-        params={
-            "max_pages": payload.max_pages,
-            "fetch_phones": payload.fetch_phones,
-            "requested_city": payload.city,
-            "requested_category": payload.category,
-            "districts": list(payload.districts),
-        },
+        category=effective_category,
+        params=job_params,
         triggered_by_id=triggered_by_id,
     )
     session.add(job)
@@ -209,7 +328,13 @@ def launch_job_background(job_id: UUID, params: dict[str, Any]) -> None:
     except RuntimeError:
         # No running loop (tests / CLI): run synchronously is the caller's job.
         return
-    task = loop.create_task(execute_job(job_id, params))
+    async def bounded_execute():
+        # Persist PENDING first, then wait without holding a DB connection.
+        # This cap is per worker process (not a distributed queue).
+        async with _execution_slots:
+            await execute_job(job_id, params)
+
+    task = loop.create_task(bounded_execute())
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
 

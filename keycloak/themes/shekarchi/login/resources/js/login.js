@@ -63,7 +63,7 @@
   const refreshButton = document.querySelector('.mk-captcha-refresh');
   const username = document.getElementById('username');
   if (refreshForm && refreshButton && username) {
-    const preservedUsername = document.createElement('input');
+    const preservedUsername = refreshForm.querySelector('input[name="username"]') || document.createElement('input');
     preservedUsername.type = 'hidden';
     preservedUsername.name = 'username';
     refreshForm.appendChild(preservedUsername);

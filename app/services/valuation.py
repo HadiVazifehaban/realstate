@@ -294,6 +294,9 @@ async def find_bargains(
     *,
     neighbourhood: str | None = None,
     city: str | None = None,
+    city_ids: list[str] | None = None,
+    province_ids: list[str] | None = None,
+    cities: list[str] | None = None,
     limit: int = 50,
 ) -> list[Property]:
     """Listings the engine flagged as below market -- the bargain radar feed."""
@@ -303,8 +306,12 @@ async def find_bargains(
     )
     if neighbourhood:
         query = query.where(Property.neighborhood == neighbourhood)
-    if city:
-        query = query.where(Property.city == city)
+    from app.services.location_catalog import location_condition
+
+    location = location_condition(Property, city_ids=city_ids, province_ids=province_ids,
+                                  cities=cities or ([city] if city else None))
+    if location is not None:
+        query = query.where(location)
     return list((await session.exec(query.limit(limit))).all())
 
 

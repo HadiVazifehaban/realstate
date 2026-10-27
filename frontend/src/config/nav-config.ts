@@ -108,6 +108,7 @@ export const navGroups: NavGroup[] = [
         badge: "جدید",
         isActive: false,
         items: [
+          { title: "کد معرف دفتر", url: "/dashboard/agency/referral", icon: "referral", access: { roles: ["ROLE_ADMIN", "ROLE_AGENCY_MANAGER"] } },
           { title: "دفاتر همکار", url: "/dashboard/network/agencies", icon: "office" },
           { title: "درخواست‌های همکاری", url: "/dashboard/network/requests", icon: "handshake" },
           { title: "فایل‌های اشتراکی", url: "/dashboard/network/shared-listings", icon: "share" },
@@ -149,10 +150,20 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: "تنظیمات درگاه زیبال",
+        url: "/dashboard/settings/zibal",
+        icon: "creditCard",
+        description: "مدیریت امن کد مرچنت، محیط آزمایشی و Callback",
+        access: { roles: ["ROLE_ADMIN"] },
+        isActive: false,
+        items: []
+      },
+      {
         title: "تیم و سطوح دسترسی",
         url: "/dashboard/users",
         icon: "teams",
         description: "مدیریت مشاوران، سرپرستان و نقش‌ها",
+        access: { roles: ["ROLE_ADMIN", "ROLE_AGENCY_MANAGER"] },
         isActive: false,
         shortcut: ["u", "u"],
         items: [
@@ -177,6 +188,7 @@ export const navGroups: NavGroup[] = [
         url: "/dashboard/roles",
         icon: "badgeCheck",
         description: "مشاهده نقش‌های Keycloak و وضعیت احراز هویت",
+        access: { roles: ["ROLE_ADMIN"] },
         isActive: false,
         items: []
       },
@@ -186,9 +198,10 @@ export const navGroups: NavGroup[] = [
         title: "مرکز امنیت و عملیات",
         url: "/dashboard/otp",
         icon: "lock",
+        access: { roles: ["ROLE_ADMIN", "ROLE_SUPERVISOR", "ROLE_DATA_ANALYST"] },
         isActive: false,
         items: [
-          { title: "مدیریت OTP", url: "/dashboard/otp", icon: "lock", shortcut: ["o", "t"] },
+          { title: "مدیریت OTP", url: "/dashboard/otp", icon: "lock", shortcut: ["o", "t"], access: { roles: ["ROLE_ADMIN"] } },
           {
             title: "خزانه هویت و مالکیت",
             url: "/dashboard/pii",

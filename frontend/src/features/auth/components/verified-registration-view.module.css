@@ -1,0 +1,88 @@
+.page {
+  --registration-accent: #edb495;
+  --muted-foreground: #b9b7bb;
+  --border: rgb(237 180 149 / 0.17);
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  min-height: 100svh;
+  align-items: center;
+  padding: 24px clamp(24px, 6vw, 112px);
+  color: #f7eee9;
+  background: #060b13;
+  color-scheme: dark;
+}
+.backdrop {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to right,
+      rgb(6 11 19 / 0.08) 0%,
+      rgb(6 11 19 / 0.18) 30%,
+      rgb(6 11 19 / 0.48) 52%,
+      rgb(6 11 19 / 0.82) 72%,
+      rgb(6 11 19 / 0.94) 100%),
+    url('/images/auth/registration-background.png') center / cover no-repeat;
+}
+.layout { width: 100%; max-width: 1440px; margin-inline: auto; }
+.brand { position: absolute; bottom: 32px; left: 40px; display: inline-flex; border-radius: 12px; }
+.card {
+  width: min(100%, 450px);
+  padding: 24px 28px;
+  border: 1px solid rgb(244 160 174 / 0.2);
+  border-radius: 24px;
+  background: rgb(0 0 0 / 0.4);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 24px 80px -24px rgb(0 0 0 / 0.65);
+}
+.cardHeader { margin-bottom: 16px; }
+.cardKicker { display: block; color: var(--registration-accent); font-size: 11px; margin-bottom: 5px; }
+.steps { display: flex; justify-content: space-between; gap: 6px; margin-top: 16px; padding-block: 12px; border-block: 1px solid var(--border); }
+.steps li { display: flex; align-items: center; gap: 5px; color: var(--muted-foreground); font-size: 11px; }
+.steps li > span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgb(255 255 255 / 0.06); }
+.steps li[aria-current] { color: var(--registration-accent); font-weight: 700; }
+.steps li[aria-current] > span { background: var(--registration-accent); color: #21180f; }
+.form { display: grid; gap: 12px; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.card label { display: block; margin-bottom: 6px; font-size: 12px; }
+.card input { width: 100%; min-height: 38px; border-color: rgb(237 180 149 / 0.25); background: rgb(255 255 255 / 0.045); color: #fff6ef; border-radius: 9px; }
+.card input:focus-visible { border-color: var(--registration-accent); outline-color: var(--registration-accent); }
+.help { margin-top: 5px; font-size: 10px; line-height: 1.8; color: var(--muted-foreground); }
+.passwordHeading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.suggest { color: var(--registration-accent); font-size: 11px; cursor: pointer; }
+.suggest:hover { text-decoration: underline; }
+.suggest:disabled { opacity: 0.5; cursor: wait; }
+.passwordInput { position: relative; }
+.passwordInput input { padding-right: 42px; }
+.eye { position: absolute; inset-block: 0; right: 0; width: 40px; display: grid; place-items: center; color: var(--registration-accent); cursor: pointer; }
+.submit { width: 100%; min-height: 42px; margin-top: 4px; border: 1px solid rgb(255 255 255 / 0.15); background: linear-gradient(110deg, #f0bb9d, #c87572); color: #211015; font-weight: 700; box-shadow: 0 5px 20px rgb(200 117 114 / 0.16); }
+.submit:hover { background: linear-gradient(110deg, #f6caaf, #d98a86); }
+.signIn { display: block; margin-top: 16px; text-align: center; font-size: 12px; color: #eed7c9; }
+.signIn:hover { text-decoration: underline; }
+@media (max-width: 767px) {
+  .page { padding: 16px; }
+  .layout { max-width: 450px; }
+  .brand { display: none; }
+  .card { padding: 22px; }
+  .backdrop {
+    background-image: radial-gradient(ellipse at 50% 50%,
+      rgb(6 11 19 / 0.82) 20%, rgb(6 11 19 / 0.64) 65%, rgb(6 11 19 / 0.28) 100%),
+      url('/images/auth/registration-background.png');
+    background-position: 32% center;
+  }
+}
+@media (max-width: 360px) {
+  .card { padding: 18px 14px; }
+  .fields { gap: 10px; }
+  .steps li { font-size: 10px; }
+}
+@media (max-height: 740px) and (min-width: 768px) {
+  .page { padding-block: 12px; }
+  .card { padding-block: 18px; }
+  .form { gap: 9px; }
+  .steps { margin-top: 12px; padding-block: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page *, .page *::before, .page *::after { animation: none !important; transition: none !important; }
+}

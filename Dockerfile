@@ -25,6 +25,7 @@ COPY alembic.ini ./
 COPY alembic ./alembic
 COPY app ./app
 COPY scripts ./scripts
+COPY services/iran-locations-api/public/iran_cities_with_coordinates.json ./services/iran-locations-api/public/iran_cities_with_coordinates.json
 
 # Runtime data (media vault, keys, license) -- mounted in production
 RUN mkdir -p /app/data/media /app/data/keys /app/data/license

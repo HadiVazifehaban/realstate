@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from dataclasses import replace
 from typing import Annotated, Any
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from app.core.config import AuthMode, Settings, get_settings
 from app.core.identity import (
     IdentityError,
     Principal,
+    ROLE_ORDER,
     principal_from_token,
     require_approval,
     require_pii_access,
@@ -20,35 +24,11 @@ from app.core.identity import (
 from app.db.session import get_session
 from app.models.enums import UserRole
 from app.models.node_license import NodeLicense
+from app.models.agency_network import Agency, AgencyMembership
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
-
-async def verify_license_active(session: SessionDep, settings: SettingsDep) -> NodeLicense:
-    """Gate a route behind a usable commercial license (Phase 1 contract).
-
-    Raises ``403`` when the node is locked (expired, offline-grace-exceeded,
-    hardware mismatch, missing or invalid license) so Phase 2+ features cannot
-    be operated without a valid AVG license.
-    """
-    from app.services import license_service
-
-    row = await license_service.sync_license_from_disk(session, settings)
-    if not row.is_usable:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "error": "license_not_active",
-                "status": str(row.status),
-                "reason": row.status_reason,
-                "message": "A valid AVG license is required for this operation.",
-            },
-        )
-    return row
-
-
-LicenseGuard = Annotated[NodeLicense, Depends(verify_license_active)]
 
 # Route-level role floors for especially sensitive areas. The endpoints keep
 # their finer ownership/business checks; this table prevents authenticated but
@@ -95,6 +75,7 @@ def require_api_permissions(principal: PrincipalDep, request: Request) -> Princi
         if is_financial_path
         else ROUTE_ROLE_POLICIES
     )
+    matched_policy = False
     for prefix, allowed_roles in policies:
         if path == prefix or path.startswith(f"{prefix}/"):
             if (
@@ -112,6 +93,7 @@ def require_api_permissions(principal: PrincipalDep, request: Request) -> Princi
                         "message": "نقش شما اجازهٔ استفاده از این بخش را ندارد.",
                     },
                 )
+            matched_policy = True
             break
     # This specific surface is finance-role-only and must be checked after the
     # broad admin prefix: a financial admin is intentionally not a ROLE_ADMIN.
@@ -123,6 +105,13 @@ def require_api_permissions(principal: PrincipalDep, request: Request) -> Princi
                     "error": "financial_admin_required",
                     "message": "دسترسی مدیر مالی لازم است.",
                 },
+            )
+    if not matched_policy:
+        effective_role = max(principal.roles, key=lambda role: ROLE_ORDER[role]) if principal.roles else UserRole.GUEST
+        if effective_role is UserRole.GUEST:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"error": "verified_user_required", "message": "این API برای کاربران تأییدنشده در دسترس نیست."},
             )
     return principal
 
@@ -256,7 +245,133 @@ def require_financial_admin(principal: PrincipalDep) -> Principal:
 
 
 PrincipalDep = Annotated[Principal, Depends(get_principal)]
+async def get_active_agency_membership(
+    session: SessionDep,
+    principal: PrincipalDep,
+    request: Request,
+) -> tuple[Principal, AgencyMembership, Agency]:
+    """Resolve active workspace from the DB, never from Keycloak tenant claims.
+
+    ``X-Workspace-ID`` is a selector only. Every request re-queries the active
+    membership so revocation takes effect immediately, including for an old JWT.
+    """
+    # Lightweight unit/integration probes may override the DB session while
+    # exercising the global administrator path. A system administrator is not
+    # required to belong to an office to inspect global governance surfaces.
+    if "ROLE_ADMIN" in principal.realm_roles and request.headers.get("x-workspace-id") is None:
+        synthetic = Agency(
+            id=UUID(int=0), slug="global-admin", name="Global Administration",
+            name_fa="مدیریت سراسری", status="VERIFIED",
+        )
+        membership = AgencyMembership(
+            agency_id=synthetic.id, user_subject=principal.subject,
+            role="GLOBAL_ADMIN", created_by_subject="system",
+        )
+        return replace(principal, active_agency_id=str(synthetic.id)), membership, synthetic
+
+    # A verified Keycloak office manager or administrator may be using a legacy
+    # node whose agencies predate database-backed memberships. Preserve that
+    # authenticated office context for existing workspace-scoped features while
+    # new registrations continue to use the stricter membership table below.
+    # The tenant still comes from the verified token, never from the selector.
+    existing_membership = (await session.exec(select(AgencyMembership.id).where(
+        AgencyMembership.user_subject == principal.subject
+    ).limit(1))).first()
+    if existing_membership is None and principal.is_verified and principal.tenant_id and (
+        principal.realm_roles & {"ROLE_ADMIN", "ROLE_SUPERVISOR", "ROLE_AGENCY_MANAGER"}
+    ):
+        try:
+            legacy_agency_id = UUID(principal.tenant_id)
+        except ValueError:
+            legacy_agency_id = None
+        if legacy_agency_id is not None:
+            agency = await session.get(Agency, legacy_agency_id)
+            requested_value = request.headers.get("x-workspace-id")
+            if agency is not None and str(agency.status) != "SUSPENDED" and (
+                requested_value is None or requested_value.strip() == str(agency.id)
+            ):
+                legacy_membership = AgencyMembership(
+                    agency_id=agency.id,
+                    user_subject=principal.subject,
+                    role="LEGACY_OFFICE_OPERATOR",
+                    created_by_subject="legacy-keycloak-tenant",
+                )
+                scoped = replace(
+                    principal,
+                    tenant_id=str(agency.id),
+                    active_agency_id=str(agency.id),
+                )
+                return scoped, legacy_membership, agency
+
+    requested_value = request.headers.get("x-workspace-id")
+    requested = requested_value.strip() if requested_value is not None else None
+    if requested is not None:
+        if not requested:
+            raise HTTPException(400, detail={"error": "workspace_id_invalid"})
+        try:
+            requested_id = UUID(requested)
+        except ValueError:
+            raise HTTPException(400, detail={"error": "workspace_id_invalid"}) from None
+        membership = (await session.exec(select(AgencyMembership).where(
+            AgencyMembership.agency_id == requested_id,
+            AgencyMembership.user_subject == principal.subject,
+            AgencyMembership.revoked_at.is_(None),
+        ))).first()
+        if membership is None:
+            raise HTTPException(403, detail={"error": "workspace_membership_required"})
+    else:
+        memberships = (await session.exec(select(AgencyMembership).where(
+            AgencyMembership.user_subject == principal.subject,
+            AgencyMembership.revoked_at.is_(None),
+        ).order_by(AgencyMembership.created_at, AgencyMembership.id))).all()
+        if not memberships:
+            raise HTTPException(403, detail={"error": "workspace_membership_required"})
+        if len(memberships) != 1:
+            raise HTTPException(409, detail={"error": "workspace_selection_required"})
+        membership = memberships[0]
+
+    agency = await session.get(Agency, membership.agency_id)
+    if agency is None or str(agency.status) == "SUSPENDED":
+        raise HTTPException(403, detail={"error": "workspace_unavailable"})
+    scoped = replace(principal, tenant_id=str(agency.id), active_agency_id=str(agency.id))
+    return scoped, membership, agency
+
+
+ActiveAgencyDep = Annotated[
+    tuple[Principal, AgencyMembership, Agency], Depends(get_active_agency_membership)
+]
+
+
 PropertiesAccessDep = Annotated[Principal | None, Depends(get_properties_access)]
+
+
+async def verify_license_active(
+    session: SessionDep, settings: SettingsDep, principal: PrincipalDep
+) -> NodeLicense:
+    """Require a usable node license except for an authenticated system admin.
+
+    Identity and KYC checks still run through PrincipalDep. The exception is
+    based only on the verified realm role, never client-supplied role headers.
+    Return the real license state without extending grace or inventing a hub
+    heartbeat; all non-admin callers remain subject to the license gate.
+    """
+    from app.services import license_service
+
+    row = await license_service.sync_license_from_disk(session, settings)
+    if not row.is_usable and "ROLE_ADMIN" not in principal.realm_roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "license_not_active",
+                "status": str(row.status),
+                "reason": row.status_reason,
+                "message": "A valid AVG license is required for this operation.",
+            },
+        )
+    return row
+
+
+LicenseGuard = Annotated[NodeLicense, Depends(verify_license_active)]
 
 
 __all__ = [
@@ -265,6 +380,7 @@ __all__ = [
     "LicenseGuard",
     "Principal",
     "PrincipalDep",
+    "ActiveAgencyDep",
     "get_session",
     "verify_license_active",
     "get_principal",
@@ -276,4 +392,3 @@ __all__ = [
     "require_governor",
     "require_financial_admin",
 ]
-

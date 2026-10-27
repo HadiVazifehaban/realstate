@@ -46,6 +46,15 @@ vi.mock("@/features/properties/api/client", () => ({
 describe("public landing", () => {
   afterEach(cleanup);
 
+  it("keeps the skyline visible in light mode without changing dark-mode opacity", () => {
+    const css = readFileSync(resolve(process.cwd(), "src/features/landing/landing.css"), "utf8");
+    const lightImage = css.match(/html:not\(\.dark\) \.landing-hero-image\s*\{([^}]+)\}/)?.[1];
+    const opacity = Number(lightImage?.match(/opacity:\s*([\d.]+)/)?.[1]);
+    expect(opacity).toBeGreaterThanOrEqual(0.6);
+    expect(opacity).toBeLessThanOrEqual(1);
+    expect(css).toMatch(/\.landing-hero-image\s*\{[^}]*opacity:\s*0\.9\s*;/);
+  });
+
   it("preserves the original logo asset at 134px in the dashboard frame", () => {
     const { container } = render(<LandingBrand dashboard header />);
     const image = container.querySelector("img");
@@ -63,7 +72,7 @@ describe("public landing", () => {
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.queryByText("AVM · بازار املاک ایران")).toBeNull();
     expect(screen.getByRole("img", { name: /چشم‌انداز شب تهران/ }).getAttribute("src")).toBe(
-      "/images/tehran-night-skyline.jpg"
+      "/images/tehran-night-skyline.webp"
     );
     expect(screen.getAllByRole("article")).toHaveLength(3);
     for (const link of screen.getAllByRole("link")) {
@@ -135,15 +144,30 @@ describe("public landing", () => {
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "بازکردن منوی اصلی" }));
     const dialog = await screen.findByRole("dialog", { name: "کاوش در شکارچی" });
-    const link = within(dialog).getByRole("link", { name: "تحلیل هوشمند AVM" });
-    expect(link.getAttribute("href")).toBe(landingRoutes.avm);
+    const link = within(dialog).getByRole("link", { name: "ابزارهای هوشمند" });
+    expect(link.getAttribute("href")).toBe("#professional-tools");
     // Prevent jsdom navigation; still exercise the component's close handler.
     link.addEventListener("click", (e) => e.preventDefault());
     fireEvent.click(link);
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("makes the floating header more opaque after scrolling", () => {
+  it("uses the shared full-width header frame and original logo", () => {
+    const { container } = renderPage();
+    const header = container.querySelector("header.dashboard-top-header");
+    expect(header).not.toBeNull();
+    expect(header?.querySelector(".dashboard-header-primary")).not.toBeNull();
+    expect(header?.querySelector(".dashboard-brand-mark img")?.getAttribute("width")).toBe("134");
+    expect(header?.querySelector(".landing-brand")?.getAttribute("href")).toBe("/");
+    expect(container.querySelector(".landing-header-inner")).toBeNull();
+    for (const item of publicNavigation) {
+      if (item.href.startsWith("#")) {
+        expect(container.querySelector(item.href)).not.toBeNull();
+      }
+    }
+  });
+
+  it("updates the shared header scroll state", () => {
     const { container } = renderPage();
     Object.defineProperty(window, "scrollY", { value: 50, configurable: true });
     fireEvent.scroll(window);
@@ -151,7 +175,7 @@ describe("public landing", () => {
     Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
   });
 
-  it("references existing route files and the unmodified supplied image", () => {
+  it("references the existing route files and optimized supplied image", () => {
     for (const route of Object.values(landingRoutes)) {
       const pathname = route.split("#")[0];
       const path = resolve(process.cwd(), "src/app", pathname.slice(1));
@@ -160,6 +184,9 @@ describe("public landing", () => {
         existsSync(resolve(path, "page.tsx")) || existsSync(resolve(path, catchAll, "page.tsx"))
       ).toBe(true);
     }
+    expect(existsSync(resolve(process.cwd(), "public/images/tehran-night-skyline.webp"))).toBe(
+      true
+    );
     expect(existsSync(resolve(process.cwd(), "public/images/tehran-night-skyline.jpg"))).toBe(true);
     expect(
       readFileSync(
@@ -182,12 +209,13 @@ describe("public landing", () => {
     expect(developer.getAttribute("rel")).toBe("noopener noreferrer");
     expect(container.querySelector(".landing-footer-top")?.children).toHaveLength(4);
     expect(within(footer).getByRole("heading", { name: "دسترسی سریع" })).not.toBeNull();
+    expect(container.querySelector(".landing-hero-image")?.getAttribute("src")).toContain(
+      "tehran-night-skyline.webp"
+    );
     expect(within(footer).getByRole("heading", { name: "خدمات شکارچی" })).not.toBeNull();
-    expect(
-      within(footer)
-        .getByRole("link", { name: /ورود به سامانه/ })
-        .getAttribute("href")
-    ).toBe("/dashboard");
+    for (const link of within(footer).getAllByRole("link", { name: /ورود به سامانه/ })) {
+      expect(link.getAttribute("href")).toBe("/dashboard");
+    }
     expect(footer.textContent).not.toContain("پرداخت امن");
   });
 });

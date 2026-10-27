@@ -26,6 +26,7 @@ interface KeycloakUser {
   enabled: boolean;
   attributes?: {
     kyc_status?: string[];
+    mobile_verified?: string[];
   };
   realmRoles?: string[];
 }
@@ -45,10 +46,12 @@ export default function RolesPage() {
   const roles = useRealmRoles();
   const user = useAuthUser();
   const { kycStatus, isApproved } = useAuthContext();
+  const isSystemAdmin = roles.includes('ROLE_ADMIN');
   const [users, setUsers] = useState<KeycloakUser[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchUsers = async () => {
+    if (!isSystemAdmin) return;
     setLoading(true);
     try {
       const response = await fetch('/backend/api/v1/admin/users', {
@@ -73,6 +76,9 @@ export default function RolesPage() {
   };
 
   const approveUser = async (userId: string) => {
+    if (!isSystemAdmin) return;
+    const reason = window.prompt('دلیل تأیید مستقل KYC را ثبت کنید (حداقل ۸ نویسه):')?.trim();
+    if (!reason || reason.length < 8) return;
     try {
       const response = await fetch('/backend/api/v1/admin/users/approve', {
         method: 'POST',
@@ -80,7 +86,7 @@ export default function RolesPage() {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ userId, reason }),
       });
       if (response.ok) {
         await fetchUsers();
@@ -96,6 +102,9 @@ export default function RolesPage() {
   };
 
   const setUserRole = async (userId: string, roleName: string) => {
+    if (!isSystemAdmin) return;
+    const reason = window.prompt(`دلیل اعطای نقش ${roleName} را ثبت کنید (حداقل ۸ نویسه):`)?.trim();
+    if (!reason || reason.length < 8) return;
     try {
       const response = await fetch('/backend/api/v1/admin/users/role', {
         method: 'POST',
@@ -103,7 +112,7 @@ export default function RolesPage() {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ userId, roleName }),
+        body: JSON.stringify({ userId, roleName, reason }),
       });
       if (response.ok) {
         await fetchUsers();
@@ -119,10 +128,10 @@ export default function RolesPage() {
   };
 
   const getKycStatus = (user: KeycloakUser) => {
-    // Since Keycloak attributes don't work, use ROLE_OWNER as a proxy for approval
-    const hasOwnerRole = user.realmRoles?.includes('ROLE_OWNER');
-    return hasOwnerRole ? 'VERIFIED' : 'PENDING';
+    return user.attributes?.kyc_status?.[0]?.toUpperCase() ?? 'PENDING';
   };
+
+  const getMobileVerified = (user: KeycloakUser) => user.attributes?.mobile_verified?.[0]?.toLowerCase() === 'true';
 
   const getRoleDisplayName = (role: string) => {
     const roleMap: Record<string, string> = {
@@ -143,7 +152,17 @@ export default function RolesPage() {
       pageTitle='مدیریت کاربران و نقش‌ها'
       pageDescription='تایید کاربران و مدیریت نقش‌های Keycloak'
     >
-      <div className='space-y-6'>
+      {!isSystemAdmin ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>دسترسی غیرمجاز</CardTitle>
+            <CardDescription>مدیریت نقش‌های سراسری Keycloak فقط برای مدیر ارشد سامانه مجاز است.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className='text-sm text-muted-foreground'>برای مدیریت اعضای دفتر و سطح مشاوران از بخش «تیم و سطوح دسترسی» استفاده کنید.</p>
+          </CardContent>
+        </Card>
+      ) : <div className='space-y-6'>
         {/* Current User Info */}
         <Card>
           <CardHeader>
@@ -219,6 +238,7 @@ export default function RolesPage() {
                       <TableHead className='text-right'>کاربر</TableHead>
                       <TableHead className='text-right'>ایمیل</TableHead>
                       <TableHead className='text-right'>وضعیت KYC</TableHead>
+                      <TableHead className='text-right'>تلفن همراه</TableHead>
                       <TableHead className='text-right'>نقش‌ها</TableHead>
                       <TableHead className='text-left'>عملیات</TableHead>
                     </TableRow>
@@ -243,6 +263,11 @@ export default function RolesPage() {
                         <TableCell>
                           <Badge variant={getKycStatus(u) === 'VERIFIED' ? 'default' : 'secondary'}>
                             {getKycStatus(u)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getMobileVerified(u) ? 'default' : 'outline'}>
+                            {getMobileVerified(u) ? 'تأییدشده' : 'تأییدنشده'}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -292,7 +317,7 @@ export default function RolesPage() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </div>}
     </PageContainer>
   );
 }

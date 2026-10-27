@@ -96,7 +96,7 @@ describe("UserNav responsive profile menu", () => {
     fireEvent.click(trigger);
     fireEvent.click(await screen.findByRole("menuitem", { name: "خروج" }));
     await waitFor(() =>
-      expect(state.signOut).toHaveBeenCalledWith({ redirectUrl: "/auth/sign-in" })
+      expect(state.signOut).toHaveBeenCalledWith({ redirectUrl: "/" })
     );
   });
 
@@ -153,7 +153,7 @@ describe("UserNav responsive profile menu", () => {
     expect(logout.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
     fireEvent.click(logout);
     await waitFor(() =>
-      expect(state.signOut).toHaveBeenCalledWith({ redirectUrl: "/auth/sign-in" })
+      expect(state.signOut).toHaveBeenCalledWith({ redirectUrl: "/" })
     );
     expect(localStorage.getItem("profile-test-preference")).toBe("preserved");
     localStorage.removeItem("profile-test-preference");

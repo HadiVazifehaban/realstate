@@ -15,9 +15,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.deps import SessionDep, SettingsDep, get_principal
 from app.services import iran_locations, osm_service
 from app.services.osm_service import OsmAPIError
+from app.services.location_catalog import catalog
 
 # GIS endpoints are read-only and don't require authentication for public access
 router = APIRouter()
+
+
+@router.get("/locations")
+async def location_catalog() -> dict[str, Any]:
+    """Local catalog with composite city IDs; independent of crawler coverage."""
+    return catalog()
 
 
 @router.get("/reverse")

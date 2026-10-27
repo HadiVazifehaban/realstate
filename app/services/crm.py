@@ -85,9 +85,11 @@ class LeadView:
 
     id: uuid.UUID
     property_id: uuid.UUID
+    agency_id: str
     stage: LeadStage
     priority: LeadPriority
     assigned_user_id: uuid.UUID | None
+    assigned_subject: str | None
     is_bargain: bool
     deviation_pct: float | None
     neighborhood: str
@@ -134,9 +136,11 @@ def _to_view(lead: CrmLead, prop: Property) -> LeadView:
     return LeadView(
         id=lead.id,
         property_id=lead.property_id,
+        agency_id=lead.agency_id,
         stage=lead.stage,
         priority=lead.priority,
         assigned_user_id=lead.assigned_user_id,
+        assigned_subject=lead.assigned_subject,
         is_bargain=lead.is_bargain,
         deviation_pct=lead.deviation_pct,
         neighborhood=lead.neighborhood or prop.neighborhood,
@@ -160,17 +164,30 @@ async def create_lead_for_property(
     session: AsyncSession,
     prop: Property,
     *,
+    agency_id: str = "local",
     assigned_user_id: uuid.UUID | None = None,
+    assigned_subject: str | None = None,
 ) -> CrmLead | None:
     """Open a lead for a property, or return the existing one.
 
     Idempotent by property: re-running ingestion for the same listing must not
     stack duplicate cards on the desk.
     """
+    # Lock the canonical property row before checking the per-office lead. Two
+    # concurrent creates for one property/workspace serialize here.
+    locked_property = (await session.exec(
+        select(Property).where(Property.id == prop.id).with_for_update()
+    )).first()
+    if locked_property is None:
+        return None
+    prop = locked_property
+    agency_id = agency_id.strip()
+    if not agency_id or len(agency_id) > 64:
+        raise ValueError("شناسهٔ دفتر برای ساخت لید معتبر نیست.")
     existing = (
         await session.exec(
             select(CrmLead)
-            .where(CrmLead.property_id == prop.id)
+            .where(CrmLead.property_id == prop.id, CrmLead.agency_id == agency_id)
             .order_by(CrmLead.created_at)  # type: ignore[arg-type]
         )
     ).first()
@@ -179,7 +196,9 @@ async def create_lead_for_property(
 
     lead = CrmLead(
         property_id=prop.id,
+        agency_id=agency_id,
         assigned_user_id=assigned_user_id,
+        assigned_subject=assigned_subject,
         stage=LeadStage.NEW_FILE,
         priority=priority_for(prop.valuation_status, prop.valuation_deviation_pct),
         is_bargain=prop.valuation_status is ValuationStatus.BARGAIN,
@@ -289,29 +308,57 @@ def _aggregate(
     )
 
 
-async def board_stats(session: AsyncSession) -> BoardStats:
+async def board_stats(
+    session: AsyncSession,
+    *,
+    agency_id: str | None = None,
+    property_ids: set[uuid.UUID] | None = None,
+    assigned_user_id: uuid.UUID | None = None,
+    assigned_subject: str | None = None,
+) -> BoardStats:
     """Desk totals for the board header.
 
     One grouped pass plus one bargain count, rather than a query per column: the
     header needs all five numbers before it can render, and the price lives on
     `property`, so the join has to happen either way.
     """
-    rows = (
-        await session.exec(
-            select(
+    rows_query = (
+        select(
                 CrmLead.stage,
                 func.count(CrmLead.id),
                 func.coalesce(func.sum(Property.total_price), 0),
             )
             .join(Property, Property.id == CrmLead.property_id)
-            .group_by(CrmLead.stage)
+    )
+    if agency_id is not None:
+        rows_query = rows_query.where(CrmLead.agency_id == agency_id)
+    if property_ids is not None:
+        rows_query = rows_query.where(CrmLead.property_id.in_(property_ids))
+    if assigned_user_id is not None and assigned_subject:
+        rows_query = rows_query.where(
+            (CrmLead.assigned_user_id == assigned_user_id)
+            | (CrmLead.assigned_subject == assigned_subject)
         )
-    ).all()
-    bargains = (
-        await session.exec(
-            select(func.count(CrmLead.id)).where(CrmLead.is_bargain.is_(True))
+    elif assigned_user_id is not None:
+        rows_query = rows_query.where(CrmLead.assigned_user_id == assigned_user_id)
+    elif assigned_subject:
+        rows_query = rows_query.where(CrmLead.assigned_subject == assigned_subject)
+    rows = (await session.exec(rows_query.group_by(CrmLead.stage))).all()
+    bargain_query = select(func.count(CrmLead.id)).where(CrmLead.is_bargain.is_(True))
+    if agency_id is not None:
+        bargain_query = bargain_query.where(CrmLead.agency_id == agency_id)
+    if property_ids is not None:
+        bargain_query = bargain_query.where(CrmLead.property_id.in_(property_ids))
+    if assigned_user_id is not None and assigned_subject:
+        bargain_query = bargain_query.where(
+            (CrmLead.assigned_user_id == assigned_user_id)
+            | (CrmLead.assigned_subject == assigned_subject)
         )
-    ).one()
+    elif assigned_user_id is not None:
+        bargain_query = bargain_query.where(CrmLead.assigned_user_id == assigned_user_id)
+    elif assigned_subject:
+        bargain_query = bargain_query.where(CrmLead.assigned_subject == assigned_subject)
+    bargains = (await session.exec(bargain_query)).one()
     return _aggregate(rows, bargains)
 
 
@@ -320,15 +367,30 @@ async def list_leads(
     *,
     stages: list[LeadStage] | None = None,
     assigned_user_id: uuid.UUID | None = None,
+    assigned_subject: str | None = None,
+    agency_id: str | None = None,
+    property_ids: set[uuid.UUID] | None = None,
     bargains_only: bool = False,
     limit: int = 100,
 ) -> list[LeadView]:
     """Board feed, most recently updated first."""
     query = select(CrmLead)
+    if agency_id is not None:
+        query = query.where(CrmLead.agency_id == agency_id)
+    if property_ids is not None:
+        query = query.where(CrmLead.property_id.in_(property_ids))
     if stages:
         query = query.where(CrmLead.stage.in_(stages))
     if assigned_user_id is not None:
-        query = query.where(CrmLead.assigned_user_id == assigned_user_id)
+        if assigned_subject:
+            query = query.where(
+                (CrmLead.assigned_subject == assigned_subject)
+                | (CrmLead.assigned_user_id == assigned_user_id)
+            )
+        else:
+            query = query.where(CrmLead.assigned_user_id == assigned_user_id)
+    elif assigned_subject:
+        query = query.where(CrmLead.assigned_subject == assigned_subject)
     if bargains_only:
         query = query.where(CrmLead.is_bargain.is_(True))
 

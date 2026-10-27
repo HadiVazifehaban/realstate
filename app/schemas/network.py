@@ -36,6 +36,14 @@ class AgencyCreate(BaseModel):
     district: str = Field(default="", max_length=64)
     phone: str = Field(default="", max_length=32)
     description: str = Field(default="", max_length=2000)
+    referral_code: str = Field(default="", max_length=16)
+
+
+class AgencyReviewIn(BaseModel):
+    """Administrative decision on a pending office application."""
+
+    decision: str = Field(pattern=r"^(APPROVE|REJECT)$")
+    reason: str = Field(default="", max_length=1000)
 
 
 class AgencyRead(BaseModel):
@@ -60,6 +68,17 @@ class AgencyRead(BaseModel):
     status: AgencyStatus
     display_name: str
     created_at: datetime
+
+
+class WorkspaceRead(BaseModel):
+    """An office the authenticated subject is actively a member of."""
+
+    id: uuid.UUID
+    slug: str
+    name: str
+    name_fa: str
+    status: AgencyStatus
+    role: str
 
 
 # --------------------------------------------------------------------------- #

@@ -18,6 +18,7 @@ class OwnerAccessLog(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=uuid_column())
     pii_id: uuid.UUID | None = Field(default=None, foreign_key="property_owner_pii.id", index=True)
     property_id: uuid.UUID | None = Field(default=None, foreign_key="property.id", index=True)
+    agency_id: uuid.UUID | None = Field(default=None, foreign_key="agency.id", index=True)
     user_id: uuid.UUID | None = Field(default=None, foreign_key="agency_user.id", index=True)
 
     action: str = Field(default="READ", max_length=32, description="READ / WRITE / EXPORT")

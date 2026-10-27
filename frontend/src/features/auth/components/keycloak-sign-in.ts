@@ -39,9 +39,18 @@ export function resolveCallbackUrl(search: string): string {
 export async function beginKeycloakSignIn(options?: {
   callbackUrl?: string;
   loginHint?: string;
+  registration?: boolean;
 }): Promise<void> {
   const callbackUrl = options?.callbackUrl ?? DEFAULT_SIGN_IN_CALLBACK;
   const hint = options?.loginHint?.trim();
+  const authorizationParams = {
+    ...(hint ? { login_hint: hint } : {}),
+    ...(options?.registration ? { prompt: "create" } : {})
+  };
 
-  await signIn("keycloak", { callbackUrl }, hint ? { login_hint: hint } : undefined);
+  await signIn(
+    "keycloak",
+    { callbackUrl },
+    Object.keys(authorizationParams).length ? authorizationParams : undefined
+  );
 }

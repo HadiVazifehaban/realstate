@@ -107,6 +107,8 @@ async def request_otp(
 ) -> OtpRequestResult:
     """Mint + dispatch a challenge, enforcing cooldown and hourly budgets."""
     _otp_hmac_secret(settings)
+    if not settings.otp_test_mode and settings.sms_provider.strip().lower() == "fake":
+        raise SmsError("Real SMS delivery is not configured")
     store = get_store(settings)
     request_lock_key = store.key("request-lock", mobile_e164)
     request_lock_token = mint_token()

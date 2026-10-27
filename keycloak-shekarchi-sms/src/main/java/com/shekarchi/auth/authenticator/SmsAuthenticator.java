@@ -38,6 +38,7 @@ public class SmsAuthenticator extends UsernamePasswordForm {
     private static final String NOTE_ISSUED_AT = "SHEKARCHI_OTP_ISSUED_AT";
     private static final String NOTE_DELIVERY_STATUS = "SHEKARCHI_OTP_DELIVERY_STATUS";
     private static final String NOTE_FAILED_ATTEMPTS = "SHEKARCHI_LOGIN_FAILED_ATTEMPTS";
+    private static final String NOTE_CAPTCHA_REQUIRED = "SHEKARCHI_LOGIN_CAPTCHA_REQUIRED";
     private static final String NOTE_RESEND_CAPTCHA_REQUIRED = "SHEKARCHI_RESEND_CAPTCHA_REQUIRED";
     private static final int CAPTCHA_AFTER_FAILURES = 3;
     private static final String GENERIC_OTP_MESSAGE = "اگر شماره واجد شرایط باشد، کد تأیید ارسال می‌شود.";
@@ -121,12 +122,14 @@ public class SmsAuthenticator extends UsernamePasswordForm {
         }
 
         if (config.isUnifiedLogin() && (action.isEmpty() || "passwordLogin".equals(action))) {
-            if (captchaRequired(context, formData) && !consumeCaptcha(context, formData)) {
+            boolean required = captchaRequired(context, formData);
+            if (required && !consumeCaptcha(context, formData)) {
                 context.getEvent().detail("captcha_result", "invalid").error("invalid_user_credentials");
                 context.failureChallenge(AuthenticationFlowError.INVALID_CREDENTIALS,
                         renderUnifiedLogin(context, config, safeLoginFormData(formData), "captchaInvalid"));
                 return;
             }
+            if (required) context.getEvent().detail("captcha_result", "valid");
             super.action(context);
             return;
         }
@@ -228,7 +231,10 @@ public class SmsAuthenticator extends UsernamePasswordForm {
     protected Response challenge(AuthenticationFlowContext context, String error, String field) {
         SmsAuthConfig config = SmsAuthConfig.fromModel(context.getAuthenticatorConfig());
         if (!config.isUnifiedLogin()) return super.challenge(context, error, field);
-        if (error != null && !error.isBlank()) incrementFailedAttempts(context);
+        String password = context.getHttpRequest().getDecodedFormParameters().getFirst("password");
+        if (error != null && !error.isBlank() && password != null && !password.isEmpty()) {
+            incrementFailedAttempts(context);
+        }
         return renderUnifiedLogin(context, config,
                 safeLoginFormData(context.getHttpRequest().getDecodedFormParameters()), error);
     }
@@ -286,6 +292,7 @@ public class SmsAuthenticator extends UsernamePasswordForm {
             return form.setAttribute("captchaAvailable", false).setAttribute("unifiedLogin", true)
                     .setAttribute("loginMode", loginMode(formData)).createForm("login.ftl");
         }
+        setSessionNote(context, NOTE_CAPTCHA_REQUIRED, "true");
         if (captchaStore == null) {
             return form.setError("captchaServiceUnavailable").setAttribute("captchaAvailable", false)
                     .setAttribute("unifiedLogin", true).setAttribute("loginMode", loginMode(formData))
@@ -362,6 +369,7 @@ public class SmsAuthenticator extends UsernamePasswordForm {
     }
 
     private boolean captchaRequired(AuthenticationFlowContext context, MultivaluedMap<String, String> formData) {
+        if ("true".equals(getSessionNote(context, NOTE_CAPTCHA_REQUIRED))) return true;
         int failures = failedAttempts(context);
         String username = formData == null ? null : formData.getFirst("username");
         String phone = formData == null ? null : formData.getFirst("phone");

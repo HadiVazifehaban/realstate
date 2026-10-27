@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.core.crypto import PiiCipher
-from app.models import OwnerAccessLog, PiiQuota, PropertyOwnerPII
+from app.models import AgencyUser, OwnerAccessLog, PiiQuota, PropertyOwnerPII
 from app.models.enums import (
     PII_READER_ROLES,
     TIER_PII_DAILY_QUOTA,
@@ -73,13 +73,12 @@ def quota_for(tier: SaasTier) -> int:
 
 
 async def _load_quota_row(
-    session: AsyncSession, user_id: uuid.UUID, today: date, tier: SaasTier
+    session: AsyncSession, user_id: uuid.UUID, today: date, tier: SaasTier, *, lock: bool = False
 ) -> PiiQuota | None:
-    return (
-        await session.exec(
-            select(PiiQuota).where(PiiQuota.user_id == user_id, PiiQuota.day == today)
-        )
-    ).first()
+    query = select(PiiQuota).where(PiiQuota.user_id == user_id, PiiQuota.day == today)
+    if lock:
+        query = query.with_for_update()
+    return (await session.exec(query)).first()
 
 
 async def remaining_quota(
@@ -103,6 +102,8 @@ async def reveal_owner_phone(
     role: UserRole,
     tier: SaasTier,
     cipher: PiiCipher,
+    agency_id: uuid.UUID | None = None,
+    pii_denied: bool = False,
     client_ip: str = "",
     reason: str = "",
 ) -> PiiRevealResult:
@@ -119,6 +120,7 @@ async def reveal_owner_phone(
             OwnerAccessLog(
                 pii_id=pii_id,
                 property_id=property_id,
+                agency_id=agency_id,
                 user_id=actor_user_id,
                 action="READ",
                 allowed=allowed,
@@ -128,7 +130,7 @@ async def reveal_owner_phone(
         )
         await session.flush()
 
-    if role not in PII_READER_ROLES:
+    if pii_denied or role not in PII_READER_ROLES:
         await _audit(False, None, "role_not_permitted")
         raise PiiAccessDenied(
             "role_not_permitted",
@@ -149,9 +151,13 @@ async def reveal_owner_phone(
             "برای این فایل اطلاعات تماس ثبت نشده است.",
         )
 
+    # Serialize the per-agent counter, including the first insert on a day, so
+    # simultaneous reveal requests cannot exceed the tier allowance.
+    await session.exec(select(AgencyUser.id).where(AgencyUser.id == actor_user_id).with_for_update())
+
     daily = quota_for(tier)
     if daily >= 0:
-        row = await _load_quota_row(session, actor_user_id, today, tier)
+        row = await _load_quota_row(session, actor_user_id, today, tier, lock=True)
         if row and row.consumed >= daily:
             await _audit(False, pii.id, "quota_exhausted")
             raise PiiAccessDenied(
@@ -170,7 +176,7 @@ async def reveal_owner_phone(
     if daily < 0:
         remaining = None
     else:
-        row = await _load_quota_row(session, actor_user_id, today, tier)
+        row = await _load_quota_row(session, actor_user_id, today, tier, lock=True)
         if row is None:
             row = PiiQuota(user_id=actor_user_id, day=today, tier=tier, consumed=0)
             session.add(row)

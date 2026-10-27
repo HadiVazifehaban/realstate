@@ -149,6 +149,9 @@ class Property(SQLModel, table=True):
     )
 
     created_by_id: uuid.UUID | None = Field(default=None, foreign_key="agency_user.id")
+    # Set only for direct first-party listings submitted from a validated
+    # workspace. Scraped/global inventory remains unscoped (NULL).
+    agency_id: uuid.UUID | None = Field(default=None, foreign_key="agency.id", index=True)
 
     # -- Who filed this listing ------------------------------------------------
     # Independent of ``source`` (the channel) and of ``created_by_id`` (the

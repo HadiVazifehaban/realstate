@@ -100,7 +100,7 @@ export function NavUser({
             <DropdownMenuGroup>
               <DropdownMenuItem
                 onClick={() => {
-                  void signOut({ redirectUrl: '/auth/sign-in' });
+                  void signOut({ redirectUrl: '/' });
                 }}
               >
                 <Icons.logout className='me-2 h-4 w-4' aria-hidden />

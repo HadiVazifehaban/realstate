@@ -27,13 +27,13 @@ import uuid
 from collections.abc import Sequence
 from datetime import date, time, timedelta
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import case, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
-from app.api.deps import LicenseGuard, PrincipalDep, PropertiesAccessDep, SessionDep, SettingsDep
+from app.api.deps import LicenseGuard, PrincipalDep, PropertiesAccessDep, SessionDep, SettingsDep, get_active_agency_membership
 from app.api.v1.endpoints.crm import _resolve_actor_user
 from app.core.config import get_settings
 from app.core.crypto import PiiCipher
@@ -86,6 +86,7 @@ from app.schemas.properties import (
     DealSummaryResponse,
 )
 from app.services import geo, market, poi_service, submission, valuation
+from app.services.entitlements import EntitlementLimitExceeded, enforce_listing_quota, lock_listing_entitlement_scope
 from app.services.ingestion.deduplicator import canonical_source
 
 router = APIRouter()
@@ -249,9 +250,10 @@ async def reverse_geocode(
 )
 async def submit_property(
     payload: PropertySubmitRequest,
+    request: Request,
     session: SessionDep,
     settings: SettingsDep,
-    principal: PropertiesAccessDep,
+    principal: PrincipalDep,
     _license: LicenseGuard,
 ) -> PropertySubmitResponse:
     """First-class UGC path: an owner/advisor pin outranks a scraped listing.
@@ -304,6 +306,42 @@ async def submit_property(
             detail={"error": exc.code, "message": exc.message},
         ) from exc
 
+    agency_id: uuid.UUID | None = None
+    workspace_header = request.headers.get("x-workspace-id")
+    try:
+        # Resolve every caller against current membership so a person with an
+        # office workspace cannot bypass that office's quota by omitting the
+        # workspace header. A truly personal owner may fall back only when no
+        # membership or tenant context exists.
+        principal, _membership, agency = await get_active_agency_membership(session, principal, request)
+        agency_id = agency.id
+    except HTTPException as exc:
+        can_fall_back_to_personal = (
+            submitter_type is SubmitterType.PERSON
+            and not workspace_header
+            and not principal.tenant_id
+            and exc.status_code == status.HTTP_403_FORBIDDEN
+            and isinstance(exc.detail, dict)
+            and exc.detail.get("error") == "workspace_membership_required"
+        )
+        if not can_fall_back_to_personal:
+            raise
+
+    actor_user_id = await _resolve_actor_user(session, principal)
+    agency_key = str(agency_id) if agency_id else None
+
+    async def lock_entitlement_scope() -> None:
+        await lock_listing_entitlement_scope(
+            session, agency_key=agency_key, agency_uuid=agency_id,
+            actor_user_id=actor_user_id,
+        )
+
+    async def check_listing_entitlement() -> None:
+        await enforce_listing_quota(
+            session, agency_key=agency_key, agency_uuid=agency_id,
+            actor_user_id=actor_user_id,
+        )
+
     try:
         result = await submission.submit_property(
             session,
@@ -329,9 +367,17 @@ async def submit_property(
             owner_phone=payload.owner_phone,
             settings=settings,
             cipher=PiiCipher.from_key_file(settings.resolve_path(settings.pii_key_file)),
-            created_by_id=await _resolve_actor_user(session, principal),
+            created_by_id=actor_user_id,
+            agency_id=agency_id,
+            prepare_new=lock_entitlement_scope,
+            check_new_quota=check_listing_entitlement,
             submitter_type=submitter_type,
         )
+    except EntitlementLimitExceeded as exc:
+        raise HTTPException(
+            status_code=402,
+            detail={"error": exc.code, "message": str(exc)},
+        ) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -359,6 +405,8 @@ async def list_properties(
     # is the capital *and* its satellites), and the province chips expand to
     # every county in the province rather than making the browser pick.
     city: list[str] | None = Query(default=None),
+    city_ids: list[str] | None = Query(default=None),
+    province_ids: list[str] | None = Query(default=None),
     neighborhood: str | None = Query(default=None),
     # Repeated on purpose, exactly like `property_type` below. "رهن و اجاره"
     # is one choice in the desk's own vocabulary but two stored deal types --
@@ -463,10 +511,11 @@ async def list_properties(
     if q:
         like = f"%{q.strip()}%"
         conditions.append(or_(Property.title.ilike(like), Property.neighborhood.ilike(like)))
-    if city:
-        # A list, because the feed's city filter is multi-select. An empty
-        # selection is the same as none at all: «همهٔ شهرها», not «هیچ شهر».
-        conditions.append(Property.city.in_(city))
+    from app.services.location_catalog import location_condition
+
+    location = location_condition(Property, city_ids=city_ids, province_ids=province_ids, cities=city)
+    if location is not None:
+        conditions.append(location)
     if neighborhood:
         conditions.append(Property.neighborhood == neighborhood)
     if deal_type:
@@ -581,7 +630,7 @@ async def list_properties(
     total = int((await session.exec(count_stmt)).one() or 0)
     rows = (
         await session.exec(
-            rows_stmt.order_by(Property.created_at.desc()).offset(offset).limit(limit)
+            rows_stmt.order_by(Property.created_at.desc(), Property.id.desc()).offset(offset).limit(limit)
         )
     ).all()
     media_by_property = await _media_by_property(session, [row.id for row in rows])
@@ -646,6 +695,9 @@ async def list_bargains(
     settings: SettingsDep,
     neighborhood: str | None = Query(default=None, description="نام محله (اختیاری)"),
     city: str | None = Query(default=None, description="نام شهر (اختیاری)"),
+    cities: list[str] | None = Query(default=None),
+    city_ids: list[str] | None = Query(default=None),
+    province_ids: list[str] | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200, description="تعداد رکوردهای برگشتی"),
 ) -> BargainListResponse:
     """Listings priced below the local market (agent radar feed)
@@ -679,7 +731,8 @@ async def list_bargains(
             },
         )
     rows = await valuation.find_bargains(
-        session, neighbourhood=neighborhood, city=city, limit=limit
+        session, neighbourhood=neighborhood, city=city, limit=limit,
+        cities=cities, city_ids=city_ids, province_ids=province_ids,
     )
     # Office staff work from this node's own book, so the exact pin is shown;
     # the public portal keeps using the masked projection.
@@ -699,6 +752,9 @@ async def list_bargains(
 async def neighbourhood_market(
     session: SessionDep,
     city: str | None = Query(default=None),
+    cities: list[str] | None = Query(default=None),
+    city_ids: list[str] | None = Query(default=None),
+    province_ids: list[str] | None = Query(default=None),
     deal_type: list[DealType] | None = Query(default=None),
     min_files: int = Query(default=1, ge=1, le=50),
     limit: int = Query(default=200, ge=1, le=500),
@@ -714,6 +770,9 @@ async def neighbourhood_market(
     overview = await market.neighbourhood_market(
         session,
         city=city,
+        cities=cities,
+        city_ids=city_ids,
+        province_ids=province_ids,
         deal_types=deal_type,
         min_files=min_files,
         limit=limit,

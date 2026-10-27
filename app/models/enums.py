@@ -35,6 +35,7 @@ class UserRole(StrEnum):
 
 class PaymentOrderStatus(StrEnum):
     CREATED = "created"
+    PENDING_PAYMENT = "pending_payment"
     AWAITING_TRANSFER = "awaiting_transfer"
     RECEIPT_SUBMITTED = "receipt_submitted"
     UNDER_REVIEW = "under_review"
@@ -55,6 +56,21 @@ class PaymentReviewDecision(StrEnum):
     APPROVED = "approved"
     REJECTED = "rejected"
     TEST_APPROVED = "test_approved"
+
+
+class AgencyReferralStatus(StrEnum):
+    PENDING = "PENDING"
+    COMPLETED = "COMPLETED"
+    VOIDED = "VOIDED"
+
+
+class ReferralCreditStatus(StrEnum):
+    AVAILABLE = "AVAILABLE"
+    PENDING = "PENDING"
+    RESERVED = "RESERVED"
+    CONSUMED = "CONSUMED"
+    RELEASED = "RELEASED"
+    VOIDED = "VOIDED"
 
 
 # Roles allowed to decrypt owner PII. Managers and agents consume plan quota;
@@ -542,4 +558,3 @@ class AuditAction(str, Enum):
     PAYMENT_RECORDED = "PAYMENT_RECORDED"
     DISPUTE_OPENED = "DISPUTE_OPENED"
     DISPUTE_RESOLVED = "DISPUTE_RESOLVED"
-

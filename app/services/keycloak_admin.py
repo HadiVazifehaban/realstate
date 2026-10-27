@@ -113,6 +113,8 @@ class DirectoryUser:
     realm_roles: frozenset[str]
     created_at: datetime | None
     updated_at: datetime | None
+    kyc_status: str = "PENDING"
+    mobile_verified: bool = False
 
     @property
     def role(self) -> UserRole:
@@ -358,6 +360,8 @@ def _to_directory_user(raw: dict[str, Any], realm_roles: frozenset[str]) -> Dire
         realm_roles=realm_roles,
         created_at=_epoch_ms(raw.get("createdTimestamp")),
         updated_at=_epoch_ms(raw.get("epoch")),
+        kyc_status=(_first(attributes.get(_KYC_ATTRIBUTE)) or "PENDING").upper(),
+        mobile_verified=(_first(attributes.get(_MOBILE_VERIFIED_ATTRIBUTE)) or "false").lower() == "true",
     )
 
 
@@ -555,6 +559,7 @@ async def create_user(
     last_name: str,
     phone: str,
     role: UserRole,
+    realm_role: str | None = None,
     enabled: bool,
 ) -> DirectoryUser:
     """Create a realm user with the requested tier.
@@ -562,14 +567,17 @@ async def create_user(
     The account is created without a password: the dashboard never sets
     credentials, so first login must go through Keycloak's own reset flow.
 
-    The identity claims the node reads are seeded here. Without them a brand new
-    account would carry no ``kyc_status``, which ``require_approval`` treats as
-    PENDING -- so a manager's own invitation would produce a user who can sign
-    in and is then refused by every API call, with no obvious way out. A manager
-    creating the account *is* the approval step.
+    An office invitation grants an office role only. It does not prove identity
+    or mobile ownership; both claims start false/pending and are verified through
+    their separate workflows.
     """
+    if realm_role is not None and (
+        role is not UserRole.AGENT
+        or realm_role not in {"ROLE_JUNIOR_BROKER", "ROLE_SENIOR_BROKER"}
+    ):
+        raise ValueError("Office invitations may assign only a Junior or Senior Broker Realm role.")
     attributes: dict[str, list[str]] = {
-        _KYC_ATTRIBUTE: [settings.keycloak_required_kyc_status],
+        _KYC_ATTRIBUTE: ["PENDING"],
         _MOBILE_VERIFIED_ATTRIBUTE: ["false"],
         # 0 means "no owner-contact reveals"; the tier ceiling in the token
         # still applies, so this cannot widen anyone's budget.
@@ -594,7 +602,7 @@ async def create_user(
         raise KeycloakDirectoryError(502, "keycloak_error", "Keycloak شناسه کاربر برنگرداند.")
 
     try:
-        await _set_realm_roles(settings, user_id, [_realm_role_for(role, frozenset())])
+        await _set_realm_roles(settings, user_id, [realm_role or _realm_role_for(role, frozenset())])
     except Exception:
         # The account already exists in the realm, so leaving it behind would
         # strand a half-provisioned user with the default role -- able to log in
@@ -644,6 +652,7 @@ async def update_user(
     last_name: str | None,
     phone: str | None,
     role: UserRole | None,
+    realm_role: str | None = None,
     enabled: bool | None,
 ) -> DirectoryUser:
     """Patch profile fields, tier and enabled state.
@@ -651,6 +660,11 @@ async def update_user(
     Only the supplied fields are touched, so a caller that omits the tier keeps
     whatever the realm already has.
     """
+    if realm_role is not None:
+        expected_role = KEYCLOAK_ROLE_MAP.get(realm_role)
+        if expected_role is None or expected_role is not role or realm_role in {"ROLE_ADMIN", "ROLE_SUPERVISOR"}:
+            raise ValueError("Requested Realm role does not match the internal role or is privileged.")
+
     current = await get_user(settings, user_id)
 
     changes: dict[str, Any] = {}
@@ -672,11 +686,15 @@ async def update_user(
     if changes:
         await _merged_put(settings, user_id, changes)
 
-    if role is not None:
+    if realm_role is not None:
+        await _set_realm_roles(settings, user_id, [realm_role])
+        await invalidate_user_sessions(settings, user_id)
+    elif role is not None:
         # Pass the existing roles so an unchanged AGENT tier keeps its seniority.
         await _set_realm_roles(
             settings, user_id, [_realm_role_for(role, current.realm_roles)]
         )
+        await invalidate_user_sessions(settings, user_id)
 
     return await get_user(settings, user_id)
 
@@ -688,6 +706,33 @@ async def set_enabled(settings: Settings, user_id: str, enabled: bool) -> None:
     history, which is what the audit trail needs.
     """
     await _merged_put(settings, user_id, {"enabled": enabled})
+    if not enabled:
+        await invalidate_user_sessions(settings, user_id)
+
+
+async def delete_user(settings: Settings, user_id: str) -> None:
+    """Remove a just-created realm user if local membership provisioning fails."""
+    await _api(settings, "DELETE", f"/users/{user_id}")
+
+
+async def invalidate_user_sessions(settings: Settings, user_id: str) -> None:
+    """Revoke Keycloak refresh sessions after role/status changes."""
+    await _api(settings, "POST", f"/users/{user_id}/logout")
+
+
+async def set_kyc_status(settings: Settings, user_id: str, value: str) -> DirectoryUser:
+    """Change KYC without granting/removing Realm roles or touching phone state."""
+    status_value = value.strip().upper()
+    if status_value not in {"PENDING", "VERIFIED", "REJECTED"}:
+        raise ValueError("KYC status is invalid.")
+    raw = await _api(settings, "GET", f"/users/{user_id}")
+    if not isinstance(raw, dict) or not raw.get("id"):
+        raise KeycloakDirectoryError(404, "not_found", "کاربر یافت نشد.")
+    attributes = dict(raw.get("attributes") or {})
+    attributes[_KYC_ATTRIBUTE] = [status_value]
+    await _merged_put(settings, user_id, {"attributes": attributes})
+    await invalidate_user_sessions(settings, user_id)
+    return await get_user(settings, user_id)
 
 
 def to_user_out(user: DirectoryUser) -> dict[str, Any]:
@@ -700,6 +745,9 @@ def to_user_out(user: DirectoryUser) -> dict[str, Any]:
         "phone": user.phone,
         "status": "ACTIVE" if user.enabled else "INACTIVE",
         "role": user.role,
+        "realm_roles": sorted(user.realm_roles),
+        "kyc_status": user.kyc_status,
+        "mobile_verified": user.mobile_verified,
         "created_at": user.created_at,
         "updated_at": user.updated_at,
     }
@@ -736,12 +784,15 @@ async def create_mobile_user(
     role: UserRole = UserRole.USER,
     kyc_status: str = "VERIFIED",
     quota: int = 0,
+    username: str | None = None,
+    password: str | None = None,
 ) -> DirectoryUser:
-    """Create a realm user keyed on the verified mobile number.
+    """Create a realm user for a verified mobile number.
 
-    The username is the E.164 mobile; ``mobile_verified`` is seeded true
-    (the caller holds a freshly consumed OTP proof); no password is set
-    here -- :func:`set_user_password` assigns the OTP-bridge credential.
+    Legacy callers use the E.164 mobile as username; verified registration
+    supplies the user's chosen username. ``mobile_verified`` is seeded true
+    (the caller holds a freshly consumed OTP proof). Verified registration
+    includes the chosen password in the same account-creation request.
     """
     attributes: dict[str, list[str]] = {
         _KYC_ATTRIBUTE: [kyc_status],
@@ -750,15 +801,21 @@ async def create_mobile_user(
         _PHONE_ATTRIBUTE: [mobile_e164],
     }
     payload: dict[str, Any] = {
-        "username": mobile_e164,
+        "username": username if username is not None else mobile_e164,
         "firstName": first_name,
         "lastName": last_name,
         "enabled": True,
         "emailVerified": False,
         "attributes": attributes,
     }
+    if username is not None:
+        # These are the attributes consumed by the browser SMS authenticator.
+        attributes["phoneNumber"] = [mobile_e164]
+        attributes["phoneVerified"] = ["true"]
     if email:
         payload["email"] = email
+    if password is not None:
+        payload["credentials"] = [{"type": "password", "value": password, "temporary": False}]
     created = await _send(settings, "POST", "/users", json_body=payload)
     user_id = _created_id(created)
     if not user_id:
@@ -774,6 +831,12 @@ async def create_mobile_user(
         raise
     logger.info("keycloak mobile user created: role=%s", role.value)
     return await get_user(settings, user_id)
+
+
+async def username_exists(settings: Settings, username: str) -> bool:
+    users = await _api(settings, "GET", "/users", params={"username": username, "exact": "true"})
+    return any(str(user.get("username", "")).casefold() == username.casefold()
+               for user in (users or []))
 
 
 async def set_user_password(
@@ -797,6 +860,7 @@ async def mark_mobile_verified(settings: Settings, user_id: str, mobile_e164: st
     existing[_PHONE_ATTRIBUTE] = [mobile_e164]
     existing[_MOBILE_VERIFIED_ATTRIBUTE] = ["true"]
     await _merged_put(settings, user_id, {"attributes": existing})
+    await invalidate_user_sessions(settings, user_id)
 
 
 async def exchange_direct_grant(

@@ -3,8 +3,6 @@
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatToman } from '@/lib/utils';
-import { useAuthContext } from '@/hooks/use-auth';
 import { useNetworkReports } from '@/features/network/hooks';
 import { ListEmpty, ListError, ListSkeleton } from '@/features/network/components/shared';
 import type { ReportsByStatus } from '@/features/network/types';
@@ -13,8 +11,11 @@ const COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 
 /** گزارش‌های همکاری: توزیع وضعیت هر منو + سرجمع مالی. */
 export function ReportsView() {
-  const auth = useAuthContext();
-  const reports = useNetworkReports({ agencyId: auth.tenantId ?? undefined });
+  // The verified principal's tenant may be a legacy slug (e.g. "maskanchi-local").
+  // Reports are scoped server-side from that identity, so don't pass a client
+  // supplied agency query parameter; the active workspace is carried in the
+  // X-Workspace-ID header by the network API client.
+  const reports = useNetworkReports({ agencyId: undefined });
 
   if (reports.isPending) return <ListSkeleton rows={6} />;
   if (reports.isError) return <ListError onRetry={() => void reports.refetch()} />;
@@ -27,11 +28,12 @@ export function ReportsView() {
   return (
     <div className='space-y-5'>
       <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
-        <SummaryCard label='مبلغ پایه کمیسیون' value={formatToman(r.total_basis)} />
-        <SummaryCard label='پرداخت‌شده' value={formatToman(r.total_paid)} />
-        <SummaryCard label='باقی‌مانده' value={formatToman(r.total_remaining)} />
+        <SummaryCard label='مبلغ پایه کمیسیون' value='نیازمند تأیید مبنای مالی' />
+        <SummaryCard label='پرداخت ثبت‌شده دفتر' value='نیازمند تأیید واحد پول' />
+        <SummaryCard label='ماندهٔ مالی' value='فعلاً قابل اتکا نیست' />
         <SummaryCard label='نرخ تبدیل ارجاع' value={`${r.conversion_rate_pct}٪`} />
       </div>
+      <p role='note' className='text-xs leading-6 text-muted-foreground'>نمایش مبالغ تا تأیید واحد پول و مبنای محاسبه متوقف است. مبلغ پایه درآمد دفتر نیست و تفاضل آن با پرداخت، طلب تأییدشده محسوب نمی‌شود. شمارنده‌های وضعیت، فقط مربوط به دفتر مجاز شما هستند.</p>
       <div className='grid gap-4 lg:grid-cols-2'>
         <DistCard title='فایل‌های اشتراکی برحسب وضعیت' data={r.shares_by_status} />
         <DistCard title='ارجاع‌ها برحسب مرحله' data={r.referrals_by_stage} />

@@ -7,12 +7,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { toPersianDigits } from '@/lib/utils';
 import { useMarketMedians, useProperties } from '../hooks';
-import { useActiveCityName } from '@/store/useCityStore';
 import type { PropertyListFilters } from '../api/client';
 import { PropertyCard } from './property-card';
 import { AddToLeadsButton } from './add-to-leads-button';
 import { ShowcaseSection } from './showcase-section';
 import { CrawlThisMarket } from './crawl-this-market';
+import { EmptyMarketCollector } from './empty-market-collector';
 import {
   AdvancedFilterSheet,
   type ShowcaseAdvancedFilters
@@ -20,7 +20,6 @@ import {
 import { categoryTypes, type ShowcaseCategory } from './showcase-filter-bar';
 import { SOURCE_LABELS } from '../utils/labels';
 import { marketMedianFor } from '../utils/market';
-import { MultiCityFilter } from './multi-city-filter';
 import { useQueryStates } from 'nuqs';
 import { parseAsArrayOf, parseAsString } from 'nuqs';
 
@@ -93,12 +92,12 @@ export default function BargainRadarPage() {
   const [area, setArea] = React.useState<[number, number]>([0, AREA_MAX]);
   
   // URL state for cities (syncs with header location picker)
-  const [cityParams, setCityParams] = useQueryStates({
+  const [cityParams] = useQueryStates({
     city: parseAsArrayOf(parseAsString).withDefault([])
   });
 
   // URL state for search query
-  const [searchParams, setSearchParams] = useQueryStates({
+  const [searchParams] = useQueryStates({
     search: parseAsString.withDefault('')
   });
 
@@ -146,10 +145,8 @@ export default function BargainRadarPage() {
     * اولویت دارد)؛ ولی وقتی دستی چیزی انتخاب نشده، شهر گیت اعمال می‌شود تا
     * صفحه هیچ‌وقت بدون فیلتر شهر — یعنی کل کشور — کوئری نخورد.
     */
-   const gateCity = useActiveCityName();
-   const urlCities = cityParams.city.length > 0 ? cityParams.city : undefined;
-   const effectiveCities = urlCities && urlCities.length > 0 ? urlCities : (gateCity ? [gateCity] : []);
-   const citySelected = effectiveCities.length > 0;
+   const effectiveCities = cityParams.city;
+   const citySelected = true; // An empty location means the whole country.
 
   /**
    * Applied deal families; empty means both are in scope.
@@ -368,6 +365,7 @@ export default function BargainRadarPage() {
             </Card>
           )}
 
+          <EmptyMarketCollector cities={effectiveCities} empty={!isPending && !isError && total === 0} />
           {!isPending && !isError && visible.length === 0 && (
             <Card>
               <CardContent className='flex flex-col items-center gap-2 py-10 text-center'>
@@ -380,7 +378,7 @@ export default function BargainRadarPage() {
                 <p className='text-muted-foreground max-w-md text-xs'>
                   {bargainsOnly
                     ? `تا این لحظه ${toPersianDigits(loaded.toLocaleString('en-US'))} آگهی بررسی شده و هیچ‌کدام زیرقیمت نیستند؛ با «نمایش بیشتر» batch بعدی را هم ببینید یا فیلتر منبع را تغییر دهید.`
-                    : 'خزندهٔ دیوار به‌صورت زمان‌بندی‌شده در حال گردآوری آگهی‌هاست؛ پس از نخستین اجرا، فایل‌های تازه همین‌جا نمایش داده می‌شوند.'}
+                    : 'برای این فیلترها آگهی ذخیره‌شده‌ای پیدا نشد؛ وضعیت جمع‌آوری خودکار شهر انتخاب‌شده در بالا نمایش داده می‌شود.'}
                 </p>
               </CardContent>
             </Card>
@@ -471,7 +469,7 @@ export default function BargainRadarPage() {
                 <p className='text-muted-foreground text-sm'>
                   {total > 0
                     ? `تعداد آگهی‌های کل در دفتر: ${toPersianDigits(total.toLocaleString('en-US'))}؛ این بخش هنوز خالی است.`
-                    : 'هیچ آگهی‌ای در دفتر ثبت نشده است؛ انتظار می‌رود خزندهٔ دیوار پس از اولین اجرا، اینجا ویرایش کند.'}
+                    : 'برای محدوده و فیلترهای انتخاب‌شده آگهی ذخیره‌شده‌ای پیدا نشد؛ برای دیدن موجودی سایر مناطق، شهر یا فیلترها را تغییر دهید.'}
                 </p>
               </div>
             </div>

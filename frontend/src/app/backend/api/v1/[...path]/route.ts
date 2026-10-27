@@ -22,7 +22,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext): Promis
   const publicRequest = isPublicRoute(backendPath);
 
   const headers = new Headers();
-  for (const name of ['accept', 'content-type', 'if-match', 'if-none-match', 'range']) {
+  for (const name of ['accept', 'content-type', 'if-match', 'if-none-match', 'range', 'idempotency-key', 'x-workspace-id']) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }

@@ -1,98 +1,37 @@
 "use client";
 
 import { FormEvent, useEffect, useRef } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import type { Attachment, Conversation } from '../utils/types';
+import type { Conversation, Message } from '../utils/types';
 import { ChatHeader } from './chat-header';
 import { MessageBubble } from './message-bubble';
 import { MessageComposer } from './message-composer';
+import { requestAuthJsSession } from '@/lib/auth/session';
 
-interface ChatAreaProps {
-  conversation: Conversation;
+type Props = {
+  conversation: Conversation & { messages: Message[] };
   draft: string;
-  onDraftChange: (text: string) => void;
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
-  attachments: Attachment[];
-  onAddAttachments: (files: FileList) => void;
-  onRemoveAttachment: (id: string) => void;
-}
+  sending: boolean;
+  onDraftChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+};
 
-export function ChatArea({
-  conversation,
-  draft,
-  onDraftChange,
-  onSubmit,
-  attachments,
-  onAddAttachments,
-  onRemoveAttachment
-}: ChatAreaProps) {
-  const shouldReduceMotion = useReducedMotion();
-  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
-  const liveRegionRef = useRef<HTMLDivElement | null>(null);
-
+export function ChatArea({ conversation, draft, sending, onDraftChange, onSubmit }: Props) {
+  const threadRef = useRef<HTMLDivElement>(null);
+  const subjectRef = useRef('');
   useEffect(() => {
-    if (!messagesContainerRef.current) return;
-    const container = messagesContainerRef.current;
-    const behavior = shouldReduceMotion ? "auto" : "smooth";
-
-    const scrollToBottom = () => {
-      container.scrollTo({ top: container.scrollHeight, behavior });
-    };
-
-    if (behavior ==='smooth') {
-      requestAnimationFrame(scrollToBottom);
-    } else {
-      scrollToBottom();
-    }
-  }, [conversation.messages, conversation.id, shouldReduceMotion]);
-
-  useEffect(() => {
-    if (!liveRegionRef.current) return;
-    const lastMessage = conversation.messages[conversation.messages.length - 1];
-    if (!lastMessage) return;
-    liveRegionRef.current.textContent =
-      lastMessage.author + " at " + lastMessage.timestamp + ": " + lastMessage.text;
-  }, [conversation.messages]);
-
-  return (
-    <>
-      <AnimatePresence initial={false} mode='wait'>
-        <motion.div
-          key={conversation.id}
-          initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 12 }}
-          animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-          exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -12 }}
-          transition={{ duration: 0.32, ease: "easeOut" }}
-          className='border-border/40 bg-background/80 flex min-h-0 flex-col gap-3 overflow-hidden rounded-2xl border p-3 backdrop-blur sm:gap-4 sm:p-4 lg:col-start-2 lg:col-end-3 lg:rounded-3xl'
-        >
-          <ChatHeader conversation={conversation} />
-
-          <div
-            ref={messagesContainerRef}
-            className='[&::-webkit-scrollbar-thumb]:bg-muted relative min-h-0 flex-1 space-y-3 overflow-y-auto pr-2 sm:space-y-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full'
-            aria-live='off'
-            aria-label={"Message thread with " + conversation.name}
-          >
-            <AnimatePresence initial={false}>
-              {conversation.messages.map((message) => (
-                <MessageBubble key={message.id} message={message} />
-              ))}
-            </AnimatePresence>
-          </div>
-
-          <MessageComposer
-            draft={draft}
-            onDraftChange={onDraftChange}
-            onSubmit={onSubmit}
-            contactName={conversation.name}
-            quickReplies={conversation.quickReplies}
-            attachments={attachments}
-            onAddAttachments={onAddAttachments}
-            onRemoveAttachment={onRemoveAttachment}
-          />
-        </motion.div>
-      </AnimatePresence>
-      <div ref={liveRegionRef} className='sr-only' aria-live='polite' aria-atomic='true' />
-    </>
-  );
+    let active = true;
+    void requestAuthJsSession().then((session) => {
+      if (active) subjectRef.current = session?.user?.id ?? '';
+    });
+    return () => { active = false; };
+  }, []);
+  useEffect(() => { threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight }); }, [conversation.messages]);
+  return <section className='border-border/40 bg-background/80 flex min-h-0 flex-col gap-3 overflow-hidden rounded-2xl border p-4 lg:col-start-2'>
+    <ChatHeader conversation={conversation} />
+    <div ref={threadRef} className='min-h-0 flex-1 space-y-3 overflow-y-auto' aria-label='پیام‌های گفتگو'>
+      {conversation.messages.map((message) => <MessageBubble key={message.id} message={message} own={message.senderSubject === subjectRef.current} />)}
+      {conversation.messages.length === 0 && <p className='py-8 text-center text-sm text-muted-foreground'>هنوز پیامی در این گفتگو نیست.</p>}
+    </div>
+    <MessageComposer draft={draft} sending={sending} onDraftChange={onDraftChange} onSubmit={onSubmit} />
+  </section>;
 }

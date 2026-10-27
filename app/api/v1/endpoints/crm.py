@@ -9,17 +9,22 @@ seam to swap in real session data once OIDC/Clerk lands.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from sqlmodel import select
 
-from app.api.deps import LicenseGuard, Principal, PrincipalDep, SessionDep, SettingsDep
+from app.api.deps import ActiveAgencyDep, LicenseGuard, Principal, PrincipalDep, SessionDep, SettingsDep
 from app.core.crypto import PiiCipher
 from app.core.identity import BOOTSTRAP_SUBJECT, ROLE_ORDER
 from app.models import CrmLead, LeadInteraction, OwnerAccessLog, Property
+from app.models.agency_network import Agency, AgencyMembership
+from app.models.network_collab import ListingShare, ListingSharePermission
 from app.models.enums import (
     DATA_GOVERNOR_ROLES,
     LeadStage,
+    ListingShareMode,
+    ShareStatus,
     SaasTier,
     UserRole,
 )
@@ -59,6 +64,27 @@ def _actor_context(principal: PrincipalDep) -> tuple[UserRole, SaasTier]:
         else UserRole.GUEST
     )
     return role, principal.saas_tier
+
+
+def _workspace_actor_context(principal: Principal, membership: AgencyMembership) -> tuple[UserRole, str]:
+    """Intersect the signed Realm role with this office's active membership."""
+    realm_roles = principal.realm_roles
+    member_role = membership.role.upper()
+    if "ROLE_ADMIN" in realm_roles:
+        return UserRole.ADMIN, "admin"
+    if "ROLE_SUPERVISOR" in realm_roles and member_role in {
+        "FOUNDER", "ADMIN", "OFFICE_MANAGER", "SUPERVISOR", "LEGACY_OFFICE_OPERATOR"
+    }:
+        return UserRole.SUPERVISOR, "supervisor"
+    if "ROLE_AGENCY_MANAGER" in realm_roles and member_role in {
+        "FOUNDER", "ADMIN", "OFFICE_MANAGER", "LEGACY_OFFICE_OPERATOR"
+    }:
+        return UserRole.OFFICE_MANAGER, "manager"
+    if "ROLE_SENIOR_BROKER" in realm_roles and member_role in {"SENIOR_BROKER", "ROLE_SENIOR_BROKER", "LEGACY_SENIOR_BROKER"}:
+        return UserRole.AGENT, "senior"
+    if "ROLE_JUNIOR_BROKER" in realm_roles and member_role in {"JUNIOR_BROKER", "ROLE_JUNIOR_BROKER", "LEGACY_JUNIOR_BROKER"}:
+        return UserRole.AGENT, "junior"
+    raise HTTPException(status_code=403, detail={"error": "workspace_role_mismatch"})
 
 
 async def _resolve_actor_user(session: SessionDep, principal: Principal) -> uuid.UUID:
@@ -107,8 +133,10 @@ async def _resolve_actor_user(session: SessionDep, principal: Principal) -> uuid
     return created.id
 
 
-async def _load_lead(session: SessionDep, lead_id: uuid.UUID) -> CrmLead:
-    lead = await session.get(CrmLead, lead_id)
+async def _load_lead(session: SessionDep, lead_id: uuid.UUID, agency_id: str) -> CrmLead:
+    lead = (await session.exec(select(CrmLead).where(
+        CrmLead.id == lead_id, CrmLead.agency_id == agency_id
+    ))).first()
     if lead is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -117,13 +145,115 @@ async def _load_lead(session: SessionDep, lead_id: uuid.UUID) -> CrmLead:
     return lead
 
 
+def _require_lead_assignment(
+    lead: CrmLead, *, principal: Principal, membership_role: str,
+    actor_user_id: uuid.UUID, require_senior_assignment: bool = False,
+) -> None:
+    assignment_required = membership_role == "junior" or (
+        require_senior_assignment and membership_role == "senior"
+    )
+    if not assignment_required:
+        return
+    if lead.assigned_subject == principal.subject or lead.assigned_user_id == actor_user_id:
+        return
+    # Deliberately hide whether another broker's card exists in this workspace.
+    raise HTTPException(status_code=404, detail={"error": "lead_not_found"})
+
+
+async def _property_share_permission(
+    session: SessionDep,
+    prop: Property,
+    *,
+    agency: Agency,
+    principal: Principal,
+    permission_name: str,
+) -> bool:
+    if prop.agency_id is None or prop.agency_id == agency.id:
+        return True
+    now = datetime.now(timezone.utc)
+    shares = (await session.exec(select(ListingShare).where(
+        ListingShare.property_id == prop.id,
+        ListingShare.source_agency_id == prop.agency_id,
+        ListingShare.target_agency_id == agency.id,
+        ListingShare.status == ShareStatus.ACTIVE,
+        ListingShare.revoked_at.is_(None),
+        (ListingShare.expires_at.is_(None)) | (ListingShare.expires_at > now),
+        ListingShare.mode.in_([ListingShareMode.SHARE, ListingShareMode.TRANSFER]),
+    ))).all()
+    for share in shares:
+        if share.target_agent and share.target_agent not in {principal.username, principal.subject}:
+            continue
+        permission = await session.get(ListingSharePermission, share.id)
+        if permission is not None and bool(getattr(permission, permission_name, False)):
+            return True
+    return False
+
+
+async def _visible_crm_property_ids(
+    session: SessionDep, *, agency: Agency, principal: Principal,
+) -> set[uuid.UUID]:
+    property_ids = (await session.exec(select(CrmLead.property_id).where(
+        CrmLead.agency_id == str(agency.id)
+    ).distinct())).all()
+    visible: set[uuid.UUID] = set()
+    for property_id in property_ids:
+        prop = await session.get(Property, property_id)
+        if prop is not None and await _property_share_permission(
+            session, prop, agency=agency, principal=principal, permission_name="view_summary"
+        ):
+            visible.add(property_id)
+    return visible
+
+
+async def _resolve_lead_assignee(
+    session: SessionDep,
+    *,
+    payload: LeadCreateRequest,
+    principal: Principal,
+    agency: Agency,
+    membership_role: str,
+    actor_user_id: uuid.UUID,
+) -> tuple[uuid.UUID | None, str]:
+    target_subject = (payload.assigned_user_subject or "").strip()
+    local_assigned_id: uuid.UUID | None = None
+    active_subjects = set((await session.exec(select(AgencyMembership.user_subject).where(
+        AgencyMembership.agency_id == agency.id,
+        AgencyMembership.revoked_at.is_(None),
+    ))).all())
+
+    if payload.assigned_user_id is not None and not target_subject:
+        target_subject = str(payload.assigned_user_id)
+        if target_subject not in active_subjects:
+            from app.models.agency_user import AgencyUser
+            local_user = await session.get(AgencyUser, payload.assigned_user_id)
+            if local_user is None or local_user.agency_id != str(agency.id):
+                raise HTTPException(status_code=404, detail={"error": "assignee_not_in_workspace"})
+            local_assigned_id = local_user.id
+            target_subject = ""
+
+    if not target_subject and local_assigned_id is None:
+        target_subject = principal.subject
+        local_assigned_id = actor_user_id
+    elif target_subject:
+        if target_subject not in active_subjects:
+            raise HTTPException(status_code=404, detail={"error": "assignee_not_in_workspace"})
+        if target_subject == principal.subject:
+            local_assigned_id = actor_user_id
+
+    if membership_role == "junior" and target_subject != principal.subject and local_assigned_id != actor_user_id:
+        raise HTTPException(status_code=403, detail={"error": "junior_cannot_assign_other_member"})
+    return local_assigned_id, target_subject
+
+
 def _to_summary(view: crm_service.LeadView) -> LeadSummary:
     return LeadSummary(
         id=view.id,
         property_id=view.property_id,
+        agency_id=view.agency_id,
         stage=view.stage,
         priority=view.priority,
         assigned_user_id=view.assigned_user_id,
+        assigned_subject=view.assigned_subject,
         is_bargain=view.is_bargain,
         deviation_pct=view.deviation_pct,
         neighborhood=view.neighborhood,
@@ -168,13 +298,21 @@ async def list_leads_route(
     _license: LicenseGuard,
     # Every desk surface is behind the identity gate: the board leaks deal flow
     # and pricing, so it must never be readable anonymously in either auth mode.
-    _principal: PrincipalDep,
+    workspace: ActiveAgencyDep,
     stage: list[LeadStage] | None = Query(default=None),
     bargains_only: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=500),
 ) -> LeadListResponse:
+    principal, membership, agency = workspace
+    _role, seniority = _workspace_actor_context(principal, membership)
+    actor_user_id = await _resolve_actor_user(session, principal) if seniority == "junior" else None
+    global_admin = membership.role.upper() == "GLOBAL_ADMIN"
+    visible_property_ids = None if global_admin else await _visible_crm_property_ids(session, agency=agency, principal=principal)
     views = await crm_service.list_leads(
-        session, stages=stage, bargains_only=bargains_only, limit=limit
+        session, stages=stage, bargains_only=bargains_only, limit=limit,
+        agency_id=None if global_admin else str(agency.id), property_ids=visible_property_ids,
+        assigned_user_id=actor_user_id,
+        assigned_subject=principal.subject if seniority == "junior" else None,
     )
     return LeadListResponse(count=len(views), items=[_to_summary(v) for v in views])
 
@@ -189,9 +327,18 @@ async def board_stats_route(
     _license: LicenseGuard,
     # The header sits on the same surface as the cards, so it is gated exactly
     # like the board feed: revenue per column is deal-flow data.
-    _principal: PrincipalDep,
+    workspace: ActiveAgencyDep,
 ) -> BoardStatsResponse:
-    stats = await crm_service.board_stats(session)
+    principal, membership, agency = workspace
+    _role, membership_role = _workspace_actor_context(principal, membership)
+    actor_user_id = await _resolve_actor_user(session, principal) if membership_role == "junior" else None
+    global_admin = membership.role.upper() == "GLOBAL_ADMIN"
+    visible_property_ids = None if global_admin else await _visible_crm_property_ids(session, agency=agency, principal=principal)
+    stats = await crm_service.board_stats(
+        session, agency_id=None if global_admin else str(agency.id), property_ids=visible_property_ids,
+        assigned_user_id=actor_user_id,
+        assigned_subject=principal.subject if membership_role == "junior" else None,
+    )
     return BoardStatsResponse(
         total=stats.total,
         columns=[
@@ -219,7 +366,7 @@ async def board_stats_route(
 async def create_lead_route(
     payload: LeadCreateRequest,
     session: SessionDep,
-    principal: PrincipalDep,
+    workspace: ActiveAgencyDep,
     _license: LicenseGuard,
 ) -> LeadCreateResponse:
     """Put a listing on the desk.
@@ -228,6 +375,8 @@ async def create_lead_route(
     card that already exists instead of stacking a duplicate. That mirrors
     ``crm_service.create_lead_for_property``, which ingestion also calls.
     """
+    principal, membership, agency = workspace
+    _role, membership_role = _workspace_actor_context(principal, membership)
     prop = await session.get(Property, payload.property_id)
     if prop is None:
         raise HTTPException(
@@ -237,19 +386,29 @@ async def create_lead_route(
                 "message": "ملکی با این شناسه یافت نشد.",
             },
         )
+    if not await _property_visible_to_workspace(
+        session, prop, agency=agency, principal=principal, permission_name="view_summary"
+    ):
+        raise HTTPException(status_code=404, detail={"error": "property_not_found"})
 
     already = (
         await session.exec(
-            select(CrmLead).where(CrmLead.property_id == payload.property_id)
+            select(CrmLead).where(
+                CrmLead.property_id == payload.property_id,
+                CrmLead.agency_id == str(agency.id),
+            )
         )
     ).first()
 
-    assigned = payload.assigned_user_id
-    if assigned is None:
-        assigned = await _resolve_actor_user(session, principal)
+    actor_user_id = await _resolve_actor_user(session, principal)
+    assigned_user_id, assigned_subject = await _resolve_lead_assignee(
+        session, payload=payload, principal=principal, agency=agency,
+        membership_role=membership_role, actor_user_id=actor_user_id,
+    )
 
     lead = await crm_service.create_lead_for_property(
-        session, prop, assigned_user_id=assigned
+        session, prop, agency_id=str(agency.id), assigned_user_id=assigned_user_id,
+        assigned_subject=assigned_subject or None,
     )
     await session.commit()
 
@@ -273,9 +432,19 @@ async def get_lead_route(
     lead_id: uuid.UUID,
     session: SessionDep,
     _license: LicenseGuard,
+    workspace: ActiveAgencyDep,
 ) -> LeadDetailResponse:
-    lead = await _load_lead(session, lead_id)
-    views = await crm_service.list_leads(session, limit=500)
+    principal, membership, agency = workspace
+    _role, membership_role = _workspace_actor_context(principal, membership)
+    actor_user_id = await _resolve_actor_user(session, principal)
+    lead = await _load_lead(session, lead_id, str(agency.id))
+    _require_lead_assignment(lead, principal=principal, membership_role=membership_role, actor_user_id=actor_user_id)
+    prop = await session.get(Property, lead.property_id)
+    if prop is None or not await _property_visible_to_workspace(
+        session, prop, agency=agency, principal=principal, permission_name="view_summary"
+    ):
+        raise HTTPException(status_code=404, detail={"error": "lead_not_found"})
+    views = await crm_service.list_leads(session, agency_id=str(agency.id), property_ids={lead.property_id}, limit=1)
     view = next((v for v in views if v.id == lead.id), None)
     if view is None:
         raise HTTPException(
@@ -296,7 +465,7 @@ async def delete_lead_route(
     lead_id: uuid.UUID,
     payload: LeadDeleteRequest,
     session: SessionDep,
-    principal: PrincipalDep,
+    workspace: ActiveAgencyDep,
     _license: LicenseGuard,
 ) -> LeadDeleteResponse:
     """Erase a lead for good.
@@ -322,7 +491,8 @@ async def delete_lead_route(
             },
         )
 
-    role, _tier = _actor_context(principal)
+    principal, membership, agency = workspace
+    role, _membership_role = _workspace_actor_context(principal, membership)
     if role not in DATA_GOVERNOR_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -332,7 +502,7 @@ async def delete_lead_route(
             },
         )
 
-    lead = await _load_lead(session, lead_id)
+    lead = await _load_lead(session, lead_id, str(agency.id))
 
     # Delete children first: LeadInteraction carries a FK to the lead, so
     # removing the parent first would either fail or leave orphans depending on
@@ -359,13 +529,22 @@ async def change_stage_route(
     payload: StageChangeRequest,
     session: SessionDep,
     _license: LicenseGuard,
-    principal: PrincipalDep,
+    workspace: ActiveAgencyDep,
 ) -> LeadDetailResponse:
-    role, _tier = _actor_context(principal)
-    lead = await _load_lead(session, lead_id)
+    principal, membership, agency = workspace
+    role, membership_role = _workspace_actor_context(principal, membership)
+    actor_user_id = await _resolve_actor_user(session, principal)
+    lead = await _load_lead(session, lead_id, str(agency.id))
+    _require_lead_assignment(lead, principal=principal, membership_role=membership_role, actor_user_id=actor_user_id)
+    prop = await session.get(Property, lead.property_id)
+    if prop is None or not await _property_visible_to_workspace(
+        session, prop, agency=agency, principal=principal, permission_name="allow_negotiation"
+    ):
+        raise HTTPException(status_code=403, detail={"error": "share_negotiation_not_permitted"})
     try:
         await crm_service.move_lead(
-            session, lead, payload.target_stage, role=role, note=payload.note
+            session, lead, payload.target_stage, role=role,
+            actor_user_id=actor_user_id, note=payload.note
         )
     except crm_service.InvalidTransition as exc:
         raise HTTPException(
@@ -379,7 +558,7 @@ async def change_stage_route(
         ) from exc
 
     await session.commit()
-    return await get_lead_route(lead_id, session, _license)
+    return await get_lead_route(lead_id, session, _license, workspace)
 
 
 @router.post(
@@ -393,13 +572,25 @@ async def add_interaction_route(
     payload: InteractionRequest,
     session: SessionDep,
     _license: LicenseGuard,
+    workspace: ActiveAgencyDep,
 ) -> InteractionResponse:
-    lead = await _load_lead(session, lead_id)
+    principal, membership, agency = workspace
+    _role, membership_role = _workspace_actor_context(principal, membership)
+    actor_user_id = await _resolve_actor_user(session, principal)
+    lead = await _load_lead(session, lead_id, str(agency.id))
+    _require_lead_assignment(lead, principal=principal, membership_role=membership_role, actor_user_id=actor_user_id)
+    prop = await session.get(Property, lead.property_id)
+    required_share_permission = "allow_visit_request" if payload.interaction_type.value == "VISIT_EVENT" else "allow_notes"
+    if prop is None or not await _property_visible_to_workspace(
+        session, prop, agency=agency, principal=principal, permission_name=required_share_permission
+    ):
+        raise HTTPException(status_code=403, detail={"error": "share_action_not_permitted"})
     try:
         event = await crm_service.log_interaction(
             session,
             lead,
             interaction_type=payload.interaction_type,
+            actor_user_id=actor_user_id,
             scheduled_at=payload.scheduled_at,
             note=payload.note,
         )
@@ -427,12 +618,15 @@ async def add_interaction_route(
 async def quota_route(
     session: SessionDep,
     _license: LicenseGuard,
-    principal: PrincipalDep,
+    workspace: ActiveAgencyDep,
 ) -> QuotaStatusResponse:
-    _role, tier = _actor_context(principal)
+    principal, membership, _agency = workspace
+    role, _membership_role = _workspace_actor_context(principal, membership)
+    if principal.pii_denied or role not in pii_vault.PII_READER_ROLES:
+        raise HTTPException(status_code=403, detail={"error": "pii_role_not_permitted"})
     actor_id = await _resolve_actor_user(session, principal)
-    remaining = await pii_vault.remaining_quota(session, actor_id, tier)
-    return QuotaStatusResponse(tier=tier, remaining=remaining)
+    remaining = await pii_vault.remaining_quota(session, actor_id, principal.saas_tier)
+    return QuotaStatusResponse(tier=principal.saas_tier, remaining=remaining)
 
 
 @router.post(
@@ -447,11 +641,32 @@ async def reveal_contact_route(
     session: SessionDep,
     settings: SettingsDep,
     _license: LicenseGuard,
-    principal: PrincipalDep,
+    workspace: ActiveAgencyDep,
 ) -> PiiRevealResponse:
-    role, tier = _actor_context(principal)
+    principal, membership, agency = workspace
+    role, membership_role = _workspace_actor_context(principal, membership)
+    if principal.pii_denied:
+        raise HTTPException(status_code=403, detail={"error": "pii_role_denied"})
+    if role in {UserRole.ADMIN, UserRole.SUPERVISOR} and len(payload.reason.strip()) < 12:
+        raise HTTPException(status_code=422, detail={"error": "pii_audit_reason_required", "message": "برای دسترسی نظارتی دلیل حداقل ۱۲ نویسه‌ای ثبت کنید."})
     actor_id = await _resolve_actor_user(session, principal)
     cipher = PiiCipher.from_key_file(settings.resolve_path(settings.pii_key_file))
+
+    lead = (await session.exec(select(CrmLead).where(
+        CrmLead.property_id == property_id,
+        CrmLead.agency_id == str(agency.id),
+    ))).first()
+    if lead is None:
+        raise HTTPException(status_code=404, detail={"error": "lead_not_found"})
+    _require_lead_assignment(
+        lead, principal=principal, membership_role=membership_role,
+        actor_user_id=actor_id, require_senior_assignment=True,
+    )
+    prop = await session.get(Property, property_id)
+    if prop is None or not await _property_visible_to_workspace(
+        session, prop, agency=agency, principal=principal, permission_name="show_owner_phone"
+    ):
+        raise HTTPException(status_code=403, detail={"error": "share_owner_contact_not_permitted"})
 
     try:
         result = await pii_vault.reveal_owner_phone(
@@ -459,8 +674,10 @@ async def reveal_contact_route(
             property_id=property_id,
             actor_user_id=actor_id,
             role=role,
-            tier=tier,
+            tier=principal.saas_tier,
             cipher=cipher,
+            agency_id=agency.id,
+            pii_denied=principal.pii_denied,
             client_ip=request.client.host if request.client else "",
             reason=payload.reason,
         )
@@ -491,10 +708,11 @@ async def reveal_contact_route(
 async def pii_audit_route(
     session: SessionDep,
     _license: LicenseGuard,
-    principal: PrincipalDep,
+    workspace: ActiveAgencyDep,
     limit: int = Query(default=100, ge=1, le=500),
 ) -> list[PiiAccessLogEntry]:
-    role, _tier = _actor_context(principal)
+    principal, membership, agency = workspace
+    role, _membership_role = _workspace_actor_context(principal, membership)
     # Audit inspection is a governance privilege, not a desk feature.
     if role not in (UserRole.SUPERVISOR, UserRole.ADMIN):
         raise HTTPException(
@@ -508,6 +726,7 @@ async def pii_audit_route(
     rows = (
         await session.exec(
             select(OwnerAccessLog)
+            .where(OwnerAccessLog.agency_id == agency.id)
             .order_by(OwnerAccessLog.created_at.desc())  # type: ignore[arg-type]
             .limit(limit)
         )
@@ -525,4 +744,3 @@ async def pii_audit_route(
         )
         for row in rows
     ]
-

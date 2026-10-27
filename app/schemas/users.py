@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -18,6 +19,9 @@ class UserOut(BaseModel):
     phone: str = ""
     status: str = "ACTIVE"
     role: UserRole
+    realm_roles: list[str] = Field(default_factory=list)
+    kyc_status: str = "PENDING"
+    mobile_verified: bool = False
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -43,8 +47,11 @@ class UserMutationIn(BaseModel):
     last_name: str = ""
     email: str = ""
     phone: str = ""
-    role: UserRole = UserRole.AGENT
-    status: str = "ACTIVE"
+    role: UserRole | None = None
+    # The internal AGENT tier alone cannot distinguish Junior from Senior.
+    # Office-manager mutations are restricted to these two exact Realm roles.
+    keycloak_role: Literal["ROLE_JUNIOR_BROKER", "ROLE_SENIOR_BROKER"] | None = None
+    status: str | None = None
 
 
 __all__ = [

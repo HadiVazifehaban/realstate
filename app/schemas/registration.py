@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
 from app.core.mobile import MobileError, normalize_mobile
 
@@ -67,6 +67,22 @@ class QuickRegisterIn(BaseModel):
     registration_token: str = Field(min_length=20, max_length=128)
 
 
+class VerifiedRegistrationIn(QuickRegisterIn):
+    """Create a new account only after redeeming a one-time mobile proof."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+
+    @field_validator("first_name", "last_name", "username", "registration_token", mode="before")
+    @classmethod
+    def _strip_identity(cls, value: Any) -> Any:
+        return value.strip() if isinstance(value, str) else value
+
+    first_name: str = Field(min_length=2, max_length=128)
+    last_name: str = Field(min_length=2, max_length=128)
+    username: str = Field(min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._-]{2,63}$")
+    password: SecretStr = Field(min_length=12, max_length=128)
+
+
 class ProfessionalBaseIn(BaseModel):
     """Shared identity block of the professional funnel."""
 
@@ -112,6 +128,7 @@ class SeniorBrokerIn(ProfessionalBaseIn):
 
 
 class AgencyManagerIn(ProfessionalBaseIn):
+    referral_code: str = Field(default="", max_length=16)
     agency_official_name: str = Field(min_length=2, max_length=255)
     agency_brand_name: str = Field(default="", max_length=255)
     trade_code: str = Field(min_length=2, max_length=64)

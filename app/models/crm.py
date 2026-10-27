@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Text
+from sqlalchemy import Text, Index
 from sqlmodel import SQLModel, Column, Field
 
 from app.models.base import pg_enum, timestamp_column, utcnow, uuid_column
@@ -22,13 +22,20 @@ class CrmLead(SQLModel, table=True):
     """One lead on the broker desk, derived from a canonical property."""
 
     __tablename__ = "crm_lead"
+    __table_args__ = (
+        Index("ix_crm_lead_agency_stage_updated", "agency_id", "stage", "updated_at"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=uuid_column())
     property_id: uuid.UUID = Field(foreign_key="property.id", index=True)
+    # A CRM card belongs to exactly one active office, even when its listing is
+    # public or shared from another office.
+    agency_id: str = Field(default="local", max_length=64, index=True)
 
     assigned_user_id: uuid.UUID | None = Field(
         default=None, foreign_key="agency_user.id", index=True
     )
+    assigned_subject: str | None = Field(default=None, max_length=255, index=True)
 
     stage: LeadStage = Field(
         default=LeadStage.NEW_FILE,

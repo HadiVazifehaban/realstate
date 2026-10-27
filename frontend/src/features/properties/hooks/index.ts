@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   bookVisitSlot,
@@ -28,6 +28,9 @@ import { type MarketMedians, marketKey } from '../utils/market';
 export interface BargainFilters {
   neighborhood?: string;
   city?: string;
+  cities?: string[];
+  city_ids?: string[];
+  province_ids?: string[];
   limit?: number;
 }
 
@@ -108,7 +111,15 @@ export function useProperties(filters: PropertyListFilters = {}, enabled = true)
     enabled,
     queryKey: ['properties', filters],
     queryFn: () => fetchProperties(filters),
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) => {
+      const withoutWindow = (value: PropertyListFilters) => {
+        const { limit: _limit, offset: _offset, ...scope } = value;
+        return scope;
+      };
+      const prior = previousQuery?.queryKey[1] as PropertyListFilters | undefined;
+      return prior && JSON.stringify(withoutWindow(prior)) === JSON.stringify(withoutWindow(filters))
+        ? previous : undefined;
+    },
     refetchInterval: 60_000,
     staleTime: 30_000
   });
@@ -134,53 +145,12 @@ export function useNeighbourhoodProperties(
   } = {}
 ) {
   const { deal_types, ...rest } = filters;
-  const primaryType = deal_types?.[0];
-  const secondaryType = deal_types?.[1];
-
-  const first = useProperties({
+  return useProperties({
     ...rest,
     ...(neighborhood ? { neighborhood } : {}),
-    ...(primaryType ? { deal_type: primaryType } : {}),
+    ...(deal_types?.length ? { deal_type: deal_types } : {}),
     limit: rest.limit ?? 60
-  });
-
-  type QueryResult = ReturnType<typeof useProperties>;
-  const second: QueryResult | null =
-    secondaryType && neighborhood
-      ? useProperties({
-          ...rest,
-          neighborhood,
-          deal_type: secondaryType,
-          limit: rest.limit ?? 60
-        })
-      : null;
-
-  const data = React.useMemo(() => {
-    if (!first.data) return undefined;
-    const merged = [...first.data.items];
-    if (second?.data) {
-      const seen = new Set(merged.map((row) => row.id));
-      for (const row of second.data.items) {
-        if (!seen.has(row.id)) merged.push(row);
-      }
-    }
-    return {
-      ...first.data,
-      items: merged,
-      count: merged.length
-    };
-  }, [first.data, second?.data]);
-
-  return {
-    data,
-    isPending: first.isPending || (second?.isPending ?? false),
-    isError: first.isError || (second?.isError ?? false),
-    error: first.error ?? second?.error ?? null,
-    refetch: () => {
-      void first.refetch();
-      void second?.refetch();
-    }
-  };
+  }, Boolean(neighborhood));
 }
 
 /**
@@ -196,9 +166,7 @@ export function useNeighbourhoodMarket(filters: NeighbourhoodMarketFilters = {})
     queryKey: [
       'market',
       'neighbourhoods',
-      filters.city ?? null,
-      filters.dealTypes ?? [],
-      filters.minFiles ?? 1
+      filters
     ],
     queryFn: () => fetchNeighbourhoodMarket(filters),
     refetchInterval: 120_000,

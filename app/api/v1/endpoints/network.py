@@ -15,12 +15,13 @@ from __future__ import annotations
 import uuid
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
-from app.api.deps import LicenseGuard, PrincipalDep, SessionDep
+from app.api.deps import ActiveAgencyDep, LicenseGuard, PrincipalDep, SessionDep
 from app.models.base import utcnow
-from app.models.agency_network import Agency, AgencyCooperation
+from app.models.agency_network import Agency, AgencyCooperation, AgencyMembership
 from app.models.network_collab import (
     AuditEvent,
     CommissionAgreement,
@@ -47,9 +48,13 @@ from app.models.enums import (
     ShareStatus,
     TransferStatus,
 )
+from app.models.billing import AgencyReferral, ReferralCredit
+from app.models.enums import AgencyReferralStatus, ReferralCreditStatus
+from app.services import agency_referrals
 from app.schemas.network import (
     AgencyCreate,
     AgencyRead,
+    AgencyReviewIn,
     AuditEventRead,
     CommissionAgreementCreate,
     CommissionAgreementDetailRead,
@@ -76,6 +81,7 @@ from app.schemas.network import (
     NetworkReportsRead,
     ReferralStageUpdate,
     SharePermissionRead,
+    WorkspaceRead,
 )
 
 router = APIRouter()
@@ -99,6 +105,28 @@ async def _require_agency(
             detail={"error": "agency_not_found", "message": "دفتری با این شناسه پیدا نشد."},
         )
     return row
+
+
+async def _require_active_agency_access(
+    session: SessionDep,
+    principal: PrincipalDep,
+    agency_id: uuid.UUID,
+    *,
+    manager: bool = False,
+    membership: AgencyMembership | None = None,
+) -> AgencyMembership:
+    """Authorize network writes using current DB membership, not realm tenant."""
+    if membership is None:
+        membership = (await session.exec(select(AgencyMembership).where(
+            AgencyMembership.agency_id == agency_id,
+            AgencyMembership.user_subject == principal.subject,
+            AgencyMembership.revoked_at.is_(None),
+        ))).first()
+    if membership is None:
+        raise HTTPException(403, detail={"error": "workspace_membership_required"})
+    if manager and membership.role not in {"FOUNDER", "ADMIN", "MANAGER"}:
+        raise HTTPException(403, detail={"error": "workspace_manager_required"})
+    return membership
 
 
 async def _require_cooperation(
@@ -182,24 +210,55 @@ async def create_agency(
     principal: PrincipalDep,
     _licence: LicenseGuard,
 ) -> AgencyRead:
-    """Register an office.
+    """Register a pending office on the collaboration directory."""
+    try:
+        row = await _create_pending_agency(payload, session, principal)
+        await session.commit()
+        await session.refresh(row)
+        return AgencyRead.model_validate(row)
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(409, detail={"error": "agency_registration_conflict"}) from exc
 
-    A new office arrives ``PENDING`` regardless of who created it: registering
-    yourself for the network and vouching for yourself are two different acts,
-    and only a network admin can do the second (see ``verified_by``).
-    """
-    existing = (
-        await session.exec(select(Agency).where(Agency.slug == payload.slug))
-    ).first()
+
+@router.post("/agencies/{agency_id}/review", response_model=AgencyRead)
+async def review_agency(
+    agency_id: uuid.UUID,
+    payload: AgencyReviewIn,
+    session: SessionDep,
+    principal: PrincipalDep,
+) -> AgencyRead:
+    """Approve or reject a pending office; restricted to system administrators."""
+    if "ROLE_ADMIN" not in principal.realm_roles:
+        raise HTTPException(403, detail={"error": "agency_review_admin_required"})
+
+    agency = await _require_agency(session, agency_id)
+    if agency.status != AgencyStatus.PENDING:
+        raise HTTPException(409, detail={"error": "agency_not_pending"})
+    if payload.decision == "REJECT" and not payload.reason.strip():
+        raise HTTPException(422, detail={"error": "agency_rejection_reason_required"})
+
+    agency.status = (
+        AgencyStatus.VERIFIED if payload.decision == "APPROVE" else AgencyStatus.SUSPENDED
+    )
+    agency.verified_by = principal.subject
+    session.add(agency)
+    await session.commit()
+    await session.refresh(agency)
+    return AgencyRead.model_validate(agency)
+
+
+async def _create_pending_agency(
+    payload: AgencyCreate,
+    session: SessionDep,
+    principal: PrincipalDep,
+    *,
+    add_founder: bool = False,
+    referral_code: str = "",
+) -> Agency:
+    existing = (await session.exec(select(Agency).where(Agency.slug == payload.slug))).first()
     if existing is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "error": "slug_taken",
-                "message": "این شناسه پیش‌تر ثبت شده است؛ شناسه دیگری انتخاب کنید.",
-            },
-        )
-
+        raise HTTPException(409, detail={"error": "slug_taken"})
     row = Agency(
         slug=payload.slug,
         name=payload.name,
@@ -211,9 +270,200 @@ async def create_agency(
         status=AgencyStatus.PENDING,
     )
     session.add(row)
-    await session.commit()
-    await session.refresh(row)
+    await session.flush()
+    try:
+        await agency_referrals.ensure_agency_referral_code(session, row)
+    except RuntimeError as exc:
+        raise HTTPException(503, detail="تولید کد معرف ممکن نشد؛ دوباره تلاش کنید.") from exc
+    if referral_code:
+        try:
+            await agency_referrals.record_agency_referral(
+                session, referred_agency_id=row.id, referral_code=referral_code,
+                source="workspace_registration", actor_subject=principal.subject,
+            )
+        except ValueError as exc:
+            raise HTTPException(422, detail={"error": "invalid_referral_code", "message": str(exc)}) from exc
+    if add_founder:
+        await _create_workspace_membership(session, row, principal.subject)
+        try:
+            await session.commit()
+        except IntegrityError as exc:
+            await session.rollback()
+            raise HTTPException(409, detail={"error": "agency_registration_conflict"}) from exc
+        await session.refresh(row)
+    return row
+
+
+async def _create_workspace_membership(
+    session: SessionDep, agency: Agency, subject: str
+) -> AgencyMembership:
+    membership = AgencyMembership(
+        agency_id=agency.id,
+        user_subject=subject,
+        role="FOUNDER",
+        created_by_subject=subject,
+    )
+    session.add(membership)
+    return membership
+
+
+@router.get("/workspaces", response_model=list[WorkspaceRead])
+async def list_workspaces(
+    session: SessionDep,
+    principal: PrincipalDep,
+    request: Request,
+) -> list[WorkspaceRead]:
+    """Return only offices with a currently active DB membership for subject."""
+    # Existing Keycloak tenants were provisioned before agency_membership
+    # became authoritative. Keep their signed tenant claim usable for the
+    # office's own workspace; never accept a client-supplied workspace ID here.
+    # Do not bypass an explicitly supplied workspace selector: otherwise a
+    # stale legacy tenant claim could mask a user switching to a new office.
+    requested_workspace = request.headers.get("x-workspace-id")
+    if (
+        requested_workspace is None
+        and
+        principal.is_verified
+        and principal.tenant_id
+        and principal.realm_roles & {"ROLE_ADMIN", "ROLE_SUPERVISOR", "ROLE_AGENCY_MANAGER"}
+    ):
+        try:
+            legacy_agency_id = uuid.UUID(principal.tenant_id)
+        except ValueError:
+            legacy_agency_id = None
+        if legacy_agency_id is not None:
+            agency = await session.get(Agency, legacy_agency_id)
+            if agency is not None and agency.status != AgencyStatus.SUSPENDED:
+                return [WorkspaceRead(
+                    id=agency.id,
+                    slug=agency.slug,
+                    name=agency.name,
+                    name_fa=agency.name_fa,
+                    status=agency.status,
+                    role="LEGACY_OFFICE_OPERATOR",
+                )]
+
+    rows = (await session.exec(
+        select(AgencyMembership, Agency)
+        .join(Agency, Agency.id == AgencyMembership.agency_id)
+        .where(
+            AgencyMembership.user_subject == principal.subject,
+            AgencyMembership.revoked_at.is_(None),
+            Agency.status != AgencyStatus.SUSPENDED,
+        )
+        .order_by(Agency.name, Agency.id)
+    )).all()
+    return [
+        WorkspaceRead(
+            id=agency.id,
+            slug=agency.slug,
+            name=agency.name,
+            name_fa=agency.name_fa,
+            status=agency.status,
+            role=membership.role,
+        )
+        for membership, agency in rows
+    ]
+
+
+@router.get("/workspaces/current", response_model=WorkspaceRead)
+async def current_workspace(active: ActiveAgencyDep) -> WorkspaceRead:
+    """Resolve the selected workspace using the same DB membership guard."""
+    _, membership, agency = active
+    return WorkspaceRead(
+        id=agency.id,
+        slug=agency.slug,
+        name=agency.name,
+        name_fa=agency.name_fa,
+        status=agency.status,
+        role=membership.role,
+    )
+
+
+@router.post("/workspaces", response_model=AgencyRead, status_code=status.HTTP_201_CREATED)
+async def create_workspace(
+    payload: AgencyCreate,
+    session: SessionDep,
+    principal: PrincipalDep,
+    _licence: LicenseGuard,
+) -> AgencyRead:
+    """Create a pending office and grant its creator a limited founder membership.
+
+    Membership is written in the same transaction, so no orphan office or
+    untracked grant is created. The founder role does not verify the agency.
+    """
+    try:
+        row = await _create_pending_agency(
+            payload, session, principal, add_founder=True,
+            referral_code=payload.referral_code,
+        )
+        await session.commit()
+        await session.refresh(row)
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(409, detail={"error": "agency_registration_conflict"}) from exc
     return AgencyRead.model_validate(row)
+
+
+@router.post("/workspaces/{agency_id}/revoke/{subject}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_workspace_membership(
+    agency_id: uuid.UUID,
+    subject: str,
+    session: SessionDep,
+    principal: PrincipalDep,
+    active: ActiveAgencyDep,
+) -> None:
+    """Founder revokes a membership in their active office; retain audit row."""
+    _, actor_membership, actor_agency = active
+    if actor_agency.id != agency_id or actor_membership.role not in {"FOUNDER", "ADMIN"}:
+        raise HTTPException(403, detail={"error": "workspace_membership_manage_forbidden"})
+    if subject == principal.subject:
+        raise HTTPException(409, detail={"error": "workspace_self_revoke_forbidden"})
+    target = (await session.exec(select(AgencyMembership).where(
+        AgencyMembership.agency_id == agency_id,
+        AgencyMembership.user_subject == subject,
+        AgencyMembership.revoked_at.is_(None),
+    ))).first()
+    if target is None:
+        raise HTTPException(404, detail={"error": "workspace_membership_not_found"})
+    target.revoked_at = utcnow()
+    target.revoked_by_subject = principal.subject
+    session.add(target)
+    await session.commit()
+
+
+@router.post("/workspaces/{agency_id}/members/{subject}/reactivate", response_model=WorkspaceRead)
+async def reactivate_workspace_membership(
+    agency_id: uuid.UUID,
+    subject: str,
+    session: SessionDep,
+    principal: PrincipalDep,
+    active: ActiveAgencyDep,
+) -> WorkspaceRead:
+    """Explicitly reactivate a revoked row; never resurrect access implicitly."""
+    _, actor_membership, actor_agency = active
+    if actor_agency.id != agency_id or actor_membership.role not in {"FOUNDER", "ADMIN"}:
+        raise HTTPException(403, detail={"error": "workspace_membership_manage_forbidden"})
+    target = (await session.exec(select(AgencyMembership).where(
+        AgencyMembership.agency_id == agency_id,
+        AgencyMembership.user_subject == subject,
+    ))).first()
+    if target is None:
+        raise HTTPException(404, detail={"error": "workspace_membership_not_found"})
+    if target.revoked_at is None:
+        raise HTTPException(409, detail={"error": "workspace_membership_already_active"})
+    target.revoked_at = None
+    target.revoked_by_subject = ""
+    session.add(target)
+    await session.commit()
+    return WorkspaceRead(
+        id=actor_agency.id,
+        slug=actor_agency.slug,
+        name=actor_agency.name,
+        name_fa=actor_agency.name_fa,
+        status=actor_agency.status,
+        role=target.role,
+    )
 
 
 @router.get(
@@ -251,8 +501,10 @@ async def create_cooperation(
     rather than queued twice: two pending requests for one relationship is how a
     network ends up with offices that each believe the other agreed.
     """
+    await _require_active_agency_access(session, principal, payload.requester_agency_id, manager=True)
     requester = await _require_agency(session, payload.requester_agency_id)
     target = await _require_agency(session, payload.target_agency_id)
+    await _require_active_agency_access(session, principal, target.id, manager=True)
 
     if requester.id == target.id:
         raise HTTPException(
@@ -493,6 +745,48 @@ def _share_as_read(row: ListingShare) -> ListingShareRead:
     return ListingShareRead.model_validate(row)
 
 
+def _share_agency(principal: PrincipalDep, requested: uuid.UUID | None = None) -> uuid.UUID:
+    """Read the workspace ID selected by the DB-backed workspace dependency."""
+    selected = principal.active_agency_id or principal.tenant_id
+    try:
+        agency_id = uuid.UUID(selected or "")
+    except ValueError:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "agency_required", "message": "دفتر معتبر برای حساب شما ثبت نشده است."},
+        ) from None
+    if requested is not None and requested != agency_id:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "agency_forbidden", "message": "دسترسی به اشتراک‌های دفتر دیگر مجاز نیست."},
+        )
+    return agency_id
+
+
+def _authorize_share(share: ListingShare, principal: PrincipalDep, *, manage: bool = False) -> None:
+    agency_id = _share_agency(principal)
+    allowed = (share.source_agency_id,) if manage else (share.source_agency_id, share.target_agency_id)
+    if agency_id not in allowed:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "share_forbidden", "message": "دسترسی به این اشتراک مجاز نیست."},
+        )
+
+
+async def _authorize_share_membership(
+    session: SessionDep, share: ListingShare, principal: PrincipalDep, *, manage: bool = False
+) -> None:
+    agency_id = _share_agency(principal)
+    allowed = (share.source_agency_id,) if manage else (share.source_agency_id, share.target_agency_id)
+    if agency_id not in allowed:
+        _authorize_share(share, principal, manage=manage)
+    if manage and share.status == ShareStatus.REVOKED:
+        raise HTTPException(
+            status_code=409,
+            detail={"error": "share_not_active", "message": "اشتراک لغوشده قابل تغییر نیست."},
+        )
+
+
 @router.post(
     "/shares",
     response_model=ListingShareDetailRead,
@@ -520,6 +814,8 @@ async def create_share(
             detail={"error": "bad_mode", "message": "نوع اشتراک نامعتبر است."},
         )
 
+    _share_agency(principal, payload.source_agency_id)
+    await _require_active_agency_access(session, principal, payload.source_agency_id, manager=True)
     source = await _require_agency(session, payload.source_agency_id)
     target = await _require_agency(session, payload.target_agency_id)
     if source.id == target.id:
@@ -594,12 +890,14 @@ async def create_share(
 async def list_shares(
     session: SessionDep,
     _licence: LicenseGuard,
+    principal: PrincipalDep,
     agency_id: uuid.UUID | None = Query(default=None, description="فیلتر بر اساس دفتر"),
     direction: str | None = Query(default=None, description="incoming|outgoing"),
     status_filter: ShareStatus | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> list[ListingShareRead]:
+    agency_id = _share_agency(principal, agency_id)
     query = select(ListingShare)
     if agency_id is not None:
         if direction == "outgoing":
@@ -613,7 +911,7 @@ async def list_shares(
             )
     if status_filter is not None:
         query = query.where(ListingShare.status == status_filter)
-    query = query.order_by(ListingShare.created_at.desc()).limit(limit).offset(offset)
+    query = query.order_by(ListingShare.created_at.desc(), ListingShare.id.desc()).limit(limit).offset(offset)
     rows = (await session.exec(query)).all()
     return [_share_as_read(row) for row in rows]
 
@@ -627,12 +925,14 @@ async def get_share(
     share_id: uuid.UUID,
     session: SessionDep,
     _licence: LicenseGuard,
+    principal: PrincipalDep,
 ) -> ListingShareDetailRead:
     share = await _require_share(session, share_id)
+    await _authorize_share_membership(session, share, principal)
     perm = await session.get(ListingSharePermission, share.id)
     return ListingShareDetailRead(
         **_share_as_read(share).model_dump(),
-        internal_note=share.internal_note,
+        internal_note=share.internal_note if share.source_agency_id == _share_agency(principal) else "",
         permissions=SharePermissionRead.model_validate(perm) if perm else SharePermissionRead(updated_at=share.created_at, updated_by=share.created_by),
     )
 
@@ -651,6 +951,7 @@ async def revoke_share(
     """Revoke a share. Revoked access blocks the UI and the API immediately:
     the status flip is the single source of truth every read path checks."""
     share = await _require_share(session, share_id)
+    await _authorize_share_membership(session, share, principal, manage=True)
     if share.status is ShareStatus.REVOKED:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -687,6 +988,12 @@ async def extend_share(
     days: int = Query(default=30, ge=1, le=3650),
 ) -> ListingShareRead:
     share = await _require_share(session, share_id)
+    await _authorize_share_membership(session, share, principal, manage=True)
+    if share.status not in (ShareStatus.ACTIVE, ShareStatus.EXPIRED):
+        raise HTTPException(
+            status_code=409,
+            detail={"error": "share_not_extendable", "message": "این اشتراک قابل تمدید نیست."},
+        )
     base = share.expires_at or utcnow()
     # Extending an already-expired share from now, not from its dead expiry, so a
     # lapsed file does not come back with a negative lifetime.
@@ -724,6 +1031,7 @@ async def create_referral(
     principal: PrincipalDep,
     _licence: LicenseGuard,
 ) -> LeadReferralRead:
+    await _require_active_agency_access(session, principal, payload.source_agency_id, manager=True)
     source = await _require_agency(session, payload.source_agency_id)
     target = await _require_agency(session, payload.target_agency_id)
     if source.id == target.id:
@@ -838,6 +1146,7 @@ async def create_transfer(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"error": "confirm_required", "message": "انتقال فایل نیاز به تأیید صریح دارد."},
         )
+    await _require_active_agency_access(session, principal, payload.from_agency_id, manager=True)
     await _require_agency(session, payload.from_agency_id)
     await _require_agency(session, payload.to_agency_id)
     row = ListingTransferHistory(
@@ -953,6 +1262,7 @@ async def create_commission(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"error": "bad_model", "message": "مدل پورسانت نامعتبر است."},
         )
+    await _require_active_agency_access(session, principal, payload.source_agency_id, manager=True)
     await _require_agency(session, payload.source_agency_id)
     await _require_agency(session, payload.target_agency_id)
 
@@ -1140,6 +1450,7 @@ async def create_dispute(
     principal: PrincipalDep,
     _licence: LicenseGuard,
 ) -> DisputeRead:
+    await _require_active_agency_access(session, principal, payload.claimant_agency_id, manager=True)
     try:
         category = DisputeCategory(payload.category)
     except ValueError:

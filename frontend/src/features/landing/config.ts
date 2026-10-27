@@ -12,8 +12,8 @@ export const landingRoutes = {
 
 export const publicNavigation = [
   { label: "جستجوی ملک", href: "#search" },
-  { label: "تحلیل هوشمند AVM", href: landingRoutes.avm },
-  { label: "رادار قیمت", href: landingRoutes.radar },
-  { label: "نقشهٔ بازار", href: landingRoutes.map },
-  { label: "تعرفه و اشتراک", href: landingRoutes.billing }
+  { label: "ابزارهای هوشمند", href: "#professional-tools" },
+  { label: "تعرفه و اشتراک", href: "#subscription-plans" },
+  { label: "ویژهٔ مشاوران", href: "#agency-services" },
+  { label: "ورود به سامانه", href: landingRoutes.dashboard }
 ] as const;

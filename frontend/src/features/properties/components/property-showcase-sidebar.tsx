@@ -59,11 +59,14 @@ interface PropertyShowcaseSidebarProps {
   property: PropertySummary;
   /** Notified after a lead is filed, so the page can route to the CRM board. */
   onLeadCreated?: () => void;
+  /** Dense grid treatment used by the single-viewport property detail page. */
+  compact?: boolean;
 }
 
 export function PropertyShowcaseSidebar({
   property,
-  onLeadCreated
+  onLeadCreated,
+  compact = false
 }: PropertyShowcaseSidebarProps) {
   const [warningOpen, setWarningOpen] = React.useState(false);
   const [reportOpen, setReportOpen] = React.useState(false);
@@ -76,27 +79,29 @@ export function PropertyShowcaseSidebar({
   const isRent = property.deal_type === 'RENT' || property.deal_type === 'FULL_MORTGAGE';
 
   return (
-    <div className='flex min-w-0 flex-col gap-2.5'>
-      <TitleCard property={property} title={title} location={location} publishedAgo={publishedAgo} />
-      <StatsCard property={property} />
-      <PriceCard property={property} isRent={isRent} />
-      <AmenitiesCard property={property} />
+    <div className={cn('flex min-w-0 flex-col gap-2.5', compact && 'property-detail-sidebar')}>
+      <TitleCard property={property} title={title} location={location} publishedAgo={publishedAgo} compact={compact} />
+      <StatsCard property={property} compact={compact} />
+      <PriceCard property={property} isRent={isRent} compact={compact} />
+      <AmenitiesCard property={property} compact={compact} />
 
-      <ActionRow
-        icon={<Icons.warning className='size-4' />}
-        tone='warning'
-        label='هشدارهای مهم قبل از معامله'
-        onClick={() => setWarningOpen(true)}
-      />
-      <ActionRow
-        icon={<Icons.report className='size-4' />}
-        tone='report'
-        label='ارسال گزارش اشکال در آگهی'
-        onClick={() => setReportOpen(true)}
-      />
+      <div className={cn('flex flex-col gap-2', compact && 'property-detail-actions')}>
+        <ActionRow
+          icon={<Icons.warning className='size-4' />}
+          tone='warning'
+          label={compact ? 'هشدار معامله' : 'هشدارهای مهم قبل از معامله'}
+          onClick={() => setWarningOpen(true)}
+        />
+        <ActionRow
+          icon={<Icons.report className='size-4' />}
+          tone='report'
+          label={compact ? 'گزارش آگهی' : 'ارسال گزارش اشکال در آگهی'}
+          onClick={() => setReportOpen(true)}
+        />
+      </div>
 
-      <DescriptionCard property={property} />
-      <AdvisorCard property={property} onLeadCreated={onLeadCreated} />
+      <DescriptionCard property={property} compact={compact} />
+      <AdvisorCard property={property} onLeadCreated={onLeadCreated} compact={compact} />
 
       <Modal
         title='هشدارهای مهم قبل از معامله'
@@ -134,18 +139,20 @@ function TitleCard({
   property,
   title,
   location,
-  publishedAgo
+  publishedAgo,
+  compact = false
 }: {
   property: PropertySummary;
   title: string;
   location: string;
   publishedAgo: string | null;
+  compact?: boolean;
 }) {
   const dealLabel = DEAL_TYPE_LABELS[property.deal_type];
   const propertyLabel = PROPERTY_TYPE_LABELS[property.property_type];
 
   return (
-    <section className='showcase-panel p-3 sm:p-3.5'>
+    <section className={cn('showcase-panel p-3 sm:p-3.5', compact && 'property-detail-title')}>
       <div className='mb-2 flex flex-wrap gap-1.5'>
         <Badge tone='source'>{SOURCE_LABELS[property.source]}</Badge>
         {/* Who filed it, kept separate from where the row came from. A broker
@@ -207,7 +214,7 @@ function Badge({
 /* ------------------------------------------------------------------ stats --- */
 
 /** Cells are fixed-width and render an explicit dash, never collapse. */
-function StatsCard({ property }: { property: PropertySummary }) {
+function StatsCard({ property, compact = false }: { property: PropertySummary; compact?: boolean }) {
   const age = formatBuildingAge(property.year_built);
 
   const cells = [
@@ -236,7 +243,7 @@ function StatsCard({ property }: { property: PropertySummary }) {
   ];
 
   return (
-    <section className='showcase-panel min-w-0 p-1.5 sm:p-2'>
+    <section className={cn('showcase-panel min-w-0 p-1.5 sm:p-2', compact && 'property-detail-stats')}>
       <div className='grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-gold-primary/15 bg-gold-primary/12'>
         {cells.map((cell) => (
           <div key={cell.label} className='bg-showcase-surface-solid min-w-0 px-2 py-2.5 text-center'>
@@ -254,7 +261,7 @@ function StatsCard({ property }: { property: PropertySummary }) {
 
 /* ------------------------------------------------------------------ price --- */
 
-function PriceCard({ property, isRent }: { property: PropertySummary; isRent: boolean }) {
+function PriceCard({ property, isRent, compact = false }: { property: PropertySummary; isRent: boolean; compact?: boolean }) {
   // A rent listing has no total price by design -- quoting one would be a
   // fabricated number. Deposit + monthly is how the portals present it.
   const cells = isRent
@@ -270,7 +277,7 @@ function PriceCard({ property, isRent }: { property: PropertySummary; isRent: bo
   const bothNull = cells.every((cell) => cell.value === null);
 
   return (
-    <section className='showcase-panel p-1.5 sm:p-2'>
+    <section className={cn('showcase-panel p-1.5 sm:p-2', compact && 'property-detail-price')}>
       <div className='grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-gold-accent/25 bg-gold-primary/15'>
         {cells.map((cell, index) => (
           <div key={cell.label} className='bg-showcase-surface-solid px-3 py-3 text-center'>
@@ -307,9 +314,9 @@ const AMENITIES = [
   { key: 'has_balcony', label: 'بالکن', icon: Icons.amenityBalcony }
 ] as const;
 
-function AmenitiesCard({ property }: { property: PropertySummary }) {
+function AmenitiesCard({ property, compact = false }: { property: PropertySummary; compact?: boolean }) {
   return (
-    <section className='showcase-panel p-3 sm:p-4'>
+    <section className={cn('showcase-panel p-3 sm:p-4', compact && 'property-detail-amenities')}>
       <h2 className='showcase-section-title mb-3 text-sm'>امکانات ملک</h2>
       <div className='grid grid-cols-4 gap-1.5 sm:gap-2'>
         {AMENITIES.map(({ key, label, icon: Icon }) => {
@@ -376,14 +383,21 @@ function ActionRow({
 
 /* ------------------------------------------------------------ description --- */
 
-function DescriptionCard({ property }: { property: PropertySummary }) {
+function DescriptionCard({ property, compact = false }: { property: PropertySummary; compact?: boolean }) {
   const description = property.description.trim();
+  const [fullTextOpen, setFullTextOpen] = React.useState(false);
 
   return (
-    <section className='showcase-panel p-3 sm:p-4'>
+    <section className={cn('showcase-panel p-3 sm:p-4', compact && 'property-detail-description')}>
       <h2 className='showcase-section-title mb-2.5 text-sm'>توضیحات ملک</h2>
       {description ? (
-        <p className='text-[#cbd5e1] text-xs leading-7 whitespace-pre-line'>{description}</p>
+        <>
+          <p className={cn('text-[#cbd5e1] text-xs leading-7 whitespace-pre-line', compact && 'line-clamp-2')}>{description}</p>
+          {compact && description.length > 140 && <Button variant='link' size='sm' className='h-auto px-0 pt-1 text-xs' onClick={() => setFullTextOpen(true)}>مشاهدهٔ متن کامل</Button>}
+          <Modal title='توضیحات ملک' description='متن کامل توضیحات آگهی' isOpen={fullTextOpen} onClose={() => setFullTextOpen(false)}>
+            <p className='max-h-[60dvh] overflow-y-auto whitespace-pre-line text-sm leading-7'>{description}</p>
+          </Modal>
+        </>
       ) : (
         <p className='text-showcase-dim text-xs leading-7'>
           برای این آگهی توضیحی ثبت نشده است. برای دریافت جزئیات کامل با مشاور تماس بگیرید.
@@ -397,10 +411,12 @@ function DescriptionCard({ property }: { property: PropertySummary }) {
 
 function AdvisorCard({
   property,
-  onLeadCreated
+  onLeadCreated,
+  compact = false
 }: {
   property: PropertySummary;
   onLeadCreated?: () => void;
+  compact?: boolean;
 }) {
   const [pending, setPending] = React.useState(false);
   const [created, setCreated] = React.useState(false);
@@ -435,7 +451,7 @@ function AdvisorCard({
   }, [property.id, onLeadCreated]);
 
   return (
-    <section className='showcase-panel relative overflow-hidden border-gold-accent/35'>
+    <section className={cn('showcase-panel relative overflow-hidden border-gold-accent/35', compact && 'property-detail-advisor')}>
       <span
         aria-hidden
         className='absolute inset-x-0 top-0 h-[3px] bg-gradient-to-l from-transparent via-gold-primary to-transparent'

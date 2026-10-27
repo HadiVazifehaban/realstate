@@ -31,7 +31,6 @@ export function AgencyDetailClient() {
         requester_agency_id: auth.tenantId,
         target_agency_id: agency.id,
         scope: 'SHARE_LISTINGS',
-        default_commission_pct: 50,
         expires_in_days: 30
       },
       {

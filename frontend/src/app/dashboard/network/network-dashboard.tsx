@@ -14,7 +14,6 @@ import {
 } from '@tabler/icons-react';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { formatToman } from '@/lib/utils';
 import { useAuthContext } from '@/hooks/use-auth';
 import { useNetworkOverview } from '@/features/network/hooks';
 import { ListError, ListSkeleton } from '@/features/network/components/shared';
@@ -46,7 +45,7 @@ export function NetworkDashboard() {
     shares_active: `${o.shares_active} فعال از ${o.shares_total}`,
     referrals_open: `${o.referrals_open} باز · ${o.referrals_converted} تبدیل‌شده`,
     transfers_total: `${o.transfers_total} انتقال`,
-    commissions_open: `${o.commissions_open} باز · ${formatToman(o.commissions_basis_total)}`,
+    commissions_open: `${o.commissions_open} باز · مبالغ در انتظار تأیید مبنای مالی`,
     disputes_open: `${o.disputes_open} باز`,
     conversion: `نرخ تبدیل ارجاع: ${o.referrals_open + o.referrals_converted > 0 ? Math.round((o.referrals_converted * 100) / Math.max(o.referrals_open + o.referrals_converted, 1)) : 0}٪`,
     audit_total: `${o.audit_total} رویداد`,

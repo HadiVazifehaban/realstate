@@ -29,9 +29,9 @@
         <#if captchaAvailable?? && captchaAvailable>
           <fieldset class="mk-captcha" aria-describedby="mk-otp-captcha-question">
             <legend class="mk-captcha-title">تأیید انسانی</legend>
-            <span class="mk-captcha-sr-only" id="mk-otp-captcha-question">${captchaQuestion}</span>
+            <span class="mk-captcha-sr-only" id="mk-otp-captcha-question">${captchaQuestion!''}</span>
             <div class="mk-captcha-challenge">
-              <img class="mk-captcha-image" src="${captchaImage}" alt="${captchaQuestion}" width="240" height="76" />
+              <img class="mk-captcha-image" src="${captchaImage!''}" alt="${captchaQuestion!''}" width="240" height="76" />
               <button class="mk-captcha-refresh" type="submit" form="kc-captcha-refresh-form" aria-label="تولید تصویر کپچای تازه" title="تصویر تازه"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.5 9a7 7 0 0 1 11.6-2L20 12M4 12l2.9 5a7 7 0 0 0 11.6-2"/></svg></button>
             </div>
             <label for="otpCaptchaAnswer" class="pf-c-form__label pf-c-form__label-text">حروف تصویر را وارد کنید</label>

@@ -1,17 +1,36 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { fetchPublicSocialLinks, safeSocialUrl, socialKeys } from "./api";
 import { SocialIcon } from "./social-icon";
 
 export function FooterSocialLinks() {
+  const client = useQueryClient();
   const query = useQuery({
     queryKey: socialKeys.public,
     queryFn: fetchPublicSocialLinks,
     staleTime: 0,
     refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     retry: 1
   });
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") {
+        void client.invalidateQueries({ queryKey: socialKeys.public });
+      }
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("shekarchi:social-links-changed", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("shekarchi:social-links-changed", refresh);
+    };
+  }, [client]);
+
   const links = (query.data ?? [])
     .filter((link) => link.is_active && safeSocialUrl(link.url))
     .sort((a, b) => a.sort_order - b.sort_order || a.id.localeCompare(b.id));

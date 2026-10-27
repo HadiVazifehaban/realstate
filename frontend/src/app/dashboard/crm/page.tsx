@@ -1,8 +1,8 @@
-import type { Metadata } from 'next';
-import CrmBoardPage from '@/features/crm/components/crm-board-page';
+import type { Metadata } from "next";
+import CrmBoardPage from "@/features/crm/components/crm-board-page";
 
 export const metadata: Metadata = {
-  title: "Dashboard : CRM board",
+  title: "میز کار معاملات | شکارچی",
   robots: { index: false, follow: false }
 };
 

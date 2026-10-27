@@ -206,7 +206,8 @@ class DeltaClient(StealthClient):
         }
         response = await self._request("GET", url, params=params)
         html = response.text
-        return {"listing_ids": extract_listing_ids(html), "url": url, "html": html}
+        return {"listing_ids": extract_listing_ids(html), "url": url, "html": html,
+                "city": city}
 
     def _split_category(self, category: str) -> tuple[str, str]:
         """Map a Divar-style ``apartment-sell`` slug onto Delta's two segments.

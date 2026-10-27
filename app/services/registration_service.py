@@ -32,9 +32,11 @@ from app.core.logging import get_logger
 from app.core.mobile import mask_mobile
 from app.models.enums import UserRole
 from app.models.registration import AuthAuditLog, ProfessionalApplication
+from app.services import agency_referrals
 from app.services import keycloak_admin
 from app.services.keycloak_admin import KeycloakDirectoryError
 from app.services.otp_service import consume_registration_token
+from app.services.otp_service import get_store, mint_token
 
 logger = get_logger("app.registration")
 
@@ -47,6 +49,7 @@ _TRACKS: dict[str, tuple[str, UserRole]] = {
 }
 
 _FORBIDDEN_ROLES = frozenset({"ROLE_ADMIN", "ROLE_SUPERVISOR"})
+_USERNAME_TAKEN_MESSAGE = "نام کاربری تکراری است؛ نام دیگری انتخاب کنید و دوباره کد تأیید بگیرید."
 
 
 class RegistrationError(RuntimeError):
@@ -55,6 +58,41 @@ class RegistrationError(RuntimeError):
         self.status_code = status_code
         self.code = code
         self.message = message
+
+
+async def register_verified_account(
+    session: AsyncSession, settings: Settings, *, registration_token: str,
+    username: str, first_name: str, last_name: str, password: str, client_ip: str = "",
+) -> dict[str, Any]:
+    """No account, credentials or role grants exist before mobile proof is consumed."""
+    mobile = await consume_registration_token(settings, registration_token)
+    if not mobile:
+        raise RegistrationError(401, "invalid_token", "تأیید موبایل منقضی شده است؛ دوباره کد بگیرید.")
+    store = get_store(settings)
+    lock = store.key("registration-lock", mobile)
+    owner = mint_token()
+    if not await store.set(lock, owner, ex=120, nx=True):
+        raise RegistrationError(409, "registration_in_progress", "ثبت‌نام در حال انجام است؛ کمی بعد تلاش کنید.")
+    try:
+        if await keycloak_admin.username_exists(settings, username):
+            raise RegistrationError(409, "username_taken", _USERNAME_TAKEN_MESSAGE)
+        if await keycloak_admin.find_user_by_phone(settings, mobile):
+            raise RegistrationError(409, "mobile_registered", "برای این شماره حساب وجود دارد؛ از ورود با پیامک استفاده کنید.")
+        user = await keycloak_admin.create_mobile_user(
+            settings, mobile_e164=mobile, username=username, first_name=first_name,
+            last_name=last_name, role=UserRole.USER, kyc_status="PENDING", quota=0,
+            password=password,
+        )
+        await _audit(session, event="verified.register", mobile_e164=mobile,
+                     keycloak_user_id=user.id, outcome="created", client_ip=client_ip)
+        await session.commit()
+        return {"user_id": user.id, "username": username}
+    except KeycloakDirectoryError as exc:
+        if exc.status_code == 409:
+            raise RegistrationError(409, "username_taken", _USERNAME_TAKEN_MESSAGE) from exc
+        raise RegistrationError(503, "registration_unavailable", "ثبت‌نام موقتاً در دسترس نیست؛ دوباره کد بگیرید.") from exc
+    finally:
+        await store.compare_and_delete(lock, owner)
 
 
 async def _audit(
@@ -105,6 +143,12 @@ async def quick_register(
     client_ip: str = "",
 ) -> dict[str, Any]:
     """Redeem a token: login the existing user or create a minimal account."""
+    if settings.auth_mode is AuthMode.KEYCLOAK and not settings.otp_test_mode:
+        raise RegistrationError(
+            409,
+            "oidc_registration_required",
+            "ثبت‌نام و ورود باید از طریق جریان امن Keycloak انجام شود.",
+        )
     mobile = await consume_registration_token(settings, registration_token)
     if not mobile:
         await _audit(session, event="quick.register", outcome="bad_token", client_ip=client_ip)
@@ -143,7 +187,7 @@ async def quick_register(
     try:
         created = await keycloak_admin.create_mobile_user(
             settings, mobile_e164=mobile, role=UserRole.USER,
-            kyc_status=settings.keycloak_required_kyc_status,
+            kyc_status="PENDING",
             quota=settings.new_user_pii_quota,
         )
     except KeycloakDirectoryError as exc:
@@ -201,6 +245,12 @@ async def submit_professional(
     client_ip: str = "",
 ) -> ProfessionalApplication:
     """Validate a specialist request and queue it for review."""
+    if settings.auth_mode is AuthMode.KEYCLOAK and not settings.otp_test_mode:
+        raise RegistrationError(
+            409,
+            "oidc_registration_required",
+            "ثبت‌نام باید از طریق جریان امن Keycloak انجام شود.",
+        )
     mobile = await consume_registration_token(settings, registration_token)
     if not mobile:
         raise RegistrationError(401, "invalid_token", "نشست تأیید منقضی شده است؛ دوباره کد بگیرید.")
@@ -214,7 +264,21 @@ async def submit_professional(
         if unknown:
             raise RegistrationError(422, "unknown_city", f"شهر معتبر نیست: {unknown[0]}")
 
-    safe_payload = {k: _clean_str(v, 1000) for k, v in (payload or {}).items() if isinstance(k, str)}
+    referral_code = ""
+    if role == "ROLE_AGENCY_MANAGER":
+        raw_code = str((payload or {}).get("referral_code", "") or "")
+        try:
+            referrer = await agency_referrals.find_referrer(session, raw_code)
+        except ValueError as exc:
+            raise RegistrationError(422, "invalid_referral_code", str(exc)) from exc
+        if referrer is not None:
+            referral_code = agency_referrals.normalize_referral_code(raw_code)
+
+    safe_payload = {
+        k: _clean_str(v, 1000)
+        for k, v in (payload or {}).items()
+        if isinstance(k, str) and k != "referral_code"
+    }
     if role == "ROLE_DATA_ANALYST":
         invite = _clean_str(safe_payload.get("invite_code"), 64)
         expected = (settings.analyst_invite_code or "").strip()
@@ -254,11 +318,22 @@ async def submit_professional(
     )
     prior = (await session.exec(statement)).first()
     if prior is not None:
+        prior_code = agency_referrals.normalize_referral_code(prior.payload.get("referral_code", ""))
+        if prior_code and referral_code and prior_code != referral_code:
+            raise RegistrationError(409, "referral_code_locked", "کد معرف پس از ثبت درخواست قابل تغییر نیست.")
+        if prior_code and not referral_code:
+            referral_code = prior_code
+        if prior_code:
+            safe_payload.pop("referral_code", None)
         prior.requested_role = role
         prior.first_name = _clean_str(first_name, 128)
         prior.last_name = _clean_str(last_name, 128)
         prior.email = _clean_str(email, 255)
         prior.payload = {**prior.payload, **safe_payload, "cities": clean_cities}
+        if referral_code:
+            prior.payload["referral_code"] = referral_code
+        else:
+            prior.payload.pop("referral_code", None)
         prior.status = track_status
         if keycloak_user_id:
             prior.keycloak_user_id = keycloak_user_id
@@ -268,6 +343,12 @@ async def submit_professional(
             keycloak_user_id=prior.keycloak_user_id, outcome="updated",
             detail=role, client_ip=client_ip,
         )
+        if referral_code:
+            await _audit(
+                session, event="professional.referral_code_attached", mobile_e164=mobile,
+                keycloak_user_id=prior.keycloak_user_id, outcome="accepted",
+                detail="code_attached", client_ip=client_ip,
+            )
         await session.commit()
         await session.refresh(prior)
         return prior
@@ -279,7 +360,11 @@ async def submit_professional(
         first_name=_clean_str(first_name, 128),
         last_name=_clean_str(last_name, 128),
         email=_clean_str(email, 255),
-        payload={**safe_payload, "cities": clean_cities},
+        payload={
+            **safe_payload,
+            "cities": clean_cities,
+            **({"referral_code": referral_code} if referral_code else {}),
+        },
         status=track_status,
     )
     session.add(row)
@@ -288,6 +373,12 @@ async def submit_professional(
         keycloak_user_id=keycloak_user_id, outcome="queued",
         detail=role, client_ip=client_ip,
     )
+    if referral_code:
+        await _audit(
+            session, event="professional.referral_code_attached", mobile_e164=mobile,
+            keycloak_user_id=keycloak_user_id, outcome="accepted",
+            detail="code_attached", client_ip=client_ip,
+        )
     await session.commit()
     await session.refresh(row)
     logger.info("professional application queued for %s role=%s", mask_mobile(mobile), role)
@@ -370,4 +461,3 @@ __all__ = [
     "quick_register",
     "submit_professional",
 ]
-

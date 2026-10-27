@@ -24,6 +24,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from sqlalchemy import CheckConstraint, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from app.models.base import pg_enum, timestamp_column, utcnow, uuid_column
@@ -54,6 +55,7 @@ class Agency(SQLModel, table=True):
     phone: str = Field(default="", max_length=32)
     logo_url: str = Field(default="", max_length=512)
     description: str = Field(default="", max_length=2000)
+    referral_code: str = Field(default="", index=True, unique=True, max_length=16)
 
     status: AgencyStatus = Field(
         default=AgencyStatus.PENDING, sa_column=_StatusCol
@@ -74,6 +76,31 @@ class Agency(SQLModel, table=True):
     def display_name(self) -> str:
         """The Persian name when we have one, else the slug."""
         return self.name_fa or self.name or self.slug
+
+
+class AgencyMembership(SQLModel, table=True):
+    """Database-authoritative link between a verified identity and an office.
+
+    Keycloak authenticates ``user_subject`` but never grants office access.
+    Revoke by setting ``revoked_at``; the row is retained for audit and can
+    never be reactivated implicitly by an old token.
+    """
+
+    __tablename__ = "agency_membership"
+    __table_args__ = (
+        UniqueConstraint("agency_id", "user_subject", name="uq_agency_membership_agency_subject"),
+        CheckConstraint("length(user_subject) BETWEEN 1 AND 255", name="ck_agency_membership_subject_length"),
+        CheckConstraint("length(role) BETWEEN 1 AND 64", name="ck_agency_membership_role_length"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=uuid_column())
+    agency_id: uuid.UUID = Field(foreign_key="agency.id", index=True)
+    user_subject: str = Field(index=True, max_length=255)
+    role: str = Field(default="MEMBER", max_length=64)
+    created_by_subject: str = Field(max_length=255)
+    created_at: datetime = Field(default_factory=utcnow, sa_column=timestamp_column())
+    revoked_at: datetime | None = Field(default=None, sa_column=timestamp_column(nullable=True))
+    revoked_by_subject: str = Field(default="", max_length=255)
 
 
 class AgencyCooperation(SQLModel, table=True):

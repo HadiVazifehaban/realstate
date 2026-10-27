@@ -23,6 +23,8 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { useEffect } from 'react';
+import { useCallback, useState } from 'react';
+import { clearActiveWorkspaceId, fetchWorkspaces, getActiveWorkspaceId, setActiveWorkspaceId, setWorkspaceHeaderOverride, type Workspace } from '@/features/network/api/client';
 
 /**
  * Renders the office switcher.
@@ -34,8 +36,75 @@ import { useEffect } from 'react';
  * Under Keycloak the tenant comes from the token instead of a switchable list.
  */
 export function OrgSwitcher() {
-  if (!CLERK_ENABLED) return null;
-  return <ClerkOrgSwitcher />;
+  if (CLERK_ENABLED) return <ClerkOrgSwitcher />;
+  return <KeycloakWorkspaceSwitcher />;
+}
+
+function KeycloakWorkspaceSwitcher() {
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await fetchWorkspaces();
+      setWorkspaces(result);
+      const stored = getActiveWorkspaceId();
+      const selected = result.length === 1
+        ? result[0].id
+        : result.some((workspace) => workspace.id === stored)
+        ? stored
+        : null;
+      if (selected) setActiveWorkspaceId(selected);
+      else if (stored) clearActiveWorkspaceId();
+      setWorkspaceHeaderOverride(selected);
+      setActiveId(selected);
+    } catch {
+      setError('بارگذاری دفاتر ناموفق بود');
+      setWorkspaceHeaderOverride(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const changed = () => setActiveId(getActiveWorkspaceId());
+    window.addEventListener('shekarchi:workspace-changed', changed);
+    return () => window.removeEventListener('shekarchi:workspace-changed', changed);
+  }, [refresh]);
+
+  const active = workspaces.find((workspace) => workspace.id === activeId);
+  if (loading) return <div className='px-3 py-2 text-xs text-muted-foreground'>در حال بارگذاری دفاتر…</div>;
+  if (error) return <button className='px-3 py-2 text-xs text-destructive' onClick={() => void refresh()}>{error} · تلاش مجدد</button>;
+  if (workspaces.length === 0) return null;
+
+  return (
+    <div className='px-2 py-1'>
+      <label className='sr-only' htmlFor='keycloak-workspace-select'>انتخاب دفتر</label>
+      <select
+        id='keycloak-workspace-select'
+        className='w-full rounded-md border bg-background px-2 py-2 text-sm'
+        value={activeId ?? ''}
+        onChange={(event) => {
+          setActiveWorkspaceId(event.target.value);
+          setWorkspaceHeaderOverride(event.target.value);
+          setActiveId(event.target.value);
+          window.location.reload();
+        }}
+      >
+        {workspaces.map((workspace) => (
+          <option key={workspace.id} value={workspace.id}>
+            {workspace.name_fa || workspace.name} · {workspace.role}
+          </option>
+        ))}
+      </select>
+      {!active && workspaces.length > 1 && <p className='mt-1 text-xs text-muted-foreground'>برای ادامه یک دفتر انتخاب کنید.</p>}
+    </div>
+  );
 }
 
 function ClerkOrgSwitcher() {

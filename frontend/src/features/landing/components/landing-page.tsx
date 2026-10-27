@@ -66,7 +66,7 @@ export function LandingPage({ dashboard = false }: { dashboard?: boolean }) {
         <section className="landing-hero" aria-labelledby="hero-heading">
           <Image
             className="landing-hero-image"
-            src="/images/tehran-night-skyline.jpg"
+            src="/images/tehran-night-skyline.webp"
             unoptimized
             alt="چشم‌انداز شب تهران، برج میلاد و کوه‌های البرز"
             fill
@@ -186,7 +186,7 @@ export function LandingPage({ dashboard = false }: { dashboard?: boolean }) {
 
         <LandingPlans />
         {dashboard && <DashboardAccess />}
-        <section className="landing-container landing-partners" aria-labelledby="partners-heading">
+        <section id="agency-services" className="landing-container landing-partners" aria-labelledby="partners-heading">
           <div className="landing-partner-mark" aria-hidden="true">
             <IconBuildingCommunity size={42} stroke={1.2} />
           </div>

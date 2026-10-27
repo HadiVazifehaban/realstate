@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import random
+from datetime import date
 from typing import Any, AsyncIterator
 
 from sqlalchemy import select, text
@@ -104,6 +105,7 @@ class ScrapeScheduler:
         session_factory: Any = None,
     ) -> None:
         self.settings = settings or get_settings()
+        self._tick_date = date.today().isoformat()
         self._rng = rng or random.Random()
         self._task: asyncio.Task | None = None
         self._stopping = asyncio.Event()
@@ -143,6 +145,7 @@ class ScrapeScheduler:
             return []
 
         created: list[ScrapeJob] = []
+        batch_seen: set[tuple[str, str, str, str]] = set()
         async with self._sessions() as session:
             if not await _license_usable(session, s):
                 logger.info("scheduler tick skipped: license not usable")
@@ -166,10 +169,37 @@ class ScrapeScheduler:
                 )
 
                 for source in sources:
-                    for city in s.city_list:
+                    source_cities = list(s.city_list)
+                    if source in {"delta", "sheypoor"}:
+                        from app.services.scraper.demand_locations import demand_location, source_city_targets
+
+                        source_cities = []
+                        for configured_city in s.city_list:
+                            location = demand_location(configured_city)
+                            target = source_city_targets(location["id"]).get(source) if location else None
+                            if target:
+                                source_cities.append(target)
+                    for city in source_cities:
                         for category in s.category_list:
+                            try:
+                                from app.services.scraper.category_mapping import resolve_categories
+
+                                resolution = resolve_categories(source, category)
+                                source_category = resolution.categories[0]
+                            except ValueError:
+                                # create_job performs the structured rejection;
+                                # calculate the source category here only for
+                                # intra-batch duplicate suppression.
+                                source_category = category
+                            target_key = (source, city, source_category, "SEARCH")
+                            if target_key in batch_seen:
+                                continue
+                            batch_seen.add(target_key)
+                            schedule_city, job_category = city, category
+                            schedule_category = source_category if source == "sheypoor" else None
                             job = await self._schedule_one(
-                                session, city, category, source
+                                session, schedule_city, job_category, source,
+                                source_category=(schedule_category if source == "sheypoor" else None),
                             )
                             if job is not None:
                                 created.append(job)
@@ -182,7 +212,8 @@ class ScrapeScheduler:
         return created
 
     async def _schedule_one(
-        self, session: AsyncSession, city: str, category: str, source: str
+        self, session: AsyncSession, city: str, category: str, source: str,
+        source_category: str | None = None,
     ) -> ScrapeJob | None:
         s = self.settings
         try:
@@ -193,12 +224,16 @@ class ScrapeScheduler:
                     "skipping %s/%s/%s: a job is still active", source, city, category
                 )
                 return None
+            params = {"execution_scope": f"schedule:{self._tick_date}"}
+            if source_category and source == "sheypoor":
+                params["source_category"] = source_category
             payload = ScrapeJobCreate(
                 # Without this the job fell back to the node default and every
                 # sweep crawled Divar only, no matter which portals were set up.
                 source=source,
                 city=city,
                 category=category,
+                params=params,
                 max_pages=max(s.scraper_schedule_max_pages, 1),
                 fetch_phones=False,
             )

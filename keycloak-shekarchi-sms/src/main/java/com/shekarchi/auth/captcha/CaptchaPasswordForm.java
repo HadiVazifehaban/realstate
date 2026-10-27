@@ -92,6 +92,7 @@ public final class CaptchaPasswordForm extends UsernamePasswordForm {
         }
 
         // Keep Keycloak's normal user lookup, password verification and brute-force handling.
+        context.getEvent().detail("captcha_result", "valid");
         super.action(context);
     }
 

@@ -49,7 +49,7 @@ const PILLARS = [
  * rebuilt here from gradients and a line grid instead, in the rose-gold-on-navy
  * palette the property pages already use.
  */
-function ShowcasePanel() {
+export function ShowcasePanel() {
   return (
     <div className="relative hidden min-h-screen flex-col overflow-hidden p-10 lg:flex xl:p-14">
       <div
@@ -116,10 +116,19 @@ function ShowcasePanel() {
 }
 
 /**
- * The credential half. `children` is the mode-specific control: the Keycloak
- * hand-off, the local-dev bypass link, or Clerk's own form.
+ * The credential half shared by sign-in and mobile registration.
  */
-function AuthPanel({ children }: { children: ReactNode }) {
+export function AuthPanel({
+  children,
+  title = "ورود به شکارچی",
+  description = "برای دسترسی به آگهی‌ها، ارزش‌گذاری و پیگیری معاملات وارد شوید.",
+  icon
+}: {
+  children: ReactNode;
+  title?: string;
+  description?: string;
+  icon?: ReactNode;
+}) {
   return (
     <div className="relative flex min-h-screen items-center justify-center px-6 py-24 lg:py-10">
       <div className="absolute inset-x-0 top-0 flex items-center gap-2.5 px-6 py-6 lg:hidden">
@@ -129,27 +138,26 @@ function AuthPanel({ children }: { children: ReactNode }) {
 
       <div className="showcase-panel w-full max-w-md p-8 sm:p-10">
         <span className="from-gold-primary to-gold-dark shadow-gold-accent/25 mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-linear-to-br text-showcase shadow-lg">
-          <Icons.lock aria-hidden className="h-6 w-6" />
+          {icon ?? <Icons.lock aria-hidden className="h-6 w-6" />}
         </span>
 
         <h2 className="text-showcase-text mt-6 text-center text-2xl font-semibold">
-          ورود به شکارچی
+          {title}
         </h2>
         <p className="text-showcase-muted mt-2 text-center text-sm leading-6">
-          برای دسترسی به آگهی‌ها، ارزش‌گذاری و پیگیری معاملات وارد شوید.
+          {description}
         </p>
 
         <div className="mt-8">{children}</div>
 
-        {/* Self-service registration is disabled on the realm, so the reference
-            design's "need an account? sign up" footer would be a dead end.
-            Say where accounts come from instead. */}
-        <p className="text-showcase-dim mt-8 flex items-start gap-2 border-t border-showcase-border pt-6 text-xs leading-5">
-          <Icons.info aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            حساب کاربری توسط مدیر دفتر صادر می‌شود. اگر حساب ندارید با پشتیبانی تماس بگیرید.
-          </span>
-        </p>
+        {title !== "ثبت‌نام در شکارچی" ? (
+          <p className="text-showcase-dim mt-8 flex items-start gap-2 border-t border-showcase-border pt-6 text-xs leading-5">
+            <Icons.info aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              حساب کاربری توسط مدیر دفتر صادر می‌شود. اگر حساب ندارید با پشتیبانی تماس بگیرید.
+            </span>
+          </p>
+        ) : null}
       </div>
     </div>
   );

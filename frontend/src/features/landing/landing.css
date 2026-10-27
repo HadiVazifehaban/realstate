@@ -5,10 +5,18 @@
 
 /* Cloud is deliberately opt-in to light: no atmospheric changes in dark. */
 html:not(.dark) .landing-hero-image {
-  opacity: 0.16;
+  /* Keep the skyline visible beneath the light-theme text scrim. */
+  opacity: 0.72;
 }
 html:not(.dark) .landing-hero-shade {
-  background: linear-gradient(to bottom, #f8fafce6, #f5f7fb99 55%, #f5f7fb);
+  background: linear-gradient(
+    to bottom,
+    #f8fafc66 0%,
+    #f5f7fb80 32%,
+    #f5f7fb99 55%,
+    #f5f7fb33 78%,
+    #f5f7fb 100%
+  );
 }
 html:not(.dark) .landing-hero-glow {
   background: #dbeafe66;
@@ -342,7 +350,7 @@ html:not(.dark) .landing-city-dialog {
 }
 .landing-brand small {
   display: block;
-  font-family: var(--font-latin-sans), sans-serif;
+  font-family: var(--font-vazir), sans-serif;
   font-size: 9px;
   letter-spacing: 0.24em;
   color: var(--brand-e5a87b);
@@ -538,7 +546,7 @@ html:not(.dark) .landing-city-dialog {
   font-size: 10px;
 }
 .landing-hero-bottom span[lang] {
-  font-family: var(--font-latin-sans), sans-serif;
+  font-family: var(--font-vazir), sans-serif;
   letter-spacing: 0.2em;
   font-size: 9px;
 }
@@ -970,7 +978,7 @@ html:not(.dark) .landing-city-dialog {
 }
 .landing-plan-top .landing-kicker {
   letter-spacing: 0.25em;
-  font-family: Georgia, serif;
+  font-family: var(--font-vazir), sans-serif;
   font-size: 12px;
 }
 .landing-plan-icon {
@@ -1954,7 +1962,7 @@ html:not(.dark) .landing .landing-listing-card .text-gold-primary {
 }
 .landing-section-english {
   letter-spacing: 0.32em;
-  font-family: Georgia, serif;
+  font-family: var(--font-vazir), sans-serif;
   font-size: 12px;
   margin-block: 12px 20px;
 }
@@ -2151,7 +2159,7 @@ html:not(.dark) .landing .landing-listing-card .text-gold-primary {
   color: var(--brand-fff4ec);
 }
 .landing-footer-payment small {
-  font-family: Georgia, serif;
+  font-family: var(--font-vazir), sans-serif;
   font-size: 9px;
   letter-spacing: 0.2em;
   color: var(--brand-e5a87bb3);

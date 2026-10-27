@@ -30,7 +30,7 @@
           </div>
           <#if realm.resetPasswordAllowed><div class="mk-form-link"><a href="${url.loginResetCredentialsUrl}">${msg('doForgotPassword')}</a></div></#if>
         </div>
-        <#if captchaRequired?? && captchaRequired && captchaAvailable?? && captchaAvailable>
+        <#if captchaAvailable?? && captchaAvailable>
           <fieldset class="mk-captcha" aria-describedby="mk-captcha-question-password">
             <legend class="mk-captcha-title">تأیید انسانی</legend>
             <span class="mk-captcha-sr-only" id="mk-captcha-question-password">${captchaQuestion!''}</span>
@@ -53,7 +53,7 @@
           <input id="phone" class="pf-c-form-control mk-input" name="phone" value="${phone!''}" type="tel" inputmode="numeric" autocomplete="tel" dir="ltr" placeholder="09123456789" aria-describedby="mk-phone-help" required />
           <p id="mk-phone-help" class="mk-field-note">شماره ۱۱ رقمی ایران را با ارقام فارسی یا انگلیسی وارد کنید.</p>
         </div>
-        <#if captchaRequired?? && captchaRequired && captchaAvailable?? && captchaAvailable>
+        <#if captchaAvailable?? && captchaAvailable>
           <fieldset class="mk-captcha" aria-describedby="mk-captcha-question-sms">
             <legend class="mk-captcha-title">تأیید انسانی</legend>
             <span class="mk-captcha-sr-only" id="mk-captcha-question-sms">${captchaQuestion!''}</span>
@@ -69,7 +69,7 @@
     <form id="kc-captcha-refresh-form" action="${url.loginAction}" method="post" hidden>
       <input type="hidden" name="action" value="captchaRefresh" />
       <input type="hidden" name="captchaRefresh" value="1" />
-      <input type="hidden" name="username" value="" />
+      <input type="hidden" name="username" id="mk-captcha-refresh-username" value="${(login.username)!''}" />
       <input type="hidden" name="phone" value="" />
       <input type="hidden" name="loginMode" value="password" />
     </form>
@@ -91,11 +91,11 @@
           <button class="mk-pw-toggle" type="button" id="mk-toggle-password" data-show-label="${msg('showPassword')}" data-hide-label="${msg('hidePassword')}" aria-controls="password" aria-pressed="false" aria-label="${msg('showPassword')}">${msg('showPassword')}</button>
         </div>
       </div>
-      <#if captchaRequired?? && captchaRequired && captchaAvailable?? && captchaAvailable>
+      <#if captchaAvailable?? && captchaAvailable>
         <fieldset class="mk-captcha" aria-describedby="mk-captcha-question">
           <legend class="mk-captcha-title">تأیید انسانی</legend>
-            <span class="mk-captcha-sr-only" id="mk-captcha-question">${captchaQuestion!''}</span>
-            <div class="mk-captcha-challenge"><img class="mk-captcha-image" src="${captchaImage!''}" alt="${captchaQuestion!''}" width="240" height="76" /><button class="mk-captcha-refresh" type="submit" form="kc-captcha-refresh-form" aria-label="تولید تصویر کپچای تازه" title="تصویر تازه"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.5 9a7 7 0 0 1 11.6-2L20 12M4 12l2.9 5a7 7 0 0 0 11.6-2"/></svg></button></div>
+          <span class="mk-captcha-sr-only" id="mk-captcha-question">${captchaQuestion!''}</span>
+          <div class="mk-captcha-challenge"><img class="mk-captcha-image" src="${captchaImage!''}" alt="${captchaQuestion!''}" width="240" height="76" /><button class="mk-captcha-refresh" type="submit" form="kc-captcha-refresh-form" aria-label="تولید تصویر کپچای تازه" title="تصویر تازه"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.5 9a7 7 0 0 1 11.6-2L20 12M4 12l2.9 5a7 7 0 0 0 11.6-2"/></svg></button></div>
           <label for="captchaAnswer" class="pf-c-form__label pf-c-form__label-text">حروف تصویر را وارد کنید</label>
           <input id="captchaAnswer" class="pf-c-form-control mk-input" name="captchaAnswer" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" maxlength="6" dir="ltr" aria-required="true" aria-describedby="mk-captcha-question" />
         </fieldset>
@@ -104,7 +104,7 @@
       <input type="hidden" name="credentialId" <#if auth.selectedCredential?has_content>value="${auth.selectedCredential}"</#if>/>
       <input class="btn btn-primary mk-btn-primary btn-block" name="login" id="kc-login" type="submit" value="${msg('doLogIn')}" <#if (captchaRequired?? && captchaRequired) && !(captchaAvailable?? && captchaAvailable)>disabled</#if> />
     </form>
-    <#if captchaRequired?? && captchaRequired && captchaAvailable?? && captchaAvailable>
+    <#if captchaAvailable?? && captchaAvailable>
       <form id="kc-captcha-refresh-form" action="${url.loginAction}" method="post" hidden><input type="hidden" name="captchaRefresh" value="1" /></form>
     </#if>
   </#if>

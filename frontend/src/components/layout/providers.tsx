@@ -49,7 +49,7 @@ export default function Providers({
                 colorInputForeground: 'var(--foreground)',
                 colorBorder: 'var(--border)',
                 colorRing: 'var(--ring)',
-                fontFamily: 'var(--font-vazir), var(--font-sans)'
+                fontFamily: 'var(--font-vazir), sans-serif'
               }
             }}
           >

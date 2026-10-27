@@ -1,8 +1,8 @@
 "use client";
 
-import * as React from 'react';
-import { toast } from 'sonner';
-import { Icons } from '@/components/icons';
+import * as React from "react";
+import { toast } from "sonner";
+import { Icons } from "@/components/icons";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -12,9 +12,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,17 +23,12 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
-import { KanbanColumn, KanbanItem } from '@/components/ui/kanban';
-import { cn, formatToman } from '@/lib/utils';
-import type { Actor, LeadStage, LeadSummary } from '../types';
-import {
-  leadSourceBadge,
-  LEAD_STAGE_LABELS,
-  LEAD_TRANSITIONS,
-  STAGE_ACCENTS
-} from '../types';
-import { useDeleteLead } from '../hooks';
+} from "@/components/ui/dropdown-menu";
+import { KanbanColumn, KanbanItem } from "@/components/ui/kanban";
+import { cn, formatToman } from "@/lib/utils";
+import type { Actor, LeadStage, LeadSummary } from "../types";
+import { leadSourceBadge, LEAD_STAGE_LABELS, LEAD_TRANSITIONS, STAGE_ACCENTS } from "../types";
+import { useDeleteLead } from "../hooks";
 
 interface LeadCardProps {
   lead: LeadSummary;
@@ -97,50 +92,50 @@ export function LeadCard({ lead, onMove, onOpen, actor, asHandle = true }: LeadC
           <div
             style={
               {
-                '--card-accent': accent.stripe,
-                '--card-wash': accent.tint,
+                "--card-accent": accent.stripe,
+                "--card-wash": accent.tint,
                 // RTL: the accent stripe belongs on the inline-start edge, which
                 // is the right in Persian. Logical property keeps it correct if
                 // the shell is ever flipped to LTR.
-                borderInlineStartColor: 'var(--card-accent)'
+                borderInlineStartColor: "var(--card-accent)"
               } as React.CSSProperties
             }
             className={cn(
-              'crm-lead-card bg-card rounded-md border p-3 shadow-xs',
-              lead.is_bargain && 'ring-primary/50 border-primary/40 ring-2'
+              "crm-lead-card bg-card rounded-xl border p-3.5 shadow-xs",
+              lead.is_bargain && "ring-primary/50 border-primary/40 ring-2"
             )}
           />
         }
       >
-        <div className='flex flex-col gap-2'>
-          <div className='flex items-start justify-between gap-2'>
-            <span className='line-clamp-2 text-sm font-medium'>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-start justify-between gap-2">
+            <span className="line-clamp-2 text-sm font-medium">
               {lead.title || `ملک در ${location || "موقعیت نامشخص"}`}
             </span>
             {lead.is_bargain && (
-              <Badge variant='default' className='pointer-events-none shrink-0 rounded-sm'>
+              <Badge variant="default" className="pointer-events-none shrink-0 rounded-sm">
                 <Icons.trendingDown />
                 شکار
               </Badge>
             )}
           </div>
 
-          <span className='text-muted-foreground line-clamp-1 text-xs'>
+          <span className="text-muted-foreground line-clamp-1 text-xs">
             {location || "موقعیت نامشخص"}
           </span>
 
           {leadSourceBadge(lead.source) && (
             <Badge
-              variant='outline'
-              className='text-muted-foreground pointer-events-none w-fit shrink-0 rounded-sm text-[10px]'
+              variant="outline"
+              className="text-muted-foreground pointer-events-none w-fit shrink-0 rounded-sm text-[10px]"
             >
               {leadSourceBadge(lead.source)}
             </Badge>
           )}
 
-          <div className='flex items-center justify-between text-xs'>
-            <span className='tabular-nums font-medium'>{formatToman(lead.total_price)}</span>
-            <span className='text-muted-foreground tabular-nums'>
+          <div className="flex items-center justify-between text-xs">
+            <span className="tabular-nums font-medium">{formatToman(lead.total_price)}</span>
+            <span className="text-muted-foreground tabular-nums">
               {lead.area !== null && `${lead.area.toLocaleString("en-US")} متر`}
             </span>
           </div>
@@ -148,15 +143,15 @@ export function LeadCard({ lead, onMove, onOpen, actor, asHandle = true }: LeadC
       </KanbanItem>
 
       {(onMove || onOpen) && (
-        <div className='mt-1 space-y-1'>
+        <div className="mt-1 space-y-1">
           {onOpen && (
             <Button
-              variant='ghost'
-              size='sm'
-              className='border-border/60 h-7 w-full justify-center border-t text-xs'
+              variant="ghost"
+              size="sm"
+              className="border-border/60 h-7 w-full justify-center border-t text-xs"
               onClick={() => onOpen(lead.id)}
             >
-              <Icons.page className='size-3.5' />
+              <Icons.page className="size-3.5" />
               جزئیات و تایم‌لاین
             </Button>
           )}
@@ -165,13 +160,17 @@ export function LeadCard({ lead, onMove, onOpen, actor, asHandle = true }: LeadC
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
-                  <Button variant='ghost' size='sm' className='border-border/60 h-7 w-full justify-between border-t px-2 text-xs' />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="border-border/60 h-7 w-full justify-between border-t px-2 text-xs"
+                  />
                 }
               >
                 انتقال مرحله
-                <Icons.chevronDown className='size-3.5' />
+                <Icons.chevronDown className="size-3.5" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align='start' className='w-48'>
+              <DropdownMenuContent align="start" className="w-48">
                 {/* `DropdownMenuLabel` renders Base UI's Menu.GroupLabel, which
                     reads MenuGroupRootContext and throws error #31 when there is
                     no Group ancestor -- taking the whole board down in a
@@ -184,10 +183,8 @@ export function LeadCard({ lead, onMove, onOpen, actor, asHandle = true }: LeadC
                   <DropdownMenuItem
                     key={target}
                     onClick={() => {
-                      if (target === 'LOST_ARCHIVED') {
-                        toast.warning(
-                          'با انتقال به «از دست رفته»، این لید از تخته خارج می‌شود.'
-                        );
+                      if (target === "LOST_ARCHIVED") {
+                        toast.warning("با انتقال به «از دست رفته»، این لید از تخته خارج می‌شود.");
                       }
                       onMove(lead.id, target);
                     }}
@@ -229,7 +226,7 @@ export function DeleteLeadDialog({
   lead: LeadSummary;
   actor?: Actor;
   /** Offered in step 1 as the reversible alternative. */
-  onMove: (leadId: string, target: 'LOST_ARCHIVED') => void;
+  onMove: (leadId: string, target: "LOST_ARCHIVED") => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const deleteLead = useDeleteLead(actor);
@@ -237,7 +234,9 @@ export function DeleteLeadDialog({
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger
-        render={<Button variant='ghost' size='sm' className='text-destructive h-7 w-full text-xs' />}
+        render={
+          <Button variant="ghost" size="sm" className="text-destructive h-7 w-full text-xs" />
+        }
       >
         حذف کارت
       </AlertDialogTrigger>
@@ -248,23 +247,22 @@ export function DeleteLeadDialog({
               block element inside it is invalid HTML and React logs the
               nesting mismatch. The detail belongs in sibling paragraphs. */}
           <AlertDialogDescription>
-            برای «{lead.title || 'این لید'}» دو گزینه دارید. حذف دائمی برگشت‌پذیر
-            نیست.
+            برای «{lead.title || "این لید"}» دو گزینه دارید. حذف دائمی برگشت‌پذیر نیست.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>انصراف</AlertDialogCancel>
           <Button
-            variant='secondary'
+            variant="secondary"
             onClick={() => {
-              onMove(lead.id, 'LOST_ARCHIVED');
+              onMove(lead.id, "LOST_ARCHIVED");
               setOpen(false);
             }}
           >
             انتقال به «از دست رفته»
           </Button>
           <Button
-            variant='destructive'
+            variant="destructive"
             disabled={deleteLead.isPending}
             onClick={() => {
               // No preventDefault: `AlertDialogAction` is a plain Button with no
@@ -274,7 +272,7 @@ export function DeleteLeadDialog({
               deleteLead.mutate(lead.id, { onSuccess: () => setOpen(false) });
             }}
           >
-            {deleteLead.isPending ? 'در حال حذف…' : 'حذف دائمی'}
+            {deleteLead.isPending ? "در حال حذف…" : "حذف دائمی"}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -305,16 +303,21 @@ export function LeadColumn({
   return (
     <KanbanColumn
       {...props}
-      style={{ '--column-accent': STAGE_ACCENTS[stage].stripe } as React.CSSProperties}
-      className='crm-lead-column w-full shrink-0 md:w-[300px]'
+      style={{ "--column-accent": STAGE_ACCENTS[stage].stripe } as React.CSSProperties}
+      className="crm-lead-column w-full shrink-0 md:w-[300px]"
     >
-      <div className='flex items-center justify-between'>
-        <span className='text-sm font-semibold'>{label}</span>
-        <Badge variant='secondary' className='pointer-events-none rounded-sm'>
-          {leads.length}
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold">{label}</span>
+        <Badge variant="secondary" className="pointer-events-none rounded-full tabular-nums">
+          {new Intl.NumberFormat("fa-IR").format(leads.length)}
         </Badge>
       </div>
-      <div className='flex flex-col gap-2 p-0.5'>
+      <div className="flex flex-col gap-2 p-0.5">
+        {leads.length === 0 && (
+          <p className="crm-column-empty rounded-xl border border-dashed px-3 py-8 text-center text-xs leading-6 text-muted-foreground">
+            در این مرحله پرونده‌ای نیست
+          </p>
+        )}
         {leads.map((lead) => (
           <LeadCard
             key={lead.id}

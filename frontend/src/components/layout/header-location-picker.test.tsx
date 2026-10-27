@@ -15,7 +15,8 @@ const state = vi.hoisted(() => ({
 const provinces = [
   { name: "آذربایجان شرقی", cities: ["تبریز", "مراغه"] },
   { name: "سیستان و بلوچستان", cities: ["زاهدان", "چابهار"] },
-  ...Array.from({ length: 29 }, (_, i) => ({ name: `استان ${i}`, cities: [`شهر ${i}`] }))
+  { name: "اردبیل", cities: ["اردبیل", "پارس آباد", "خلخال", "مشگین شهر", "نمین", "نیر", "گرمی"] },
+  ...Array.from({ length: 28 }, (_, i) => ({ name: `استان ${i}`, cities: [`شهر ${i}`] }))
 ];
 
 vi.mock("@/features/properties/hooks", () => ({
@@ -60,6 +61,8 @@ describe("HeaderLocationPicker API options", () => {
     fireEvent.click(screen.getByRole("button", { name: /سیستان و بلوچستان.*شهر/ }));
     fireEvent.click(screen.getByRole("button", { name: "چابهار" }));
     expect(state.setParams).toHaveBeenCalledWith({ city: ["چابهار"] });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(state.setActiveCity).not.toHaveBeenCalled();
   });
 
   it("searches cities from the API, not just inventory cities", () => {
@@ -69,6 +72,18 @@ describe("HeaderLocationPicker API options", () => {
       target: { value: "مراغه" }
     });
     expect(screen.getByRole("button", { name: /مراغه/ })).toBeDefined();
+  });
+
+  it("selects all Ardabil cities without starting a crawl or changing the activity city", () => {
+    render(<HeaderLocationPicker />);
+    fireEvent.click(screen.getByRole("button", { name: "انتخاب شهر و استان" }));
+    fireEvent.click(screen.getByRole("button", { name: /اردبیل.*شهر/ }));
+    fireEvent.click(screen.getByRole("button", { name: "همه شهرهای اردبیل" }));
+    expect(state.setParams).toHaveBeenCalledWith({
+      city: ["اردبیل", "پارس آباد", "خلخال", "مشگین شهر", "نمین", "نیر", "گرمی"]
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(state.setActiveCity).not.toHaveBeenCalled();
   });
 
   it("shows loading and offers retry instead of silently presenting an incomplete list", () => {

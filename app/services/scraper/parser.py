@@ -232,6 +232,7 @@ class DivarListingDetail(BaseModel):
     description: str = ""
 
     city: str = ""
+    province: str = ""
     district: str = ""
     neighborhood: str = ""
     category: str = ""

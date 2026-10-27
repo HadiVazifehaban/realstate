@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.models.enums import DealType, PropertySource, PropertyType
+from app.models.enums import DealType, PropertySource
 from app.services.city_normalizer import normalize_city_neighborhood
+from app.services.location_catalog import resolve_city
 from app.services.scraper.parser import DivarListingDetail
 
 
@@ -43,8 +44,10 @@ def build_property_fields(
     source: PropertySource = PropertySource.DIVAR_SCRAPER,
 ) -> dict[str, Any]:
     """Public, owner-free fields for the ``Property`` model."""
-    # ``property_type``/``deal_type`` are NOT NULL with model defaults; a bare
-    # detail (no category widgets) must fall back to them instead of NULL.
+    # The persisted legacy schema requires a concrete enum. Never turn a
+    # combined/unknown source category into APARTMENT: only detail evidence may
+    # supply the type. When absent, omit the key so legacy callers/model schema
+    # default behavior remains unchanged rather than asserting guessed evidence.
     #
     # City Gate guard: the parser's city slot sometimes carries a neighbourhood
     # (``پونک``), a phase (``فاز ۱``) or a street -- those rows would vanish the
@@ -52,13 +55,14 @@ def build_property_fields(
     city, neighborhood = normalize_city_neighborhood(
         detail.city, detail.neighborhood or detail.district
     )
+    located = resolve_city(city, detail.province)
     fields: dict[str, Any] = {
         "title": detail.title or "",
         "description": detail.description or "",
-        "property_type": detail.property_type or PropertyType.APARTMENT,
+        **({"property_type": detail.property_type} if detail.property_type is not None else {}),
         "deal_type": detail.deal_type or DealType.SALE,
-        "province": "",
-        "city": city,
+        "province": located["province"] if located else "",
+        "city": located["name"] if located else city,
         "neighborhood": neighborhood,
         "area": detail.area,
         "land_area": detail.land_area,

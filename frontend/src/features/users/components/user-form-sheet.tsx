@@ -22,6 +22,7 @@ import type { User } from '../api/types';
 import { toast } from 'sonner';
 import { userSchema, type UserFormValues, normalizePhone, normalizeEmail } from '../schemas/user';
 import { ROLE_OPTIONS, STATUS_OPTIONS, ROLES } from '../constants/roles';
+import { useRealmRoles } from '@/hooks/use-auth';
 
 const ROLE_DESCRIPTIONS = new Map(ROLES.map((r) => [r.value, r.description]));
 
@@ -33,6 +34,9 @@ interface UserFormSheetProps {
 
 export function UserFormSheet({ user, open, onOpenChange }: UserFormSheetProps) {
   const isEdit = !!user;
+  const realmRoles = useRealmRoles();
+  const isSystemAdmin = realmRoles.includes('ROLE_ADMIN');
+  const roleOptions = isSystemAdmin ? ROLE_OPTIONS : ROLE_OPTIONS.filter((option) => option.value === 'AGENT');
 
   const createMutation = useMutation({
     ...createUserMutation,
@@ -67,6 +71,7 @@ export function UserFormSheet({ user, open, onOpenChange }: UserFormSheetProps) 
       email: user?.email ?? "",
       phone: user?.phone ?? "",
       role: user?.role ?? "AGENT",
+      keycloak_role: user?.realm_roles?.find((role) => role === 'ROLE_JUNIOR_BROKER' || role === 'ROLE_SENIOR_BROKER') as UserFormValues['keycloak_role'] ?? 'ROLE_JUNIOR_BROKER',
       status: user?.status ?? "ACTIVE"
     } as UserFormValues,
     validators: {
@@ -93,6 +98,7 @@ export function UserFormSheet({ user, open, onOpenChange }: UserFormSheetProps) 
       // (۰۹۱۲…) — the DB must store the canonical Latin form.
       const payload = {
         ...value,
+        keycloak_role: value.role === 'AGENT' ? value.keycloak_role : undefined,
         phone: normalizePhone(value.phone),
         email: normalizeEmail(value.email) ?? ""
       };
@@ -171,11 +177,27 @@ export function UserFormSheet({ user, open, onOpenChange }: UserFormSheetProps) 
                   <field.SelectField
                     label='نقش'
                     required
-                    options={ROLE_OPTIONS}
+                    options={roleOptions}
                     placeholder='انتخاب نقش'
                     // Explains what the selected tier can actually do, since the
                     // role ladder is what gates PII, lead closing and data edits.
                     description={ROLE_DESCRIPTIONS.get(field.state.value as never)}
+                  />
+                )}
+              />
+
+              <form.AppField
+                name='keycloak_role'
+                children={(field) => (
+                  <field.SelectField
+                    label='سطح مشاور در این دفتر'
+                    required
+                    options={[
+                      { value: 'ROLE_JUNIOR_BROKER', label: 'مشاور عادی' },
+                      { value: 'ROLE_SENIOR_BROKER', label: 'مشاور ارشد' }
+                    ]}
+                    placeholder='انتخاب سطح مشاور'
+                    description='این سطح Realm فقط برای عضو مشاور است؛ نقش‌های مدیریتی از این فرم قابل اعطا نیستند.'
                   />
                 )}
               />
@@ -208,8 +230,15 @@ export function UserFormSheet({ user, open, onOpenChange }: UserFormSheetProps) 
   );
 }
 
-export function UserFormSheetTrigger() {
+export function UserFormSheetTrigger({ alwaysVisible = false }: { alwaysVisible?: boolean }) {
   const [open, setOpen] = useState(false);
+  const roles = useRealmRoles();
+  const canManageTeam = roles.includes('ROLE_ADMIN') || roles.includes('ROLE_AGENCY_MANAGER');
+
+  // The API remains the source of truth. Team pages may render the action even
+  // when a stale client token has not hydrated its roles yet; unauthorized
+  // mutations are rejected server-side instead of hiding the only useful action.
+  if (!alwaysVisible && !canManageTeam) return null;
 
   return (
     <>

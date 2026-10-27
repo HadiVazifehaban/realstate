@@ -145,6 +145,26 @@ def test_an_ordinary_verified_user_may_not_read_the_vault() -> None:
         require_pii_access(principal)
 
 
+def test_verified_realm_role_without_mobile_claim_is_not_effective() -> None:
+    principal = principal_from_claims(
+        _claims(realm_access={"roles": ["ROLE_VERIFIED_USER"]}), _settings()
+    )
+    assert "ROLE_VERIFIED_USER" not in principal.realm_roles
+    assert principal.roles == frozenset()
+
+
+def test_verified_realm_role_with_mobile_claim_remains_effective() -> None:
+    principal = principal_from_claims(
+        _claims(
+            realm_access={"roles": ["ROLE_VERIFIED_USER"]},
+            mobile_verified=True,
+        ),
+        _settings(),
+    )
+    assert "ROLE_VERIFIED_USER" in principal.realm_roles
+    assert UserRole.USER in principal.roles
+
+
 # --------------------------------------------------------------------------- #
 # Offline office mode
 # --------------------------------------------------------------------------- #

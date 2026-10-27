@@ -80,6 +80,22 @@ describe("dynamic footer links", () => {
     await waitFor(() => expect(state.publicLinks).toHaveBeenCalled());
     expect(screen.queryByRole("link")).toBeNull();
   });
+  it("refreshes footer links when the page regains focus", async () => {
+    state.publicLinks.mockResolvedValueOnce([]).mockResolvedValueOnce([link()]);
+    show(<FooterSocialLinks />);
+    await waitFor(() => expect(state.publicLinks).toHaveBeenCalledTimes(1));
+    fireEvent.focus(window);
+    expect(await screen.findByRole("link", { name: "تلگرام" })).toBeDefined();
+    await waitFor(() => expect(state.publicLinks).toHaveBeenCalledTimes(2));
+  });
+  it("refreshes footer links immediately after admin settings change", async () => {
+    state.publicLinks.mockResolvedValueOnce([]).mockResolvedValueOnce([link()]);
+    show(<FooterSocialLinks />);
+    await waitFor(() => expect(state.publicLinks).toHaveBeenCalledTimes(1));
+    fireEvent(window, new Event("shekarchi:social-links-changed"));
+    expect(await screen.findByRole("link", { name: "تلگرام" })).toBeDefined();
+    await waitFor(() => expect(state.publicLinks).toHaveBeenCalledTimes(2));
+  });
   it.each([
     "javascript:alert(1)",
     "//evil.example",

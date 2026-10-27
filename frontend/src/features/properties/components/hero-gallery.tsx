@@ -36,6 +36,8 @@ interface HeroGalleryProps {
   placeholderLabel: string;
   loading?: boolean;
   className?: string;
+  /** Constrained stage for the dashboard's viewport-sized detail layout. */
+  compact?: boolean;
 }
 
 /** How many thumbnails the strip previews before deferring the rest. */
@@ -62,7 +64,8 @@ export function HeroGallery({
   title,
   placeholderLabel,
   loading = false,
-  className
+  className,
+  compact = false
 }: HeroGalleryProps) {
   const byKind = React.useMemo(() => {
     const map: Record<MediaKind, string[]> = { IMAGE: [], FLOOR_PLAN: [], VIDEO: [] };
@@ -77,7 +80,7 @@ export function HeroGallery({
   const firstFilled = TABS.find((tab) => byKind[tab.kind].length > 0)?.kind ?? 'IMAGE';
 
   if (loading) {
-    return <Skeleton className={cn('h-[280px] w-full rounded-[14px] sm:h-[340px] lg:h-[380px]', className)} />;
+    return <Skeleton className={cn('h-[280px] w-full rounded-[14px] sm:h-[340px] lg:h-[380px]', compact && 'property-detail-gallery-skeleton', className)} />;
   }
 
   if (!TABS.some((tab) => byKind[tab.kind].length > 0)) {
@@ -85,6 +88,7 @@ export function HeroGallery({
       <div
         className={cn(
           'showcase-panel text-showcase-muted flex h-[280px] w-full items-center justify-center font-medium tracking-wide sm:h-[340px] lg:h-[380px]',
+          compact && 'property-detail-gallery-empty',
           className
         )}
       >
@@ -111,7 +115,7 @@ export function HeroGallery({
 
         {TABS.map((tab) => (
           <TabsContent key={tab.kind} value={tab.kind} className='p-2.5'>
-            <MediaStage kind={tab.kind} urls={byKind[tab.kind]} title={title} />
+            <MediaStage kind={tab.kind} urls={byKind[tab.kind]} title={title} compact={compact} />
           </TabsContent>
         ))}
       </Tabs>
@@ -130,11 +134,13 @@ export function HeroGallery({
 function MediaStage({
   kind,
   urls,
-  title
+  title,
+  compact
 }: {
   kind: MediaKind;
   urls: string[];
   title: string;
+  compact: boolean;
 }) {
   const [active, setActive] = React.useState(0);
 
@@ -174,7 +180,7 @@ function MediaStage({
 
   return (
     <>
-      <div className='group bg-showcase-surface-deep relative h-[280px] overflow-hidden rounded-[14px] sm:h-[340px] lg:h-[380px]'>
+      <div className={cn('group bg-showcase-surface-deep relative h-[280px] overflow-hidden rounded-[14px] sm:h-[340px] lg:h-[380px]', compact && 'property-detail-gallery-stage')}>
         {kind === 'VIDEO' ? (
           <video
             key={urls[current]}
@@ -251,7 +257,7 @@ function MediaStage({
       </div>
 
       {urls.length > 1 && (
-        <div className='mt-2 grid grid-cols-4 gap-1.5 sm:gap-2' aria-label={`${noun}های آگهی`}>
+        <div className={cn('mt-2 grid grid-cols-4 gap-1.5 sm:gap-2', compact && 'property-detail-gallery-thumbs')} aria-label={`${noun}های آگهی`}>
           {thumbs.map((url, index) => (
             <button
               key={url}

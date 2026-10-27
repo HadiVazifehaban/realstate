@@ -3,9 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LandingCityPicker } from "./components/landing-city-picker";
-import { useLandingCityStore } from "./use-landing-city";
 import { HeroMarket } from "./components/hero-market";
 import { LandingListings } from "./components/landing-listings";
+import { act } from "@testing-library/react";
 
 const state = vi.hoisted(() => ({
   areas: vi.fn(),
@@ -13,7 +13,19 @@ const state = vi.hoisted(() => ({
   listings: vi.fn(),
   active: null as string | null
 }));
-vi.mock("@/store/useCityStore", () => ({ useActiveCityName: () => state.active }));
+vi.mock("@/store/useCityStore", () => ({
+  useCityStore: (selector: (value: { activeCity: { name: string } | null; setActiveCity: (city: { name: string }) => void }) => unknown) =>
+    selector({
+      activeCity: state.active ? { name: state.active } : null,
+      setActiveCity: (city) => {
+        state.active = city.name;
+        localStorage.setItem("shekarchi_active_city", JSON.stringify(city));
+      }
+    })
+}));
+vi.mock("../use-landing-city", () => ({
+  useLandingCity: () => state.active ?? "تهران"
+}));
 vi.mock("@/features/properties/api/client", async (original) => ({
   ...(await original<typeof import("@/features/properties/api/client")>()),
   fetchGisAreas: state.areas,
@@ -40,7 +52,6 @@ function renderPicker(withData = false) {
 describe("landing city", () => {
   beforeEach(() => {
     localStorage.clear();
-    useLandingCityStore.setState({ city: null });
     state.active = null;
     state.areas.mockReset().mockResolvedValue({
       provinces: [
@@ -70,7 +81,10 @@ describe("landing city", () => {
       expect(state.listings).toHaveBeenLastCalledWith(expect.objectContaining({ city: "چابهار" }))
     );
     expect(state.market).toHaveBeenLastCalledWith(expect.objectContaining({ city: "چابهار" }));
-    expect(localStorage.getItem("shekarchi_landing_city")).toContain("چابهار");
+    expect(localStorage.getItem("shekarchi_active_city")).toContain("چابهار");
+    expect(state.active).toBe("چابهار");
+    act(() => window.dispatchEvent(new CustomEvent("shekarchi:city-changed", { detail: "رشت" })));
+    expect(screen.getByRole("button", { name: /شهر فعلی: رشت/ })).toBeDefined();
   });
 
   it("preserves an existing active city and searches API cities by province", async () => {

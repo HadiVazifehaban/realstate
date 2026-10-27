@@ -127,6 +127,18 @@ def parse_delta_detail(
 
     property_type, deal_type = _types_from_url(url, payload.get("__context"))
 
+    # Delta JSON-LD may include its city in a typed address or explicit field.
+    # Never promote request context here: the pipeline can only use it after
+    # resolving and matching the detail city to the curated city catalog.
+    address = payload.get("address") or item.get("address") or {}
+    if not isinstance(address, dict):
+        address = {}
+    raw_city = payload.get("city") or payload.get("cityName") or address.get("addressLocality")
+    raw_province = payload.get("province") or address.get("addressRegion")
+    from app.services.location_catalog import resolve_city
+
+    located_city = resolve_city(str(raw_city or "").strip(), str(raw_province or "").strip()) if str(raw_city or "").strip() else None
+
     # Area: the amenity row is authoritative, but Delta omits it on some rows and
     # then leads ``item.name`` with the area ("139 متر / فول / اقدسیه").
     area = parse_int(amenities.get("مساحت ملک"))
@@ -153,8 +165,9 @@ def parse_delta_detail(
         title=str(payload.get("title") or payload.get("name") or item.get("name") or ""),
         # Delta keeps the long description out of the JSON-LD.
         description="",
-        city="",
-        district="",
+        city=located_city["name"] if located_city else "",
+        province=located_city["province"] if located_city else "",
+        district=str(raw_province or ""),
         neighborhood="",
         category=property_type.value.lower() if property_type else "",
         property_type=property_type,
@@ -257,7 +270,7 @@ def parse_delta_search(payload: dict) -> list[DivarListingSummary]:
         DivarListingSummary(
             token=str(listing_id),
             title="",
-            city="",
+            city=str(payload.get('city') or '') if isinstance(payload, dict) else '',
             district="",
             category="",
             price_hint="",

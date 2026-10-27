@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import re
 
+from app.services.location_catalog import catalog, normalized_name
+
 # Canonical city names (Persian), matching the Shekarchi City Gate list and
 # the Divar registry's ``persian`` column.  Kept as a literal set: it must work
 # without a DB round-trip inside the sanitiser hot path.
@@ -185,6 +187,9 @@ def _fold(value: str) -> str:
 
 
 _FOLDED_KNOWN: frozenset[str] = frozenset(_fold(name) for name in KNOWN_CITIES)
+_CATALOG_NAMES = frozenset(
+    normalized_name(c["name"]) for p in catalog()["provinces"] for c in p["cities"]
+)
 
 
 def is_known_city(value: str | None) -> bool:
@@ -194,6 +199,8 @@ def is_known_city(value: str | None) -> bool:
     text = value.strip()
     if not text:
         return False
+    if normalized_name(text) in _CATALOG_NAMES:
+        return True
     if any(pattern.search(text) for pattern in _NON_CITY_PATTERNS):
         return False
     if text.lower() in LATIN_CITY_SLUGS:

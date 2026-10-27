@@ -34,6 +34,16 @@ import type {
   VisitBookingResponse
 } from '../types';
 
+export interface MarketDemandResponse {
+  items: { city: string; status: 'available' | 'collecting' | 'empty' | 'partial' | 'failed' | 'unsupported' | 'disabled'; sources?: Record<string, string>; unsupported_sources?: string[]; jobs: { id: string; status: string }[] }[];
+}
+
+export function ensureMarketInventory(cities: string[]) {
+  return request<MarketDemandResponse>('/properties/ensure-inventory', {
+    method: 'POST', body: JSON.stringify({ cities })
+  });
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -128,6 +138,9 @@ function toQuery(
 export function fetchBargains(filters?: {
   neighborhood?: string;
   city?: string;
+  cities?: string[];
+  city_ids?: string[];
+  province_ids?: string[];
   limit?: number;
 }): Promise<BargainListResponse> {
   return request<BargainListResponse>(`/properties/bargains${toQuery({ ...filters })}`);
@@ -135,6 +148,9 @@ export function fetchBargains(filters?: {
 
 export interface NeighbourhoodMarketFilters {
   city?: string;
+  cities?: string[];
+  city_ids?: string[];
+  province_ids?: string[];
   /** Repeated query param — a rent view asks for RENT *and* FULL_MORTGAGE. */
   dealTypes?: string[];
   /** Hide neighbourhoods thinner than this many priced files. */
@@ -154,6 +170,9 @@ export function fetchNeighbourhoodMarket(
 ): Promise<NeighbourhoodMarketResponse> {
   const search = new URLSearchParams();
   if (filters.city) search.set('city', filters.city);
+  filters.cities?.forEach((city) => search.append('cities', city));
+  filters.city_ids?.forEach((id) => search.append('city_ids', id));
+  filters.province_ids?.forEach((id) => search.append('province_ids', id));
   filters.dealTypes?.forEach((dealType) => search.append('deal_type', dealType));
   if (filters.minFiles) search.set('min_files', String(filters.minFiles));
   if (filters.limit) search.set('limit', String(filters.limit));
@@ -172,6 +191,8 @@ export interface PropertyListFilters {
    * answer first.
    */
   city?: string | string[];
+  city_ids?: string[];
+  province_ids?: string[];
   neighborhood?: string;
   /**
    * One or several deal families. Repeated as a query param, because «رهن و

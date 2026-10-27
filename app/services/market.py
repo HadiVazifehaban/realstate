@@ -161,6 +161,9 @@ async def neighbourhood_market(
     session: AsyncSession,
     *,
     city: str | None = None,
+    city_ids: list[str] | None = None,
+    province_ids: list[str] | None = None,
+    cities: list[str] | None = None,
     deal_types: list[DealType] | None = None,
     min_files: int = 1,
     limit: int = 200,
@@ -178,8 +181,12 @@ async def neighbourhood_market(
         Property.status.not_in(list(EXCLUDED_STATUSES)),
         Property.neighborhood != "",
     ]
-    if city:
-        conditions.append(Property.city == city)
+    from app.services.location_catalog import location_condition
+
+    location = location_condition(Property, city_ids=city_ids, province_ids=province_ids,
+                                  cities=cities or ([city] if city else None))
+    if location is not None:
+        conditions.append(location)
 
     bargains = func.count().filter(Property.valuation_status == ValuationStatus.BARGAIN)
 
@@ -215,7 +222,9 @@ async def neighbourhood_market(
     # Totals are counted separately from the bubble rows: `limit` may cut the
     # list short, and a header that silently reports only the cards it drew
     # would understate the city.
-    total_files, priced_files, city_median = await _totals(session, city=city, deal_types=types)
+    total_files, priced_files, city_median = await _totals(
+        session, city=city, deal_types=types, location=location
+    )
 
     return MarketOverview(
         deal_types=types,
@@ -229,14 +238,16 @@ async def neighbourhood_market(
 
 
 async def _totals(
-    session: AsyncSession, *, city: str | None, deal_types: list[DealType]
+    session: AsyncSession, *, city: str | None, deal_types: list[DealType], location=None
 ) -> tuple[int, int, float | None]:
     priced = _priced_condition(deal_types)
     conditions = [
         Property.deal_type.in_(deal_types),
         Property.status.not_in(list(EXCLUDED_STATUSES)),
     ]
-    if city:
+    if location is not None:
+        conditions.append(location)
+    elif city:
         conditions.append(Property.city == city)
 
     row = (

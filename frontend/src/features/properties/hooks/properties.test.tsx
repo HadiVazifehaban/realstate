@@ -9,6 +9,23 @@ import { useProperties } from './index';
 
 describe('properties query city hydration', () => {
   afterEach(cleanup);
+  it('does not keep another city as placeholder data', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: React.PropsWithChildren) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    vi.mocked(fetchProperties).mockResolvedValueOnce({ items: [], count: 7, limit: 20, offset: 0 });
+    const { result, rerender } = renderHook(({ city }) => useProperties({ city }), {
+      initialProps: { city: 'تهران' }, wrapper
+    });
+    await waitFor(() => expect(result.current.data?.count).toBe(7));
+    vi.mocked(fetchProperties).mockImplementationOnce(() => new Promise(() => {}));
+    rerender({ city: 'تبریز' });
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.isPlaceholderData).toBe(false);
+    client.clear();
+    vi.clearAllMocks();
+  });
   it('keeps hook order stable and fetches only after the city is ready', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const wrapper = ({ children }: React.PropsWithChildren) => (

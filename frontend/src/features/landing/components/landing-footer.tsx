@@ -52,6 +52,24 @@ export function LandingFooter({ dashboard = false }: { dashboard?: boolean }) {
               <IconBuildingCommunity aria-hidden size={17} />
               ورود به سامانه
             </Link>
+            <a
+              href="https://trustseal.enamad.ir/?id=8391402&Code=K0T3NOuAAuQQo4lxd5jstn0zeSJpPSbT"
+              target="_blank"
+              rel="noopener noreferrer"
+              referrerPolicy="origin"
+              aria-label="نماد اعتماد الکترونیکی شکارچی"
+              className="mt-4 inline-flex w-fit rounded-xl border border-primary/15 bg-background/40 p-2 transition-colors hover:border-primary/35"
+            >
+              <img
+                src="https://trustseal.enamad.ir/logo.aspx?id=8391402&Code=K0T3NOuAAuQQo4lxd5jstn0zeSJpPSbT"
+                alt="نماد اعتماد الکترونیکی"
+                width={120}
+                height={120}
+                loading="lazy"
+                referrerPolicy="origin"
+                className="h-[100px] w-[100px] object-contain"
+              />
+            </a>
             <p className="landing-footer-coverage">
               پوشش تحلیل و نقشه به داده‌های موجود هر شهر و محله وابسته است.
             </p>

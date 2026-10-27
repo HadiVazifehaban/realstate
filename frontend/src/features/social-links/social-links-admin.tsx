@@ -81,6 +81,12 @@ export function SocialLinksAdmin() {
     onSuccess: (_, action) => {
       toast.success("تغییرات پیوندها ذخیره شد.");
       setFeedback("تغییرات ذخیره شد.");
+      if (typeof BroadcastChannel !== "undefined") {
+        const channel = new BroadcastChannel("shekarchi-social-links");
+        channel.postMessage({ type: "changed" });
+        channel.close();
+      }
+      window.dispatchEvent(new Event("shekarchi:social-links-changed"));
       if (action.kind === "save" || (action.kind === "delete" && action.id === editing)) {
         setEditing(undefined);
         setValues(empty);

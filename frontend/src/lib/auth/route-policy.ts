@@ -19,6 +19,7 @@ const PUBLIC_BACKEND_EXACT = new Set([
   '/backend/api/v1/auth/otp/request',
   '/backend/api/v1/auth/otp/verify',
   '/backend/api/v1/auth/quick-register',
+  '/backend/api/v1/auth/register',
   '/backend/api/v1/auth/registration-status',
   '/backend/api/v1/auth/roles',
   '/backend/api/v1/registration/cities',
@@ -37,7 +38,8 @@ const PAGE_ROLE_POLICIES: Array<[string, string[]]> = [
   ['/dashboard/scraper', ['ROLE_ADMIN', 'ROLE_SUPERVISOR']],
   ['/dashboard/pii', ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_AGENCY_MANAGER', 'ROLE_SENIOR_BROKER']],
   ['/dashboard/crm', ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_AGENCY_MANAGER', 'ROLE_SENIOR_BROKER', 'ROLE_JUNIOR_BROKER']],
-  ['/dashboard/network', ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_AGENCY_MANAGER', 'ROLE_SENIOR_BROKER']]
+  ['/dashboard/network', ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_AGENCY_MANAGER', 'ROLE_SENIOR_BROKER']],
+  ['/dashboard/agency/referral', ['ROLE_ADMIN', 'ROLE_AGENCY_MANAGER']]
 ];
 
 /** Explicit allowlist: any new page or API is protected until classified. */

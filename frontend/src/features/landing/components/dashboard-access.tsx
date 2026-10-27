@@ -74,7 +74,7 @@ export function DashboardAccess() {
               {item.title}
             </Link>
           ))}
-        <button type="button" onClick={() => void signOut({ redirectUrl: "/auth/sign-in" })}>
+        <button type="button" onClick={() => void signOut({ redirectUrl: "/" })}>
           خروج از حساب
         </button>
       </nav>

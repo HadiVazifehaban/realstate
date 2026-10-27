@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useProperties } from '../hooks';
-import { useActiveCityName } from '@/store/useCityStore';
+import { useLocationFilter } from '../hooks/use-location-filter';
 import { Separator } from '@/components/ui/separator';
 import type { PropertySummary } from '../types';
 import type { MarketMedians } from '../utils/market';
@@ -85,8 +85,7 @@ export function ShowcaseSection({
   marketMedians?: MarketMedians;
 }) {
   // پل City Gate: شهر فعال سراسری برای showcase
-  const gateCity = useActiveCityName();
-  const cities = gateCity ? [gateCity] : [];
+  const { cities } = useLocationFilter();
 
   // The source pill is page state, so it has to reach the rails' window too.
   // Client-side filtering of a 120-row window would starve the rails the moment

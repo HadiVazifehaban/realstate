@@ -18,6 +18,9 @@ export default function GlobalError({
 
   return (
     <html lang='fa' dir='rtl'>
+      <head>
+        <style>{`@font-face{font-family:Vazirmatn;src:url('/fonts/Vazirmatn%5Bwght%5D.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}`}</style>
+      </head>
       <body
         style={{
           margin: 0,
@@ -25,11 +28,9 @@ export default function GlobalError({
           minHeight: "100vh",
           alignItems: "center",
           justifyContent: "center",
-          /* No globals.css here, so the bundled Noto font classes are
-             unavailable. Name literal fallbacks that cover Arabic script:
-             Tahoma and Segoe UI ship Persian glyphs, unlike most latin-only
-             system fonts. */
-          fontFamily: "'Noto Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif"
+          /* global-error replaces the root layout, so use the self-hosted
+             Vazirmatn asset directly instead of relying on its font class. */
+          fontFamily: "'Vazirmatn', 'Segoe UI', Tahoma, system-ui, sans-serif"
         }}
       >
         <div style={{ textAlign: "center", padding: "1rem" }}>

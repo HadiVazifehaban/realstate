@@ -88,7 +88,16 @@ def _iter_items(payload: Any) -> Iterator[dict]:
     """
     node = payload.get("data") if isinstance(payload, dict) else None
     if isinstance(node, list):
-        return iter([i for i in node if isinstance(i, dict)])
+        items = []
+        for entry in node:
+            if not isinstance(entry, dict):
+                continue
+            # City-scoped search groups special/normal results into sections.
+            if isinstance(entry.get("items"), list):
+                items.extend(i for i in entry["items"] if isinstance(i, dict))
+            else:
+                items.append(entry)
+        return iter(items)
     for candidate in (payload, node):
         if not isinstance(candidate, dict):
             continue
@@ -378,12 +387,29 @@ def parse_sheypoor_detail(
     offer_category = str(_get(payload, "category") or "")
     asset_slug = str(_get(payload, "__category") or "")
     property_type, deal_type = map_category_to_types(asset_slug)
+    if asset_slug in {"houses-apartments-for-sale", "house-apartment-for-rent"}:
+        # These are combined source categories. The taxonomy's apartment enum is
+        # only a route-level hint and cannot identify a specific listing's type.
+        property_type = None
+    for candidate in (
+        _get(item, "propertyType", "property_type", "realEstateType"),
+        _get(payload, "propertyType", "property_type", "realEstateType"),
+    ):
+        if candidate:
+            from app.services.scraper.parser import map_category
+
+            actual_type, _ = map_category(str(candidate))
+            if actual_type is not None:
+                property_type = actual_type
+                break
     if deal_type is None:
         deal_type = _deal_from_offer_category(offer_category)
     if property_type is None and deal_type is None:
-        # Nothing known about this listing's origin: fall back to the Divar
-        # heuristic on whatever slug we do have.
-        property_type, deal_type = map_category(asset_slug or offer_category)
+        # Only non-combined, detail-owned evidence may drive the fallback.
+        # The job's combined search category must not assert APARTMENT.
+        from app.services.scraper.parser import map_category
+
+        property_type, deal_type = map_category(offer_category)
     category = asset_slug or offer_category
 
     floor_size = item.get("floorSize") if isinstance(item.get("floorSize"), dict) else {}
@@ -404,20 +430,37 @@ def parse_sheypoor_detail(
     # explicit city key wins when present, matching the search parser's rule.
     from app.services.city_normalizer import is_known_city
 
-    explicit_city = str(_get(payload, "city", "city_slug") or "").strip()
+    location = payload.get("attributes", {}).get("location") if isinstance(payload.get("attributes"), dict) else None
+    if not isinstance(location, dict):
+        location = payload.get("location") if isinstance(payload.get("location"), dict) else {}
+    explicit_city_value = _get(payload, "city", "city_slug")
+    explicit_city = str(explicit_city_value or "").strip()
+    location_city = str(_get(location, "city", "city_name", "city_slug") or "").strip()
     locality = str(address.get("addressLocality") or "").strip()
-    if explicit_city and is_known_city(explicit_city):
-        detail_city = explicit_city
-    elif is_known_city(locality):
-        detail_city = locality
+    detail_city = next(
+        (candidate for candidate in (explicit_city, location_city, locality) if candidate and is_known_city(candidate)),
+        "",
+    )
+    detail_province = str(
+        _get(payload, "province", "province_name")
+        or _get(location, "province", "province_name")
+        or address.get("addressRegion")
+        or ""
+    ).strip()
+    from app.services.location_catalog import resolve_city
+
+    located = resolve_city(detail_city, detail_province) if detail_city else None
+    if located:
+        detail_city, detail_province = located["name"], located["province"]
     else:
-        detail_city = explicit_city or ""
+        detail_city, detail_province = "", ""
 
     return DivarListingDetail(
         token=token,
         title=str(_get(payload, "name", "title", "subject") or ""),
         description=str(_get(payload, "description", "body") or ""),
         city=detail_city,
+        province=detail_province,
         district=str(address.get("addressRegion") or ""),
         neighborhood=str(
             locality or _get(payload, "neighborhood", "district") or ""

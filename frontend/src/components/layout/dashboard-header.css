@@ -27,21 +27,21 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  min-height: 168px;
-  gap: 24px;
-  padding: 12px 24px;
+  min-height: 130px;
+  gap: 16px;
+  padding: 4px 20px;
 }
 .dashboard-top-header .landing-brand {
   display: inline-flex;
   align-items: center;
-  gap: 18px;
+  gap: 12px;
   text-decoration: none;
   color: var(--brand-fff4ec);
   flex-shrink: 0;
 }
 .dashboard-top-header .landing-brand img {
-  width: 134px;
-  height: 134px;
+  width: 110px;
+  height: 110px;
   object-fit: contain;
   border-radius: 50%;
 }
@@ -49,8 +49,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 134px;
-  height: 134px;
+  width: 110px;
+  height: 110px;
   flex: none;
   background: transparent;
   border-radius: 50%;
@@ -58,7 +58,7 @@
 }
 .dashboard-top-header .landing-brand strong {
   display: block;
-  font-size: 33px;
+  font-size: 28px;
   line-height: 1.4;
   font-weight: 800;
 }
@@ -80,6 +80,31 @@
   padding-block: 4px;
 }
 .dashboard-header-utilities > * {
+  flex-shrink: 0;
+}
+.dashboard-header-city-picker {
+  min-width: 0;
+}
+.dashboard-header-city-picker > .header-location-picker { min-width: 0; }
+.dashboard-header-city-picker .header-location-trigger {
+  min-width: var(--header-control-size);
+  max-width: 190px;
+  height: var(--header-control-size);
+  min-height: var(--header-control-size);
+  border: 1px solid var(--brand-ffd8be33);
+  border-radius: 15px;
+  background: var(--brand-060b13cc);
+  color: var(--brand-ffd8be);
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+.dashboard-header-city-picker .header-location-trigger:hover {
+  border-color: var(--brand-e5a87b80);
+  background: var(--brand-1a2332);
+  color: var(--brand-fff4ec);
+}
+.dashboard-header-city-picker .header-location-trigger svg {
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
 }
 .dashboard-header-utilities > ul {
@@ -200,6 +225,17 @@
   transition:
     background 0.2s,
     box-shadow 0.2s;
+}
+.dashboard-top-header .landing-location-control {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.dashboard-top-header .landing-location-control .header-location-trigger {
+  height: 42px;
+  min-height: 42px;
+  border-color: var(--brand-e5a87b33);
+  border-radius: 999px;
 }
 .dashboard-top-header .landing-top-group > summary::-webkit-details-marker {
   display: none;
@@ -385,6 +421,15 @@
     padding: 8px 10px;
     font-size: 12px;
     gap: 8px;
+  }
+  .dashboard-header-city-picker .header-location-trigger {
+    width: var(--header-control-size);
+    min-width: var(--header-control-size);
+    padding-inline: 0;
+  }
+  .dashboard-header-city-picker .header-location-trigger { padding-inline: 0; }
+  .dashboard-header-utilities .header-location-name {
+    display: none;
   }
   .dashboard-top-header .landing-dashboard-nav {
     grid-row: 3;

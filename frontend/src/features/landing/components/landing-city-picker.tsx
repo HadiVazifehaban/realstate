@@ -5,7 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import { IconMapPin, IconChevronDown } from "@tabler/icons-react";
 import { fetchGisAreas } from "@/features/properties/api/client";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { useLandingCity, useLandingCityStore } from "../use-landing-city";
+import { useLandingCity } from "../use-landing-city";
+import { useCityStore } from "@/store/useCityStore";
+import { findCityByName, SHEKARCHI_CITIES } from "@/constants/cities";
 
 const normalize = (text: string) =>
   text
@@ -15,7 +17,7 @@ const normalize = (text: string) =>
 
 export function LandingCityPicker() {
   const city = useLandingCity();
-  const setCity = useLandingCityStore((state) => state.setCity);
+  const setActiveCity = useCityStore((state) => state.setActiveCity);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const areas = useQuery({
@@ -89,7 +91,15 @@ export function LandingCityPicker() {
                       key={name}
                       aria-pressed={city === name}
                       onClick={() => {
-                        setCity(name);
+                        const cityOption = findCityByName(name) ?? {
+                          ...SHEKARCHI_CITIES[0],
+                          id: `landing-${name}`,
+                          name,
+                          province: province.name,
+                          isPopular: false
+                        };
+                        setActiveCity(cityOption);
+                        window.dispatchEvent(new CustomEvent("shekarchi:city-changed", { detail: name }));
                         setOpen(false);
                       }}
                     >

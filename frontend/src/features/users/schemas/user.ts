@@ -39,6 +39,7 @@ export const userSchema = z.object({
   role: z.enum(ROLE_VALUES as [UserRole, ...UserRole[]], {
     error: 'یک نقش معتبر انتخاب کنید'
   }),
+  keycloak_role: z.enum(['ROLE_JUNIOR_BROKER', 'ROLE_SENIOR_BROKER']).optional(),
   status: z.enum(USER_STATUSES, { error: 'یک وضعیت معتبر انتخاب کنید' })
 });
 

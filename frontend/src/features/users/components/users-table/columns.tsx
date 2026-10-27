@@ -57,6 +57,40 @@ export const columns: ColumnDef<User>[] = [
     }
   },
   {
+    id: "realm_roles",
+    accessorFn: (row) => row.realm_roles?.join(', ') ?? '',
+    header: 'نقش‌های Keycloak',
+    cell: ({ row }) => (
+      <div className='flex max-w-[260px] flex-wrap gap-1'>
+        {(row.original.realm_roles ?? []).length > 0 ? (
+          row.original.realm_roles?.map((role) => (
+            <Badge key={role} variant={role === 'ROLE_ADMIN' ? 'default' : 'outline'} className='text-[10px]'>
+              {role.replace(/^ROLE_/, '')}
+            </Badge>
+          ))
+        ) : (
+          <span className='text-xs text-muted-foreground'>بدون نقش Realm</span>
+        )}
+      </div>
+    ),
+    enableSorting: false
+  },
+  {
+    id: "verification",
+    header: 'احراز هویت',
+    cell: ({ row }) => (
+      <div className='flex min-w-[120px] flex-col gap-1 text-xs'>
+        <span className={row.original.kyc_status === 'VERIFIED' ? 'text-emerald-600' : 'text-muted-foreground'}>
+          KYC: {row.original.kyc_status ?? 'PENDING'}
+        </span>
+        <span className={row.original.mobile_verified ? 'text-emerald-600' : 'text-muted-foreground'}>
+          موبایل: {row.original.mobile_verified ? 'تأییدشده' : 'تأییدنشده'}
+        </span>
+      </div>
+    ),
+    enableSorting: false
+  },
+  {
     accessorKey: "status",
     header: "وضعیت",
     cell: ({ cell }) => {

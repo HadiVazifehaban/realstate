@@ -26,9 +26,11 @@ class LeadSummary(BaseModel):
 
     id: uuid.UUID
     property_id: uuid.UUID
+    agency_id: str = "local"
     stage: LeadStage
     priority: LeadPriority
     assigned_user_id: uuid.UUID | None = None
+    assigned_subject: str | None = None
     is_bargain: bool = False
     deviation_pct: float | None = None
     neighborhood: str = ""
@@ -67,6 +69,7 @@ class LeadCreateRequest(BaseModel):
     #: Who the desk should attribute the card to. Defaults to the calling
     #: principal when omitted, so the common case is a bare property id.
     assigned_user_id: uuid.UUID | None = None
+    assigned_user_subject: str | None = Field(default=None, min_length=1, max_length=255)
 
 
 class LeadCreateResponse(BaseModel):

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handlers } from "@/lib/auth/config";
 import { resolveAuthOrigin, sameOriginAuthRedirect } from "@/lib/auth/origin";
+import { normalizeAuthRequest } from "@/lib/auth/request-origin";
 
 export const dynamic = "force-dynamic";
 
 /** CSRF-check through Auth.js signout, then clear the local cookie and end SSO. */
 export async function POST(request: NextRequest) {
-  const resolvedOrigin = resolveAuthOrigin(request);
+  const normalized = normalizeAuthRequest(request);
+  const resolvedOrigin = normalized ? resolveAuthOrigin(normalized) : { ok: false as const };
   if (!resolvedOrigin.ok) {
     return NextResponse.json(
       { error: "untrusted_request_origin" },
@@ -14,7 +16,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const form = await request.formData();
+  const form = await normalized!.formData();
   const csrfToken = form.get("csrfToken");
   if (typeof csrfToken !== "string" || !csrfToken) {
     return NextResponse.json({ error: "csrf_validation_failed" }, { status: 400 });
@@ -23,7 +25,7 @@ export async function POST(request: NextRequest) {
   const canonicalOrigin = process.env.AUTH_CANONICAL_URL
     ? new URL(process.env.AUTH_CANONICAL_URL).origin
     : resolvedOrigin.origin;
-  const postLogoutRedirect = sameOriginAuthRedirect(canonicalOrigin as typeof resolvedOrigin.origin, "/auth/sign-in");
+  const postLogoutRedirect = sameOriginAuthRedirect(canonicalOrigin as typeof resolvedOrigin.origin, "/");
   if (!postLogoutRedirect) {
     return NextResponse.json(
       { error: "invalid_logout_redirect" },
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Delegate CSRF verification and cookie invalidation to Auth.js itself.
-  const authHeaders = new Headers(request.headers);
+  const authHeaders = new Headers(normalized!.headers);
   authHeaders.set("content-type", "application/x-www-form-urlencoded");
   const authRequest = new NextRequest(new URL("/api/auth/signout", resolvedOrigin.origin), {
     method: "POST",

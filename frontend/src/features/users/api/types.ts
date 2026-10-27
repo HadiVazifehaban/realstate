@@ -8,6 +8,9 @@ export type BackendUser = {
   phone: string;
   status: UserStatus;
   role: UserRole;
+  realm_roles?: string[];
+  kyc_status?: string;
+  mobile_verified?: boolean;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -45,5 +48,6 @@ export type UserMutationPayload = {
   email?: string;
   phone: string;
   role: UserRole;
+  keycloak_role?: 'ROLE_JUNIOR_BROKER' | 'ROLE_SENIOR_BROKER';
   status: UserStatus;
 };

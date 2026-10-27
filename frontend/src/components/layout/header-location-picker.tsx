@@ -3,8 +3,6 @@
 import React, { useState, useMemo } from "react";
 import { Icons } from "@/components/icons";
 import { useGisAreas, useInventoryCities } from "@/features/properties/hooks";
-import { useCityStore, useActiveCityName } from "@/store/useCityStore";
-import { findCityByName } from "@/constants/cities";
 import { useQueryStates } from "nuqs";
 import { parseAsArrayOf, parseAsString } from "nuqs";
 
@@ -21,8 +19,6 @@ export default function HeaderLocationPicker({
   const areasQuery = useGisAreas();
   const { data } = areasQuery;
   const inventoryQuery = useInventoryCities();
-  const activeCityName = useActiveCityName();
-  const setActiveCity = useCityStore((state) => state.setActiveCity);
 
   const [isOpen, setIsOpen] = useState(false);
   const [selectedProvince, setSelectedProvince] = useState<CityNode | null>(null);
@@ -39,7 +35,7 @@ export default function HeaderLocationPicker({
       ? cityParams.city.length === 1
         ? cityParams.city[0]
         : `${cityParams.city.length} شهر`
-      : activeCityName || "همه شهرها";
+      : "همه شهرها";
 
   // Build tree from API data
   const tree = useMemo<CityNode[]>(() => {
@@ -86,21 +82,7 @@ export default function HeaderLocationPicker({
   };
 
   const handleSelectAllCitiesInCountry = () => {
-    const allCities = IRAN_PROVINCES.flatMap((p) => p.cities || [p.name]);
-    setCityParams({ city: allCities });
-    onLocationChange?.(allCities);
-  };
-
-  const triggerCityScrape = async (city: string) => {
-    try {
-      await fetch("/api/v1/scraper/set-focus-city", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ city })
-      });
-    } catch (err) {
-      console.error("Failed to trigger city scrape:", err);
-    }
+    handleSelectAllCities();
   };
 
   const handleToggleCity = (city: string, _provinceName?: string) => {
@@ -114,19 +96,12 @@ export default function HeaderLocationPicker({
       newCities = [...currentCities, city];
     }
 
-    // Update global city store if single city is in ShekarchiCity list
-    if (newCities.length === 1) {
-      const shekarchiCity = findCityByName(newCities[0]);
-      if (shekarchiCity) {
-        setActiveCity(shekarchiCity);
-      }
-    }
-
     setCityParams({ city: newCities });
     onLocationChange?.(newCities.length ? newCities : null);
+    setIsOpen(false);
+    setSelectedProvince(null);
+    setSearchQuery("");
 
-    // Trigger scraper for the selected city
-    triggerCityScrape(city);
   };
 
   const handleSelectProvince = (province: CityNode) => {
@@ -155,24 +130,20 @@ export default function HeaderLocationPicker({
     setCityParams({ city: newCities });
     onLocationChange?.(newCities.length ? newCities : null);
 
-    // Trigger scraper for newly selected cities
-    if (!allSelected) {
-      citiesToAdd.forEach((city) => triggerCityScrape(city));
-    }
   };
 
   return (
-    <div className="relative inline-block text-right font-['Vazirmatn']" dir="rtl">
+    <div className="header-location-picker relative inline-block text-right font-['Vazirmatn']" dir="rtl">
       {/* دکمه کپسولی هدر (Trigger) */}
       <button
         type="button"
         aria-label="انتخاب شهر و استان"
         aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--brand-121824)]/80 hover:bg-[var(--brand-1a2332)] text-foreground border border-foreground/10 hover:border-primary/40 transition-all duration-200 text-xs shadow-inner"
+        className="header-location-trigger flex items-center gap-2 px-3 text-xs shadow-inner focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         <Icons.mapPin className="w-3.5 h-3.5 text-primary" />
-        <span className="font-medium text-foreground">{activeCity}</span>
+        <span className="header-location-name max-w-32 truncate font-medium text-inherit">{activeCity}</span>
         <Icons.chevronDown
           className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
         />

@@ -7,7 +7,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/u
 import { useState } from 'react';
 import { ListingCard } from './listing-card';
 import { useBargains } from '../hooks';
-import { useActiveCityName } from '@/store/useCityStore';
+import { useLocationFilter } from '../hooks/use-location-filter';
 
 /**
  * Bargain radar feed.
@@ -20,12 +20,12 @@ export function PropertyBargainList() {
   const [neighborhood, setNeighborhood] = useState("");
   const [appliedNeighborhood, setAppliedNeighborhood] = useState("");
   // پل City Gate: رادار شکار فقط آگهی‌های شهر فعال را نشان می‌دهد.
-  const gateCity = useActiveCityName();
+  const { cities } = useLocationFilter();
 
   const { data, isPending, isError, error, refetch, isFetching } = useBargains(
     {
       ...(appliedNeighborhood ? { neighborhood: appliedNeighborhood } : {}),
-      ...(gateCity ? { city: gateCity } : {}),
+      ...(cities.length ? { cities } : {}),
       limit: 60
     }
   );

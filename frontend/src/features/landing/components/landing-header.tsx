@@ -16,6 +16,8 @@ import { DashboardTopNav } from "./dashboard-top-nav";
 import { UserNav } from "@/components/layout/user-nav";
 import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
 import { landingRoutes, publicNavigation } from "../config";
+import "@/components/layout/dashboard-header.css";
+import "../landing-header.css";
 
 export function LandingHeader({ dashboard = false }: { dashboard?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
@@ -28,13 +30,13 @@ export function LandingHeader({ dashboard = false }: { dashboard?: boolean }) {
   }, []);
 
   return (
-    <header className={`landing-header ${scrolled ? "is-scrolled" : ""}`}>
-      <div className="landing-header-inner">
-        <LandingBrand dashboard={dashboard} />
+    <header dir="rtl" className={`dashboard-top-header landing-public-header ${scrolled ? "is-scrolled" : ""}`}>
+      <div className="dashboard-header-primary">
+        <LandingBrand dashboard={dashboard} header />
         {dashboard ? (
           <DashboardTopNav />
         ) : (
-          <nav aria-label="ناوبری اصلی" className="landing-desktop-nav">
+          <nav aria-label="ناوبری اصلی" className="landing-public-nav">
             {publicNavigation.map((item) => (
               <Link key={item.href} href={item.href}>
                 {item.label}
@@ -42,7 +44,7 @@ export function LandingHeader({ dashboard = false }: { dashboard?: boolean }) {
             ))}
           </nav>
         )}
-        <div className="landing-header-actions">
+        <div className="dashboard-header-utilities landing-public-actions">
           <ThemeModeToggle />
           {dashboard ? (
             <UserNav placement="landing" />
@@ -74,7 +76,7 @@ export function LandingHeader({ dashboard = false }: { dashboard?: boolean }) {
             </Dialog>
           )}
           <Link
-            className="landing-button landing-button-outline landing-submit"
+            className="dashboard-submit landing-public-submit"
             href={landingRoutes.submit}
           >
             ثبت ملک <span aria-hidden>＋</span>
@@ -94,7 +96,7 @@ export function LandingHeader({ dashboard = false }: { dashboard?: boolean }) {
                 </DialogClose>
                 <DialogTitle className="landing-dialog-title">کاوش در شکارچی</DialogTitle>
                 <DialogDescription className="landing-dialog-description">
-                  ابزارهای تحلیل بازار و حساب کاربری
+                  جستجوی ملک، آشنایی با امکانات و خدمات مشاوران
                 </DialogDescription>
                 <nav aria-label="ناوبری موبایل" className="landing-mobile-nav">
                   {publicNavigation.map((item) => (

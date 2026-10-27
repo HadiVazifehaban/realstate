@@ -105,6 +105,19 @@ class Settings(BaseSettings):
     payment_receipt_max_bytes: int = 8 * 1024 * 1024
     payment_encryption_key: str = ""
 
+    # -- Zibal gateway (double opt-in; live payments remain disabled by default) --
+    zibal_enabled: bool = False
+    zibal_test_mode: bool = True
+    zibal_merchant: str = ""
+    zibal_credential_encryption_key: str = ""
+    zibal_request_url: str = "https://gateway.zibal.ir/v1/request"
+    zibal_verify_url: str = "https://gateway.zibal.ir/v1/verify"
+    zibal_inquiry_url: str = "https://gateway.zibal.ir/v1/inquiry"
+    zibal_start_url: str = "https://gateway.zibal.ir/start"
+    zibal_callback_url: str = ""
+    zibal_result_url: str = "http://localhost:3000/dashboard/billing"
+    zibal_timeout_seconds: float = Field(default=8.0, gt=0, le=30)
+
     # -- Commercial licensing ---------------------------------------------------
     offline_grace_days: int = 14
     heartbeat_interval_hours: int = 12

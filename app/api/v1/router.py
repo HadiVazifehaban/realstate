@@ -11,11 +11,13 @@ from app.api.v1.endpoints import (
     admin_users,
     auth,
     billing,
+    chat,
     crm,
     gis,
     health,
     license,
     matching,
+    market_demand,
     network,
     network_reports,
     otp,
@@ -25,6 +27,7 @@ from app.api.v1.endpoints import (
     statistics,
     social_links,
     users,
+    zibal_settings,
 )
 
 # Identity is enforced by default. Only liveness and the explicit registration
@@ -38,6 +41,9 @@ api_router.include_router(social_links.public_router, prefix="/site", tags=["sit
 # Own role guard permits super_admin without granting it unrelated admin powers.
 api_router.include_router(
     social_links.admin_router, prefix="/admin/social-links", tags=["site-admin"]
+)
+api_router.include_router(
+    zibal_settings.router, prefix="/admin/integrations/zibal", tags=["gateway-admin"]
 )
 api_router.include_router(health.router, tags=["health"])
 
@@ -61,9 +67,11 @@ private_router.include_router(
 private_router.include_router(otp.router, tags=["otp"])
 private_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 private_router.include_router(scraper.router, prefix="/scraper", tags=["scraper"])
+private_router.include_router(market_demand.router, prefix="/properties", tags=["properties"])
 private_router.include_router(properties.router, prefix="/properties", tags=["properties"])
 private_router.include_router(matching.router, prefix="/matching", tags=["matching"])
 private_router.include_router(crm.router, prefix="/crm", tags=["crm"])
+private_router.include_router(chat.router, prefix="/chat", tags=["chat"])
 private_router.include_router(users.router, prefix="/users", tags=["users"])
 private_router.include_router(preferences.router, prefix="/users", tags=["preferences"])
 private_router.include_router(gis.router, prefix="/gis", tags=["gis"])

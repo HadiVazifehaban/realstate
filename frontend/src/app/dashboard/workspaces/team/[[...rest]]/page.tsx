@@ -3,10 +3,9 @@ import type { SearchParams } from 'nuqs/server';
 
 import PageContainer from '@/components/layout/page-container';
 import { searchParamsCache } from '@/lib/searchparams';
-import { CLERK_ENABLED } from '@/lib/utils';
 import UserListingPage from '@/features/users/components/user-listing';
 import { usersInfoContent } from '@/features/users/info-content';
-import { ClerkOrganizationProfile } from '@/features/workspaces/components/clerk-workspace-widgets';
+import { UserFormSheetTrigger } from '@/features/users/components/user-form-sheet';
 
 export const metadata: Metadata = {
   title: 'Dashboard : تیم دفتر',
@@ -32,10 +31,11 @@ export default async function TeamPage(props: PageProps) {
   return (
     <PageContainer
       pageTitle='تیم دفتر'
-      pageDescription='اعضای این دفتر و سطح دسترسی هرکدام'
+      pageDescription='دعوت، مشاهده و مدیریت اعضای دفتر و سطح مشاوران'
       infoContent={usersInfoContent}
+      pageHeaderAction={<UserFormSheetTrigger alwaysVisible />}
     >
-      {CLERK_ENABLED ? <ClerkOrganizationProfile /> : <UserListingPage showRoleBreakdown />}
+      <UserListingPage showRoleBreakdown />
     </PageContainer>
   );
 }

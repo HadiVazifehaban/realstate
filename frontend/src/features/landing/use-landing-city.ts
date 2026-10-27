@@ -1,30 +1,24 @@
 "use client";
 
-import { useEffect } from "react";
-import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
-import { useActiveCityName } from "@/store/useCityStore";
+import { useEffect, useState } from "react";
+import { useCityStore } from "@/store/useCityStore";
 
-// Landing filters accept every API city, without inventing map coordinates.
-export const useLandingCityStore = create<{
-  city: string | null;
-  setCity: (city: string) => void;
-}>()(
-  persist((set) => ({ city: null, setCity: (city) => set({ city }) }), {
-    name: "shekarchi_landing_city",
-    storage: createJSONStorage(() => localStorage),
-    partialize: ({ city }) => ({ city }),
-    skipHydration: true
-  })
-);
+// Keep the landing picker on the same persisted city source as dashboard menus.
+export const useLandingCityStore = useCityStore;
 
 export function useLandingCity() {
-  const city = useLandingCityStore((state) => state.city);
-  const activeCity = useActiveCityName();
+  const activeCityName = useCityStore((state) => state.activeCity?.name ?? "تهران");
+  const [city, setCity] = useState(activeCityName);
   useEffect(() => {
-    if (!useLandingCityStore.persist.hasHydrated()) {
-      void useLandingCityStore.persist.rehydrate();
-    }
+    setCity(activeCityName);
+  }, [activeCityName]);
+  useEffect(() => {
+    const syncCity = (event: Event) => {
+      const name = (event as CustomEvent<string>).detail;
+      if (name) setCity(name);
+    };
+    window.addEventListener("shekarchi:city-changed", syncCity);
+    return () => window.removeEventListener("shekarchi:city-changed", syncCity);
   }, []);
-  return city ?? activeCity ?? "تهران";
+  return city;
 }

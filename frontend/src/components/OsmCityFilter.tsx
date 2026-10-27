@@ -100,6 +100,12 @@ export function OsmCityFilter({ value, onChange, className }: OsmCityFilterProps
     }
   };
 
+  const selectCity = (city: string) => {
+    onChange(city === value ? undefined : city);
+    setOpen(false);
+    setQuery('');
+  };
+
   return (
     <Popover
       open={open}
@@ -169,10 +175,7 @@ export function OsmCityFilter({ value, onChange, className }: OsmCityFilterProps
                   <CommandItem
                     key={city}
                     value={city}
-                    onSelect={() => {
-                      onChange(city === value ? undefined : city);
-                      setOpen(false);
-                    }}
+                    onSelect={() => selectCity(city)}
                   >
                     <Icons.check
                       className={cn('size-3.5', value === city ? 'opacity-100' : 'opacity-0')}
@@ -187,9 +190,10 @@ export function OsmCityFilter({ value, onChange, className }: OsmCityFilterProps
                     <CommandItem
                       value={`province:${province.name}`}
                       onSelect={() => {
-                        // Narrow to the province by applying its first city, so
-                        // the list below immediately shows the rest of them.
+                        // Narrowing to a province is a navigation step, not a
+                        // city selection; leave the popover open for city choice.
                         onChange(province.cities[0]);
+                        setQuery('');
                       }}
                       className='text-muted-foreground'
                     >

@@ -44,6 +44,10 @@ class ScrapeJobCreate(BaseModel):
         max_length=128,
         description="Category slug, e.g. apartment-sell",
     )
+    params: dict = Field(
+        default_factory=dict,
+        description="Internal execution scope/options; source/category are still validated by the service.",
+    )
     districts: list[str] = Field(
         default_factory=list,
         max_length=25,

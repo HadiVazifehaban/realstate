@@ -43,6 +43,7 @@ import {
 interface VisitSchedulerWidgetProps {
   propertyId: string;
   className?: string;
+  compact?: boolean;
 }
 
 /** Pad to the `YYYY-MM-DD` the wire expects. */
@@ -57,11 +58,12 @@ function dayIsoOf(jy: number, jm: number, jd: number): string {
   return isoOf(year, month, day);
 }
 
-export function VisitSchedulerWidget({ propertyId, className }: VisitSchedulerWidgetProps) {
+export function VisitSchedulerWidget({ propertyId, className, compact = false }: VisitSchedulerWidgetProps) {
   const initial = todayJalali();
   const [year, setYear] = React.useState(initial.year);
   const [month, setMonth] = React.useState(initial.month);
   const [selected, setSelected] = React.useState<string | null>(null);
+  const [expanded, setExpanded] = React.useState(!compact);
   const [guests, setGuests] = React.useState('');
   const [notes, setNotes] = React.useState('');
   const [kind, setKind] = React.useState<VisitSlotKind>('OFFICE_HOUSE');
@@ -116,10 +118,15 @@ export function VisitSchedulerWidget({ propertyId, className }: VisitSchedulerWi
   };
 
   return (
-    <section className={cn('showcase-panel min-w-0 overflow-hidden p-4 sm:p-5', className)}>
+    <section className={cn('showcase-panel min-w-0 overflow-hidden p-4 sm:p-5', className, compact && 'property-detail-scheduler', compact && !expanded && 'property-detail-scheduler-collapsed')}>
       <div className='mb-4 flex min-w-0 flex-wrap items-center justify-between gap-2'>
         <h2 className='showcase-section-title text-sm'>رزرو بازدید</h2>
-        <div className='flex items-center gap-1'>
+        {compact && !expanded ? (
+          <Button type='button' size='sm' variant='outline' className='h-8 gap-1.5 text-xs' onClick={() => setExpanded(true)}>
+            <Icons.calendar className='size-3.5' />
+            انتخاب زمان بازدید
+          </Button>
+        ) : <div className='flex items-center gap-1'>
           <button
             type='button'
             className='showcase-circle-button size-8'
@@ -139,9 +146,11 @@ export function VisitSchedulerWidget({ propertyId, className }: VisitSchedulerWi
           >
             <Icons.chevronLeft className='size-4' />
           </button>
-        </div>
+          {compact && <Button type='button' size='sm' variant='ghost' className='ms-1 h-8 px-2 text-xs' onClick={() => setExpanded(false)}>بستن</Button>}
+        </div>}
       </div>
 
+      {(!compact || expanded) && <div className={cn(compact && 'property-detail-scheduler-body')}>
       {isError ? (
         <p className='text-muted-foreground py-6 text-center text-xs'>
           تقویم بازدید در دسترس نیست.
@@ -270,7 +279,7 @@ export function VisitSchedulerWidget({ propertyId, className }: VisitSchedulerWi
           </Button>
         </>
       )}
+      </div>}
     </section>
   );
 }
-

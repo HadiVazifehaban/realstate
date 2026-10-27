@@ -248,6 +248,7 @@ class SheypoorClient(StealthClient):
     #: rent quote to a single ``price`` holding the *deposit*, so the monthly
     #: figure is only available from the search stub's ``رهن``/``اجاره`` pair.
     _search_prices: dict[str, dict[str, str]] = {}
+    _search_cities: dict[str, str] = {}
 
     # ------------------------------------------------------------------ search
     async def search(
@@ -277,8 +278,14 @@ class SheypoorClient(StealthClient):
         resolved = resolve_slug(category)
         self._last_search_category = resolved.slug if resolved else category
         path = getattr(self.settings, "sheypoor_search_path", SEARCH_API_PATH)
-        url = self.settings.sheypoor_web_base_url + path
-        response = await self._request("GET", url, params=params)
+        # The bare /search endpoint ignores location/category query parameters
+        # and returns nationwide results. The source routes both in the path.
+        from urllib.parse import quote
+
+        url = (self.settings.sheypoor_web_base_url + path.rstrip('/') + '/'
+               + quote(city.strip().lower(), safe='-') + '/'
+               + quote(self._last_search_category, safe='-'))
+        response = await self._request("GET", url, params={"p": params["p"]})
         payload = response.json()
 
         # Seed the cover-image and price caches. Id-scoped and validated,
@@ -291,6 +298,8 @@ class SheypoorClient(StealthClient):
         )
 
         for summary in parse_sheypoor_search(payload):
+            if summary.city:
+                self._search_cities[summary.token] = summary.city
             if summary.image_url:
                 self._search_images[summary.token] = summary.image_url
             raw_item = summary.raw if isinstance(summary.raw, dict) else None
@@ -358,6 +367,9 @@ class SheypoorClient(StealthClient):
             images.append(search_image)
 
         payload.setdefault("__id", listing_id)
+        # Preserve explicit empty/null detail values; search context remains in a
+        # separate field so parser/pipeline can validate it before any fallback.
+        payload["__search_city"] = self._search_cities.get(listing_id)
         payload.setdefault("__url", url)
         if images:
             payload["__images"] = images

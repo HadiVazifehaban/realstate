@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatPricePerMeter, toPersianDigits } from "@/lib/utils";
 
 import { useNeighbourhoodMarket, useNeighbourhoodProperties } from "../hooks";
-import { useActiveCityName } from "@/store/useCityStore";
+import { useLocationFilter } from "../hooks/use-location-filter";
 import type { PropertySummary } from "../types";
 import { useGisAreas } from "../hooks";
 import { MarketLegend } from "./market-legend";
@@ -50,7 +50,6 @@ import {
  * trades in. Clearing the filter falls back to the whole book, which the header
  * says out loud.
  */
-const DEFAULT_CITY = "تهران";
 
 const PROVINCE_CENTERS = [
   "تهران",
@@ -92,17 +91,17 @@ const count = (value: number | null | undefined) =>
 export default function AvmPage() {
   // پل City Gate: شهر فعال سراسری، مقدار پیش‌فرض این صفحه است؛
   // کاربر همچنان می‌تواند از فیلتر خود صفحه شهر دیگری ببیند.
-  const gateCity = useActiveCityName();
+  const { cities, setCities } = useLocationFilter();
   const { data: gisData } = useGisAreas();
-  const [city, setCity] = React.useState<string | undefined>(undefined);
   const [citySearch, setCitySearch] = React.useState<string>("");
-  const effectiveCity = city ?? gateCity ?? DEFAULT_CITY;
+  const effectiveCity = cities.length === 1 ? cities[0] : "";
   const [dealGroup, setDealGroup] = React.useState<DealGroup>("SALE");
   const [metricId, setMetricId] = React.useState<MarketMetricId>("price_per_meter");
   const [rangeMin, setRangeMin] = React.useState("");
   const [rangeMax, setRangeMax] = React.useState("");
   const [minFiles, setMinFiles] = React.useState<number>(3);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const selectedLocation = selectedId ? JSON.parse(selectedId) as [string, string] : null;
   const [page, setPage] = React.useState(1);
 
   // Reset page when a new neighbourhood is selected
@@ -127,7 +126,7 @@ export default function AvmPage() {
   const metric = React.useMemo(() => metricById(metricId), [metricId]);
 
   const { data, isPending, isError, error } = useNeighbourhoodMarket({
-    ...(effectiveCity ? { city: effectiveCity } : {}),
+    ...(cities.length ? { cities } : {}),
     dealTypes: dealTypesFor(dealGroup),
     minFiles,
     limit: 300
@@ -139,8 +138,8 @@ export default function AvmPage() {
     data: filesData,
     isPending: filesPending,
     isError: filesError
-  } = useNeighbourhoodProperties(selectedId, {
-    city: effectiveCity,
+  } = useNeighbourhoodProperties(selectedLocation?.[1] ?? null, {
+    city: selectedLocation?.[0],
     deal_types: dealTypesFor(dealGroup),
     limit: 60,
     offset: (page - 1) * 60
@@ -177,7 +176,7 @@ export default function AvmPage() {
         (rangeMax === "" || value <= Number(rangeMax))
     );
     const rows: MarketRow[] = visible.map(({ stat, value }) => ({
-      id: stat.neighborhood,
+      id: JSON.stringify([stat.city, stat.neighborhood]),
       neighborhood: stat.neighborhood,
       city: stat.city,
       value: metric.format(value),
@@ -189,7 +188,7 @@ export default function AvmPage() {
     const bubbles: MarketBubble[] = visible
       .filter(({ stat }) => typeof stat.latitude === "number" && typeof stat.longitude === "number")
       .map(({ stat, value }) => ({
-        id: stat.neighborhood,
+        id: JSON.stringify([stat.city, stat.neighborhood]),
         lat: stat.latitude as number,
         lng: stat.longitude as number,
         radius: bubbleRadius(stat.files, maxFiles),
@@ -197,21 +196,22 @@ export default function AvmPage() {
         label: stat.neighborhood,
         value: metric.format(value),
         files: count(stat.files),
-        selected: stat.neighborhood === selectedId
+        selected: JSON.stringify([stat.city, stat.neighborhood]) === selectedId
       }));
 
     return { rows, bubbles, scale, ranked: visible };
   }, [data, metric, selectedId, rangeMin, rangeMax]);
 
   const selected = React.useMemo(
-    () => model.ranked.find((row) => row.stat.neighborhood === selectedId) ?? null,
+    () => model.ranked.find((row) => JSON.stringify([row.stat.city, row.stat.neighborhood]) === selectedId) ?? null,
     [model.ranked, selectedId]
   );
 
   // Keep the detail bar and its listings useful on first load and city changes.
   React.useEffect(() => {
-    if (!model.ranked.some(({ stat }) => stat.neighborhood === selectedId)) {
-      setSelectedId(model.ranked[0]?.stat.neighborhood ?? null);
+    if (!model.ranked.some(({ stat }) => JSON.stringify([stat.city, stat.neighborhood]) === selectedId)) {
+      const first = model.ranked[0]?.stat;
+      setSelectedId(first ? JSON.stringify([first.city, first.neighborhood]) : null);
     }
   }, [model.ranked, selectedId]);
 
@@ -335,7 +335,7 @@ export default function AvmPage() {
                   <Combobox
                     value={effectiveCity}
                     onValueChange={(value) =>
-                      setCity(value === "all" || !value ? undefined : value)
+                      setCities(value === "all" || !value ? [] : [value])
                     }
                   >
                     <ComboboxInput

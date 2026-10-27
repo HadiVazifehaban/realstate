@@ -13,6 +13,7 @@ vi.mock("@/features/landing/components/dashboard-top-nav", () => ({
   DashboardTopNav: () => <nav aria-label="ابزارهای سامانه" />
 }));
 vi.mock("../org-switcher", () => ({ OrgSwitcher: () => <button>Office switcher</button> }));
+vi.mock("./header-location-picker", () => ({ default: () => <button aria-label="انتخاب شهر و استان">تهران</button> }));
 vi.mock("../themes/theme-selector", () => ({
   ThemeSelector: () => <button>Theme selector</button>
 }));
@@ -30,20 +31,20 @@ import Header from "./header";
 describe("dashboard header", () => {
   afterEach(cleanup);
 
-  it("renders only the primary RTL row without the contextual search or location controls", () => {
+  it("renders the primary RTL row with the shared city selector and no contextual search", () => {
     const { container } = render(<Header />);
     const header = screen.getByRole("banner");
     expect(header.getAttribute("dir")).toBe("rtl");
     expect(header.children).toHaveLength(1);
     expect(container.querySelector(".dashboard-header-context")).toBeNull();
     expect(screen.queryByRole("textbox")).toBeNull();
-    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.getByRole("button", { name: "انتخاب شهر و استان" })).not.toBeNull();
     expect(screen.getByRole("link", { name: "شکارچی" }).getAttribute("data-large-brand")).toBe(
       "true"
     );
   });
 
-  it("keeps navigation, property submission and every utility including the office switcher", () => {
+  it("keeps property submission and profile utilities visible alongside navigation", () => {
     const { container } = render(<Header />);
     expect(screen.getByRole("navigation", { name: "ابزارهای سامانه" })).not.toBeNull();
     expect(screen.getByRole("link", { name: "ثبت ملک" }).getAttribute("href")).toBe(
@@ -56,6 +57,8 @@ describe("dashboard header", () => {
           ?.contains(screen.getByRole("button", { name }))
       ).toBe(true);
     }
+    expect(container.querySelector(".dashboard-submit")?.textContent).toContain("ثبت ملک");
+    expect(container.querySelector(".dashboard-header-primary")?.children.length).toBe(3);
     expect(screen.queryByRole("button", { name: "Notifications" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Theme selector" })).toBeNull();
     expect(container.querySelector("#theme-selector")).toBeNull();

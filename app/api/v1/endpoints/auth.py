@@ -46,6 +46,7 @@ from app.core.identity import IdentityError, require_roles
 from app.core.mobile import MobileError, normalize_mobile
 from app.models.enums import UserRole
 from app.models.registration import AuthAuditLog, ProfessionalApplication
+from app.services import agency_referrals
 from app.schemas.registration import (
     AgencyManagerIn,
     DataAnalystIn,
@@ -55,6 +56,7 @@ from app.schemas.registration import (
     OtpVerifyIn,
     OtpVerifyOut,
     QuickRegisterIn,
+    VerifiedRegistrationIn,
     RegistrationStatusOut,
     SeniorBrokerIn,
     SessionExchangeIn,
@@ -218,6 +220,22 @@ def _keycloak_error(exc: KeycloakDirectoryError) -> HTTPException:
         status_code=exc.status_code,
         detail={"error": exc.code, "message": exc.message},
     )
+
+
+@public_router.post("/register", summary="Create account after mobile verification")
+async def register_verified(
+    body: VerifiedRegistrationIn, request: Request, session: SessionDep, settings: SettingsDep,
+) -> dict[str, Any]:
+    try:
+        result = await registration_service.register_verified_account(
+            session, settings, registration_token=body.registration_token,
+            username=body.username, first_name=body.first_name, last_name=body.last_name,
+            password=body.password.get_secret_value(),
+            client_ip=_client_ip(request),
+        )
+    except RegistrationError as exc:
+        raise _registration_error(exc) from exc
+    return {"ok": True, "message": "حساب شما ساخته شد؛ اکنون با رمز عبور یا پیامک وارد شوید.", **result}
 
 @public_router.post("/quick-register", summary="Quick registration - ثبت‌نام سریع")
 async def quick_register(
@@ -503,11 +521,27 @@ async def approve_application(
     try:
         from app.core.identity import KEYCLOAK_ROLE_MAP as _ROLE_MAP
 
+        if role not in _ROLE_MAP or role in {"ROLE_ADMIN", "ROLE_SUPERVISOR"}:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": "forbidden_role", "message": "این نقش قابل تأیید نیست."},
+            )
+        realm_user = await keycloak_admin.get_user(settings, row.keycloak_user_id)
+        if not realm_user.mobile_verified:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"error": "mobile_not_verified", "message": "پیش از تأیید عضویت، شماره موبایل باید مستقل از بررسی هویت تأیید شود."},
+            )
+        if realm_user.kyc_status != "VERIFIED":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"error": "kyc_not_verified", "message": "تأیید درخواست شغلی جایگزین احراز هویت نیست؛ ابتدا فرایند KYC را کامل کنید."},
+            )
         tier = _ROLE_MAP[role]
         await keycloak_admin.update_user(
             settings, row.keycloak_user_id, email=None,
             first_name=row.first_name or None, last_name=row.last_name or None,
-            phone=None, role=tier, enabled=True,
+            phone=None, role=tier, realm_role=role, enabled=True,
         )
     except KeycloakDirectoryError as exc:
         raise _keycloak_error(exc) from exc
@@ -624,4 +658,3 @@ async def registration_cities() -> dict[str, Any]:
         return {"ok": True, **normalized}
     except Exception:
         return {"ok": True, "provinces": [], "cities": []}
-

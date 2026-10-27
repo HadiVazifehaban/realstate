@@ -62,7 +62,7 @@ export function UserNav({
     setSigningOut(true);
     setSignOutError("");
     try {
-      await signOut({ redirectUrl: "/auth/sign-in" });
+      await signOut({ redirectUrl: "/" });
     } catch {
       setSignOutError("خروج از حساب انجام نشد؛ دوباره تلاش کنید.");
       setOpen(true);
@@ -78,7 +78,7 @@ export function UserNav({
         <MobileProfileSheet
           user={user}
           planLabel={saasTier}
-          onSignOut={() => signOut({ redirectUrl: "/auth/sign-in" })}
+          onSignOut={() => signOut({ redirectUrl: "/" })}
         />
       );
     }

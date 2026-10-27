@@ -1,22 +1,14 @@
 import localFont from 'next/font/local';
 import { cn } from '@/lib/utils';
 
-// Bundle the two scripts the product needs locally. Google-hosted fonts made
-// production builds depend on outbound network access and failed in isolated
-// Docker builds. Noto Sans Arabic covers Persian; Noto Sans covers Latin.
+// Bundle fonts locally so production builds and offline deployments do not
+// depend on a third-party font host. Vazirmatn's variable webfont covers Persian,
+// Arabic, and Latin glyphs across weights 100–900.
 const fontArabic = localFont({
-  src: '../../../public/fonts/NotoSansArabic-Regular.ttf',
+  src: '../../../public/fonts/Vazirmatn[wght].woff2',
   variable: '--font-vazir',
-  display: 'swap'
+  display: 'swap',
+  weight: '100 900'
 });
 
-const fontLatin = localFont({
-  src: [
-    { path: '../../../public/fonts/NotoSans-Regular.ttf', weight: '400', style: 'normal' },
-    { path: '../../../public/fonts/NotoSans-Bold.ttf', weight: '700', style: 'normal' }
-  ],
-  variable: '--font-latin-sans',
-  display: 'swap'
-});
-
-export const fontVariables = cn(fontArabic.variable, fontLatin.variable);
+export const fontVariables = cn(fontArabic.variable);

@@ -1,13 +1,14 @@
-'use client';
+"use client";
 
 import {
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
   type UseMutationResult,
   type UseQueryResult
-} from '@tanstack/react-query';
-import { toast } from 'sonner';
+} from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import {
   addDisputeMessage,
@@ -39,7 +40,7 @@ import {
   revokeShare,
   updateDisputeStatus,
   updateReferralStage
-} from '../api/client';
+} from "../api/client";
 import type {
   Agency,
   AuditEvent,
@@ -65,23 +66,23 @@ import type {
   ShareDetail,
   Transfer,
   TransferCreate
-} from '../types';
+} from "../types";
 
 /** React-query keys, so a mutation can invalidate exactly what it changed. */
 export const networkKeys = {
-  all: () => ['network'] as const,
-  agencies: () => [...networkKeys.all(), 'agencies'] as const,
+  all: () => ["network"] as const,
+  agencies: () => [...networkKeys.all(), "agencies"] as const,
   cooperations: (agencyId: string, params?: unknown) =>
-    [...networkKeys.all(), 'cooperations', agencyId, params ?? {}] as const,
-  shares: (params?: unknown) => [...networkKeys.all(), 'shares', params ?? {}] as const,
-  share: (id: string) => [...networkKeys.all(), 'share', id] as const,
-  referrals: (params?: unknown) => [...networkKeys.all(), 'referrals', params ?? {}] as const,
-  transfers: (params?: unknown) => [...networkKeys.all(), 'transfers', params ?? {}] as const,
-  commissions: (params?: unknown) => [...networkKeys.all(), 'commissions', params ?? {}] as const,
-  commission: (id: string) => [...networkKeys.all(), 'commission', id] as const,
-  disputes: (params?: unknown) => [...networkKeys.all(), 'disputes', params ?? {}] as const,
-  dispute: (id: string) => [...networkKeys.all(), 'dispute', id] as const,
-  audit: (params?: unknown) => [...networkKeys.all(), 'audit', params ?? {}] as const
+    [...networkKeys.all(), "cooperations", agencyId, params ?? {}] as const,
+  shares: (params?: unknown) => [...networkKeys.all(), "shares", params ?? {}] as const,
+  share: (id: string) => [...networkKeys.all(), "share", id] as const,
+  referrals: (params?: unknown) => [...networkKeys.all(), "referrals", params ?? {}] as const,
+  transfers: (params?: unknown) => [...networkKeys.all(), "transfers", params ?? {}] as const,
+  commissions: (params?: unknown) => [...networkKeys.all(), "commissions", params ?? {}] as const,
+  commission: (id: string) => [...networkKeys.all(), "commission", id] as const,
+  disputes: (params?: unknown) => [...networkKeys.all(), "disputes", params ?? {}] as const,
+  dispute: (id: string) => [...networkKeys.all(), "dispute", id] as const,
+  audit: (params?: unknown) => [...networkKeys.all(), "audit", params ?? {}] as const
 };
 
 // --------------------------------------------------------------------------- //
@@ -97,7 +98,7 @@ export function useAgencies(params: { q?: string; city?: string; status?: string
 
 export function useAgency(agencyId: string | null) {
   return useQuery({
-    queryKey: [...networkKeys.agencies(), 'detail', agencyId ?? ''],
+    queryKey: [...networkKeys.agencies(), "detail", agencyId ?? ""],
     queryFn: () => fetchAgency(agencyId as string),
     enabled: !!agencyId
   }) as UseQueryResult<Agency, Error>;
@@ -105,34 +106,63 @@ export function useAgency(agencyId: string | null) {
 
 export function useCooperations(
   agencyId: string | null,
-  params: { direction?: 'incoming' | 'outgoing' | 'any'; status?: string } = {}
+  params: {
+    direction?: "incoming" | "outgoing" | "any";
+    status?: string;
+    limit?: number;
+    offset?: number;
+  } = {}
 ) {
   return useQuery({
-    queryKey: networkKeys.cooperations(agencyId ?? '', params),
+    queryKey: networkKeys.cooperations(agencyId ?? "", params),
     queryFn: () => fetchCooperations({ agency_id: agencyId as string, ...params }),
     enabled: !!agencyId
   }) as UseQueryResult<Cooperation[], Error>;
 }
 
 export function useShares(
-  params: { agencyId?: string | null; direction?: 'incoming' | 'outgoing'; status?: string } = {}
+  params: {
+    agencyId?: string | null;
+    direction?: "incoming" | "outgoing";
+    status?: string;
+    limit?: number;
+    offset?: number;
+  } = {}
 ) {
   return useQuery({
     queryKey: networkKeys.shares(params),
-    queryFn: () => fetchShares(params)
+    queryFn: () => fetchShares(params),
+    enabled: !!params.agencyId
   }) as UseQueryResult<Share[], Error>;
 }
 
 export function useShare(shareId: string | null) {
   return useQuery({
-    queryKey: networkKeys.share(shareId ?? ''),
+    queryKey: networkKeys.share(shareId ?? ""),
     queryFn: () => fetchShare(shareId as string),
     enabled: !!shareId
   }) as UseQueryResult<ShareDetail, Error>;
 }
 
+/** Keep every loaded page subscribed so invalidation also refreshes older rows. */
+export function useInfiniteShares(params: {
+  agencyId: string | null;
+  direction: "incoming" | "outgoing";
+  status?: string;
+}) {
+  const limit = 50;
+  return useInfiniteQuery({
+    queryKey: networkKeys.shares({ ...params, pagination: "infinite" }),
+    queryFn: ({ pageParam }) => fetchShares({ ...params, limit, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, _pages, lastOffset) =>
+      lastPage.length === limit ? lastOffset + limit : undefined,
+    enabled: !!params.agencyId
+  });
+}
+
 export function useReferrals(
-  params: { agencyId?: string | null; direction?: 'incoming' | 'outgoing'; stage?: string } = {}
+  params: { agencyId?: string | null; direction?: "incoming" | "outgoing"; stage?: string } = {}
 ) {
   return useQuery({
     queryKey: networkKeys.referrals(params),
@@ -156,7 +186,7 @@ export function useCommissions(params: { agencyId?: string | null; status?: stri
 
 export function useCommission(agreementId: string | null) {
   return useQuery({
-    queryKey: networkKeys.commission(agreementId ?? ''),
+    queryKey: networkKeys.commission(agreementId ?? ""),
     queryFn: () => fetchCommission(agreementId as string),
     enabled: !!agreementId
   }) as UseQueryResult<CommissionAgreementDetail, Error>;
@@ -171,7 +201,7 @@ export function useDisputes(params: { agencyId?: string | null; status?: string 
 
 export function useDispute(disputeId: string | null) {
   return useQuery({
-    queryKey: networkKeys.dispute(disputeId ?? ''),
+    queryKey: networkKeys.dispute(disputeId ?? ""),
     queryFn: () => fetchDispute(disputeId as string),
     enabled: !!disputeId
   }) as UseQueryResult<DisputeDetail, Error>;
@@ -188,14 +218,14 @@ export function useAudit(
 
 export function useNetworkOverview(params: { agencyId?: string | null } = {}) {
   return useQuery({
-    queryKey: [...networkKeys.all(), 'overview', params ?? {}],
+    queryKey: [...networkKeys.all(), "overview", params ?? {}],
     queryFn: () => fetchNetworkOverview(params)
   }) as UseQueryResult<NetworkOverview, Error>;
 }
 
 export function useNetworkReports(params: { agencyId?: string | null } = {}) {
   return useQuery({
-    queryKey: [...networkKeys.all(), 'reports', params ?? {}],
+    queryKey: [...networkKeys.all(), "reports", params ?? {}],
     queryFn: () => fetchNetworkReports(params)
   }) as UseQueryResult<NetworkReports, Error>;
 }
@@ -209,10 +239,12 @@ export function useCreateCooperation(): UseMutationResult<Cooperation, Error, Co
   return useMutation({
     mutationFn: createCooperation,
     onSuccess: (_data, vars) => {
-      toast.success('درخواست همکاری ارسال شد.');
-      void queryClient.invalidateQueries({ queryKey: networkKeys.cooperations(vars.requester_agency_id) });
+      toast.success("درخواست همکاری ارسال شد.");
+      void queryClient.invalidateQueries({
+        queryKey: networkKeys.cooperations(vars.requester_agency_id)
+      });
     },
-    onError: (error) => toast.error(error.message || 'ارسال درخواست همکاری ناموفق بود.')
+    onError: (error) => toast.error(error.message || "ارسال درخواست همکاری ناموفق بود.")
   });
 }
 
@@ -225,18 +257,20 @@ export function useDecideCooperation() {
       payload
     }: {
       cooperationId: string;
-      decision: 'approve' | 'reject';
+      decision: "approve" | "reject";
       payload?: CooperationDecision;
       agencyId?: string;
     }) =>
-      decision === 'approve'
+      decision === "approve"
         ? approveCooperation(cooperationId, payload)
         : rejectCooperation(cooperationId, payload),
     onSuccess: (_data, vars) => {
-      toast.success(vars.decision === 'approve' ? 'درخواست همکاری پذیرفته شد.' : 'درخواست همکاری رد شد.');
-      void queryClient.invalidateQueries({ queryKey: [...networkKeys.all(), 'cooperations'] });
+      toast.success(
+        vars.decision === "approve" ? "درخواست همکاری پذیرفته شد." : "درخواست همکاری رد شد."
+      );
+      void queryClient.invalidateQueries({ queryKey: [...networkKeys.all(), "cooperations"] });
     },
-    onError: (error) => toast.error(error.message || 'ثبت تصمیم ناموفق بود.')
+    onError: (error) => toast.error(error.message || "ثبت تصمیم ناموفق بود.")
   });
 }
 
@@ -245,10 +279,10 @@ export function useCreateShare(): UseMutationResult<ShareDetail, Error, ShareCre
   return useMutation({
     mutationFn: createShare,
     onSuccess: () => {
-      toast.success('اشتراک فایل ایجاد شد.');
+      toast.success("اشتراک فایل ایجاد شد.");
       void queryClient.invalidateQueries({ queryKey: networkKeys.all() });
     },
-    onError: (error) => toast.error(error.message || 'ایجاد اشتراک ناموفق بود.')
+    onError: (error) => toast.error(error.message || "ایجاد اشتراک ناموفق بود.")
   });
 }
 
@@ -257,22 +291,27 @@ export function useRevokeShare(): UseMutationResult<Share, Error, { shareId: str
   return useMutation({
     mutationFn: ({ shareId }: { shareId: string }) => revokeShare(shareId),
     onSuccess: () => {
-      toast.success('اشتراک لغو شد و دسترسی بی‌درنگ بسته شد.');
+      toast.success("اشتراک لغو شد و دسترسی بی‌درنگ بسته شد.");
       void queryClient.invalidateQueries({ queryKey: networkKeys.all() });
     },
-    onError: (error) => toast.error(error.message || 'لغو اشتراک ناموفق بود.')
+    onError: (error) => toast.error(error.message || "لغو اشتراک ناموفق بود.")
   });
 }
 
-export function useExtendShare(): UseMutationResult<Share, Error, { shareId: string; days: number }> {
+export function useExtendShare(): UseMutationResult<
+  Share,
+  Error,
+  { shareId: string; days: number }
+> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ shareId, days }: { shareId: string; days: number }) => extendShare(shareId, days),
+    mutationFn: ({ shareId, days }: { shareId: string; days: number }) =>
+      extendShare(shareId, days),
     onSuccess: () => {
-      toast.success('مهلت اشتراک تمدید شد.');
+      toast.success("مهلت اشتراک تمدید شد.");
       void queryClient.invalidateQueries({ queryKey: networkKeys.all() });
     },
-    onError: (error) => toast.error(error.message || 'تمدید اشتراک ناموفق بود.')
+    onError: (error) => toast.error(error.message || "تمدید اشتراک ناموفق بود.")
   });
 }
 
@@ -281,10 +320,10 @@ export function useCreateReferral(): UseMutationResult<Referral, Error, Referral
   return useMutation({
     mutationFn: createReferral,
     onSuccess: () => {
-      toast.success('ارجاع مشتری ثبت شد.');
+      toast.success("ارجاع مشتری ثبت شد.");
       void queryClient.invalidateQueries({ queryKey: networkKeys.all() });
     },
-    onError: (error) => toast.error(error.message || 'ثبت ارجاع ناموفق بود.')
+    onError: (error) => toast.error(error.message || "ثبت ارجاع ناموفق بود.")
   });
 }
 
@@ -298,10 +337,10 @@ export function useUpdateReferralStage(): UseMutationResult<
     mutationFn: ({ referralId, payload }: { referralId: string; payload: ReferralStageUpdate }) =>
       updateReferralStage(referralId, payload),
     onSuccess: () => {
-      toast.success('مرحلهٔ ارجاع به‌روزرسانی شد.');
+      toast.success("مرحلهٔ ارجاع به‌روزرسانی شد.");
       void queryClient.invalidateQueries({ queryKey: networkKeys.all() });
     },
-    onError: (error) => toast.error(error.message || 'تغییر مرحلهٔ ارجاع ناموفق بود.')
+    onError: (error) => toast.error(error.message || "تغییر مرحلهٔ ارجاع ناموفق بود.")
   });
 }
 
@@ -310,13 +349,12 @@ export function useCreateTransfer(): UseMutationResult<Transfer, Error, Transfer
   return useMutation({
     mutationFn: createTransfer,
     onSuccess: () => {
-      toast.success('انتقال فایل ثبت شد.');
+      toast.success("انتقال فایل ثبت شد.");
       void queryClient.invalidateQueries({ queryKey: networkKeys.all() });
     },
-    onError: (error) => toast.error(error.message || 'ثبت انتقال ناموفق بود.')
+    onError: (error) => toast.error(error.message || "ثبت انتقال ناموفق بود.")
   });
 }
-
 
 export function useCreateCommission(): UseMutationResult<
   CommissionAgreementDetail,
@@ -327,10 +365,10 @@ export function useCreateCommission(): UseMutationResult<
   return useMutation({
     mutationFn: createCommission,
     onSuccess: () => {
-      toast.success('توافق پورسانت ایجاد شد.');
+      toast.success("توافق پورسانت ایجاد شد.");
       void queryClient.invalidateQueries({ queryKey: networkKeys.all() });
     },
-    onError: (error) => toast.error(error.message || 'ایجاد توافق پورسانت ناموفق بود.')
+    onError: (error) => toast.error(error.message || "ایجاد توافق پورسانت ناموفق بود.")
   });
 }
 
@@ -343,10 +381,10 @@ export function useLockCommission(): UseMutationResult<
   return useMutation({
     mutationFn: ({ agreementId }: { agreementId: string }) => lockCommission(agreementId),
     onSuccess: () => {
-      toast.success('توافق پورسانت قفل شد.');
+      toast.success("توافق پورسانت قفل شد.");
       void queryClient.invalidateQueries({ queryKey: networkKeys.all() });
     },
-    onError: (error) => toast.error(error.message || 'قفل کردن پورسانت ناموفق بود.')
+    onError: (error) => toast.error(error.message || "قفل کردن پورسانت ناموفق بود.")
   });
 }
 
@@ -355,10 +393,10 @@ export function useRecordPayment(): UseMutationResult<Payment, Error, PaymentCre
   return useMutation({
     mutationFn: recordPayment,
     onSuccess: () => {
-      toast.success('پرداخت ثبت شد.');
+      toast.success("پرداخت ثبت شد.");
       void queryClient.invalidateQueries({ queryKey: networkKeys.all() });
     },
-    onError: (error) => toast.error(error.message || 'ثبت پرداخت ناموفق بود.')
+    onError: (error) => toast.error(error.message || "ثبت پرداخت ناموفق بود.")
   });
 }
 
@@ -367,10 +405,10 @@ export function useCreateDispute(): UseMutationResult<Dispute, Error, DisputeCre
   return useMutation({
     mutationFn: createDispute,
     onSuccess: () => {
-      toast.success('اختلاف ثبت شد.');
+      toast.success("اختلاف ثبت شد.");
       void queryClient.invalidateQueries({ queryKey: networkKeys.all() });
     },
-    onError: (error) => toast.error(error.message || 'ثبت اختلاف ناموفق بود.')
+    onError: (error) => toast.error(error.message || "ثبت اختلاف ناموفق بود.")
   });
 }
 
@@ -391,10 +429,10 @@ export function useAddDisputeMessage(): UseMutationResult<
       isInternal?: boolean;
     }) => addDisputeMessage(disputeId, { body, is_internal: isInternal }),
     onSuccess: (_data, vars) => {
-      toast.success('پیام ثبت شد.');
+      toast.success("پیام ثبت شد.");
       void queryClient.invalidateQueries({ queryKey: networkKeys.dispute(vars.disputeId) });
     },
-    onError: (error) => toast.error(error.message || 'ثبت پیام ناموفق بود.')
+    onError: (error) => toast.error(error.message || "ثبت پیام ناموفق بود.")
   });
 }
 
@@ -408,10 +446,9 @@ export function useUpdateDisputeStatus(): UseMutationResult<
     mutationFn: ({ disputeId, payload }: { disputeId: string; payload: DisputeStatusUpdate }) =>
       updateDisputeStatus(disputeId, payload),
     onSuccess: () => {
-      toast.success('وضعیت اختلاف به‌روزرسانی شد.');
+      toast.success("وضعیت اختلاف به‌روزرسانی شد.");
       void queryClient.invalidateQueries({ queryKey: networkKeys.all() });
     },
-    onError: (error) => toast.error(error.message || 'تغییر وضعیت اختلاف ناموفق بود.')
+    onError: (error) => toast.error(error.message || "تغییر وضعیت اختلاف ناموفق بود.")
   });
 }
-
