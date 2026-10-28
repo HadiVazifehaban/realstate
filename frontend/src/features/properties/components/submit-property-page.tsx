@@ -12,7 +12,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { cn, formatPricePerMeter, formatToman, toPersianDigits } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -24,7 +23,7 @@ import {
   SUBMITTER_LABELS,
   formatBuildingAge
 } from '../utils/labels';
-import { DEAL_TYPES, PROPERTY_TYPES } from '../types';
+import { PROPERTY_TYPES } from '../types';
 import type { DealType, PropertyType } from '../types';
 import { useRealmRoles } from '@/hooks/use-auth';
 import { submitterKindFromRoles } from '../utils/submitter';
@@ -106,16 +105,11 @@ function digitsOnly(input: string): string {
     .join('');
 }
 
-/**
- * How a number is shown inside a field.
- *
- * Persian digits, grouped without separators. Every keystroke swaps one digit
- * for one digit, so the length never changes and the caret stays where it was;
- * a grouped string («۱۲۵,۰۰۰») would shift under the cursor mid-edit, which is
- * why the grouping is left to the hint line underneath.
- */
-function fieldDigits(value: number | null): string {
-  return value === null ? '' : toPersianDigits(String(value));
+/** Format numeric entry for readability; year stays ungrouped. */
+function fieldDigits(value: number | null, id?: string): string {
+  if (value === null) return '';
+  if (id === 'year_built') return toPersianDigits(String(value));
+  return toPersianDigits(value.toLocaleString('en-US'));
 }
 
 /**
@@ -139,6 +133,7 @@ export default function SubmitPropertyPage() {
   /** The id of the listing just created, which the upload step then targets. */
   const [createdPropertyId, setCreatedPropertyId] = React.useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
+  const [submissionNotice, setSubmissionNotice] = React.useState<string | null>(null);
 
   const submitProperty = useSubmitProperty();
   const uploadMedia = useUploadPropertyMedia(createdPropertyId);
@@ -166,7 +161,21 @@ export default function SubmitPropertyPage() {
   // applied here rather than discovered after a round trip.
   const missingRentAmount = isRent && !form.deposit_amount && !form.monthly_rent;
   const missingTitle = form.title.trim().length === 0;
-  const canSubmit = !missingRentAmount && !missingTitle && !submitProperty.isPending;
+  const missingSalePrice = !isRent && form.total_price === null;
+  const invalidYearBuilt =
+    form.year_built !== null &&
+    (form.year_built < 1300 || form.year_built > new Date().getFullYear() + 1);
+  const locationIsValid =
+    Number.isFinite(coordinates.lat) && Number.isFinite(coordinates.lng) &&
+    coordinates.lat >= 25 && coordinates.lat <= 40.5 &&
+    coordinates.lng >= 44 && coordinates.lng <= 64.5;
+  const canSubmit =
+    locationIsValid &&
+    !missingRentAmount &&
+    !missingSalePrice &&
+    !missingTitle &&
+    !invalidYearBuilt &&
+    !submitProperty.isPending;
 
   /**
    * Register the listing, then attach whatever media was picked.
@@ -226,9 +235,11 @@ export default function SubmitPropertyPage() {
 
   const handleSubmit = () => {
     if (!canSubmit) return;
+    setSubmissionNotice(null);
     submitProperty.mutate({
       latitude: coordinates.lat,
       longitude: coordinates.lng,
+      district: district.trim() || null,
       property_type: form.property_type,
       deal_type: form.deal_type,
       title: form.title.trim(),
@@ -250,6 +261,17 @@ export default function SubmitPropertyPage() {
       has_balcony: form.has_balcony,
       owner_name: form.owner_name.trim() || null,
       owner_phone: form.owner_phone.trim() || null
+    }, {
+      onSuccess: (result) => {
+        const message = result.created
+          ? 'ملک با موفقیت ثبت شد.'
+          : 'ملک با آگهی موجود تطبیق داده شد و اطلاعات آن به‌روزرسانی شد.';
+        setSubmissionNotice(message);
+        setCreatedPropertyId(result.property_id);
+      },
+      onError: (error: Error) => {
+        setSubmissionNotice(error.message || 'ثبت ملک ناموفق بود. موارد فرم را بررسی کنید و دوباره تلاش کنید.');
+      }
     });
   };
 
@@ -258,6 +280,7 @@ export default function SubmitPropertyPage() {
       pageTitle='ثبت ملک'
       pageDescription='ثبت مستقیم توسط مالک یا مشاور — مشخصات، قیمت و راه ارتباطی در یک فرم.'
     >
+      <div className='min-w-0 w-full overflow-x-hidden'>
       {/* Who the row will be stamped as. Read-only on purpose: the class of
           party comes from the signed token, so this tells the filer what the
           node will record rather than letting them choose. Without it, the
@@ -383,7 +406,6 @@ export default function SubmitPropertyPage() {
                 <NumberField
                   id='area'
                   label='متراژ'
-                  unit='متر مربع'
                   value={form.area}
                   min={1}
                   max={100000}
@@ -418,7 +440,7 @@ export default function SubmitPropertyPage() {
                   label='سال ساخت'
                   value={form.year_built}
                   min={1300}
-                  max={2100}
+                  max={new Date().getFullYear() + 1}
                   hint={formatBuildingAge(form.year_built)}
                   onChange={(value) => update('year_built', value)}
                 />
@@ -652,13 +674,27 @@ export default function SubmitPropertyPage() {
               </dl>
 
               <div className='flex flex-col gap-2'>
-                <Button onClick={handleSubmit} disabled={!canSubmit} className='w-full'>
+                {submissionNotice && (
+                  <p
+                    role={submitProperty.isError ? 'alert' : 'status'}
+                    className={cn(
+                      'rounded-lg border px-3 py-2 text-sm leading-6',
+                      submitProperty.isError
+                        ? 'border-destructive/40 bg-destructive/5 text-destructive'
+                        : 'border-gold-accent/40 bg-gold-accent/10 text-foreground'
+                    )}
+                  >
+                    {submissionNotice}
+                  </p>
+                )}
+                <Button onClick={handleSubmit} disabled={!canSubmit} aria-label='ثبت ملک در دفتر' className='w-full'>
                   {submitProperty.isPending ? 'در حال ثبت…' : 'ثبت ملک در دفتر'}
                 </Button>
                 <Button
                   variant='ghost'
                   onClick={reset}
                   disabled={submitProperty.isPending}
+                  aria-label='پاک کردن فرم'
                   className='w-full'
                 >
                   پاک کردن فرم
@@ -667,12 +703,23 @@ export default function SubmitPropertyPage() {
 
               {!canSubmit && !submitProperty.isPending && (
                 <p className='text-muted-foreground text-center text-xs'>
-                  برای فعال شدن ثبت، موارد بالا را کامل کنید.
+                  {!locationIsValid
+                    ? 'موقعیت انتخاب‌شده خارج از محدودهٔ پشتیبانی است؛ پین را در محدودهٔ ایران قرار دهید.'
+                    : invalidYearBuilt
+                      ? 'سال ساخت را به‌صورت سال میلادی بین ۱۳۰۰ تا سال آینده وارد کنید.'
+                      : missingTitle
+                        ? 'برای ثبت، عنوان آگهی را وارد کنید.'
+                        : missingSalePrice
+                          ? 'برای ثبت آگهی فروش، قیمت کل را وارد کنید.'
+                          : missingRentAmount
+                            ? 'برای ثبت آگهی اجاره، ودیعه یا اجارهٔ ماهانه را وارد کنید.'
+                            : 'در حال ثبت آگهی…'}
                 </p>
               )}
             </CardContent>
           </Card>
         </aside>
+      </div>
       </div>
     </PageContainer>
   );
@@ -713,7 +760,6 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 function NumberField({
   id,
   label,
-  unit,
   hint,
   value,
   min,
@@ -722,7 +768,6 @@ function NumberField({
 }: {
   id: string;
   label: string;
-  unit?: string;
   hint?: string | null;
   value: number | null;
   min?: number;
@@ -737,23 +782,22 @@ function NumberField({
           id={id}
           inputMode='numeric'
           dir='ltr'
-          className={cn('tabular-nums', unit && 'pe-20')}
-          value={fieldDigits(value)}
+          className='tabular-nums'
+          value={fieldDigits(value, id)}
           onChange={(event) => {
             const digits = digitsOnly(event.target.value);
             if (digits === '') return onChange(null);
             const parsed = Number(digits);
             if (Number.isNaN(parsed)) return onChange(null);
-            if (max !== undefined && parsed > max) return;
-            if (min !== undefined && min > 0 && parsed < min) return;
+            if (max !== undefined && parsed > max) {
+              if (id !== 'year_built') return;
+              onChange(parsed);
+              return;
+            }
+            if (min !== undefined && min > 0 && parsed < min && id !== 'year_built') return;
             onChange(parsed);
           }}
         />
-        {unit && (
-          <span className='text-muted-foreground pointer-events-none absolute inset-y-0 end-3 flex items-center text-xs'>
-            {unit}
-          </span>
-        )}
       </div>
       {hint && <p className='text-muted-foreground text-xs'>{hint}</p>}
     </div>
@@ -780,16 +824,14 @@ function MoneyField({
           id={id}
           inputMode='numeric'
           dir='ltr'
-          className='pe-20 tabular-nums'
+          className='tabular-nums'
           value={fieldDigits(value)}
           onChange={(event) => {
             const digits = digitsOnly(event.target.value).slice(0, 15);
-            onChange(digits === '' ? null : Number(digits));
+            const next = digits === '' ? null : Number(digits);
+            if (next === null || next <= 9_000_000_000_000_000) onChange(next);
           }}
         />
-        <span className='text-muted-foreground pointer-events-none absolute inset-y-0 end-3 flex items-center text-xs'>
-          تومان
-        </span>
       </div>
       {value !== null && value > 0 && (
         <p className='text-gold-dark text-xs font-medium'>{formatToman(value)}</p>

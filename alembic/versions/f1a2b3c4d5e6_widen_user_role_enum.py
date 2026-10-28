@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 
 revision: str = "f1a2b3c4d5e6"
 down_revision: Union[str, None] = "e2f4a6b8c9d1"
@@ -46,6 +46,10 @@ NEW_TO_LEGACY = {
 
 def _labels(type_name: str) -> list[str]:
     """Read the live labels of a native enum (empty when the type is absent)."""
+    if context.is_offline_mode():
+        # Offline SQL is generated from the known preceding revision graph;
+        # querying pg_catalog is impossible without a live bind.
+        return list(ROLE_LABELS) if type_name == "user_role" else []
     bind = op.get_bind()
     rows = bind.execute(
         sa.text(

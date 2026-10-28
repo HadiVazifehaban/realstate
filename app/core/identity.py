@@ -120,6 +120,7 @@ class Principal:
     username: str = ""
     full_name: str = ""
     realm_roles: frozenset[str] = field(default_factory=frozenset)
+    client_roles: dict[str, frozenset[str]] = field(default_factory=dict)
     roles: frozenset[UserRole] = field(default_factory=frozenset)
     tenant_id: str | None = None
     active_agency_id: str | None = None
@@ -157,10 +158,10 @@ class Principal:
 
 
 @functools.lru_cache(maxsize=4)
-def _jwks_client(issuer: str, cache_seconds: int, timeout: int) -> PyJWKClient:
-    """Cached JWKS client, keyed by realm so a settings change rebuilds it."""
+def _jwks_client(jwks_url: str, cache_seconds: int, timeout: int) -> PyJWKClient:
+    """Cached JWKS client, keyed by endpoint so a settings change rebuilds it."""
     return PyJWKClient(
-        f"{issuer.rstrip('/')}/protocol/openid-connect/certs",
+        jwks_url,
         cache_keys=True,
         lifespan=cache_seconds,
         timeout=timeout,
@@ -187,9 +188,10 @@ async def verify_access_token(
     # event loop on every request, and on a cache miss for an unparseable token it
     # raises a urllib/socket error that escaped the handler as a 500. Offloading
     # to a worker thread keeps the loop free and funnels every failure into 401.
-    client = _jwks_client(
-        s.keycloak_issuer, s.jwks_cache_seconds, s.jwks_request_timeout_seconds
+    jwks_url = s.keycloak_jwks_url or (
+        f"{s.keycloak_issuer.rstrip('/')}/protocol/openid-connect/certs"
     )
+    client = _jwks_client(jwks_url, s.jwks_cache_seconds, s.jwks_request_timeout_seconds)
     try:
         signing_key = await asyncio.to_thread(client.get_signing_key_from_jwt, token)
     except IdentityError:
@@ -280,6 +282,15 @@ def principal_from_claims(
     raw_roles = frozenset(str(role) for role in realm_access.get("roles", []))
     # Drop the realm's auto-assigned baseline role so it never reads as a grant.
     raw_roles = frozenset(r for r in raw_roles if not r.startswith("default-roles"))
+    raw_client_access = claims.get("resource_access")
+    client_roles: dict[str, frozenset[str]] = {}
+    if isinstance(raw_client_access, dict):
+        for client_name, client_claims in raw_client_access.items():
+            if not isinstance(client_name, str) or not isinstance(client_claims, dict):
+                continue
+            roles = client_claims.get("roles")
+            if isinstance(roles, list):
+                client_roles[client_name] = frozenset(role for role in roles if isinstance(role, str))
     mobile_verified = _claim_bool(
         claims.get("mobile_verified", _user_attribute(claims, "mobile_verified"))
     )
@@ -313,6 +324,7 @@ def principal_from_claims(
         username=str(_first_claim(claims.get("preferred_username")) or ""),
         full_name=str(_first_claim(claims.get("name")) or ""),
         realm_roles=raw_roles,
+        client_roles=client_roles,
         roles=frozenset(effective),
         tenant_id=_first_claim(claims.get("tenant_id", _user_attribute(claims, "tenant_id"))),
         agency_name=str(_first_claim(claims.get("agency_name", _user_attribute(claims, "agency_name"))) or ""),

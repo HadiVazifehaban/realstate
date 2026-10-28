@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
+from app.services.scraper.demand_locations import demand_location, source_city_targets
+
 
 @dataclass(frozen=True)
 class PlatformCityMeta:
@@ -228,8 +230,25 @@ CITY_MAPPING: dict[str, PlatformCityMeta] = {
 
 
 def get_city_meta(city_name: str) -> Optional[PlatformCityMeta]:
-    """Get platform-specific metadata for a Persian city name."""
-    return CITY_MAPPING.get(city_name)
+    """Return metadata only for independently crosswalked source targets."""
+    legacy = CITY_MAPPING.get(city_name)
+    if legacy is None:
+        return None
+    located = demand_location(city_name)
+    if located is None:
+        return None
+    targets = source_city_targets(located["id"])
+    if not targets:
+        return None
+    return PlatformCityMeta(
+        divar_slug=targets.get("divar", ""),
+        divar_city_id=legacy.divar_city_id if "divar" in targets else 0,
+        sheypoor_province=legacy.sheypoor_province if "sheypoor" in targets else "",
+        sheypoor_city=targets.get("sheypoor", ""),
+        delta_city_id=legacy.delta_city_id if "delta" in targets else None,
+        lat=legacy.lat,
+        lon=legacy.lon,
+    )
 
 
 def get_supported_cities() -> list[str]:

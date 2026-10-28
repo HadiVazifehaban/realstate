@@ -29,11 +29,11 @@ from datetime import date, time, timedelta
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import case, func, or_
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
-from app.api.deps import LicenseGuard, PrincipalDep, PropertiesAccessDep, SessionDep, SettingsDep, get_active_agency_membership
+from app.api.deps import LicenseGuard, Principal, PrincipalDep, PropertiesAccessDep, SessionDep, SettingsDep, get_active_agency_membership
 from app.api.v1.endpoints.crm import _resolve_actor_user
 from app.core.config import get_settings
 from app.core.crypto import PiiCipher
@@ -45,6 +45,8 @@ from app.models import (
     PropertyPriceHistory,
     PropertyReport,
     PropertyVisitBooking,
+    ListingShare,
+    ListingSharePermission,
 )
 from app.models.base import utcnow
 from app.models.enums import (
@@ -58,6 +60,7 @@ from app.models.enums import (
     SubmitterType,
     ValuationStatus,
     VisitSlotStatus,
+    ShareStatus,
 )
 from app.schemas.properties import (
     BLOCKING_STATUSES,
@@ -100,6 +103,147 @@ _SOURCE_EQUIVALENTS: dict[PropertySource, set[PropertySource]] = {}
 for _member in PropertySource:
     _SOURCE_EQUIVALENTS.setdefault(canonical_source(_member), set()).add(_member)
 del _member
+
+
+def _is_global_admin(principal: Principal | None, request: Request) -> bool:
+    """Keep the existing synthetic-admin escape hatch explicit and narrow."""
+    return (
+        principal is not None
+        and "ROLE_ADMIN" in principal.realm_roles
+        and request.headers.get("x-workspace-id") is None
+    )
+
+
+async def _property_scope(
+    session: SessionDep, principal: Principal | None, request: Request,
+) -> uuid.UUID | None:
+    """Resolve the caller's workspace without trusting tenant claims."""
+    if principal is None or _is_global_admin(principal, request):
+        return None
+    try:
+        _scoped, _membership, agency = await get_active_agency_membership(
+            session, principal, request
+        )
+    except HTTPException:
+        return None
+    return agency.id
+
+
+def _shared_property_ids(agency_id: uuid.UUID):
+    """Active incoming shares that grant at least summary visibility."""
+    now = utcnow()
+    return (
+        select(ListingShare.property_id)
+        .join(ListingSharePermission, ListingSharePermission.share_id == ListingShare.id)
+        .where(
+            ListingShare.target_agency_id == agency_id,
+            ListingShare.status == ShareStatus.ACTIVE,
+            ListingSharePermission.view_summary.is_(True),
+            or_(ListingShare.expires_at.is_(None), ListingShare.expires_at > now),
+        )
+    )
+
+
+def _property_visibility_condition(
+    principal: Principal | None,
+    request: Request,
+    agency_id: uuid.UUID | None,
+):
+    """SQL visibility predicate shared by list and aggregate reads."""
+    if principal is None:
+        return and_(Property.agency_id.is_(None), Property.status == PropertyStatus.ACTIVE)
+    if _is_global_admin(principal, request):
+        return None
+    visibility = [
+        and_(Property.agency_id.is_(None), Property.status == PropertyStatus.ACTIVE),
+        and_(
+            Property.owner_subject == principal.subject,
+            or_(
+                Property.agency_id.is_(None),
+                agency_id is not None and Property.agency_id == agency_id,
+            ),
+        ),
+    ]
+    if agency_id is not None:
+        visibility.extend([
+            Property.agency_id == agency_id,
+            Property.id.in_(_shared_property_ids(agency_id)),
+        ])
+    return or_(*visibility)
+
+
+async def _can_view_property(
+    session: SessionDep,
+    prop: Property,
+    principal: Principal,
+    request: Request,
+) -> tuple[bool, bool]:
+    """Return ``(allowed, exact_pin)`` and fail closed for private rows."""
+    if _is_global_admin(principal, request):
+        return True, True
+
+    agency_id = await _property_scope(session, principal, request)
+    is_owner = prop.owner_subject == principal.subject
+    if prop.agency_id is None:
+        # Scraped/global inventory is public only while ACTIVE. A personal row
+        # may remain visible to its owner while it is being edited or withdrawn.
+        return (prop.status is PropertyStatus.ACTIVE or is_owner), is_owner
+    if agency_id == prop.agency_id:
+        return True, True
+    if agency_id is None:
+        return False, False
+
+    shared = (await session.exec(
+        select(ListingShare.id)
+        .join(ListingSharePermission, ListingSharePermission.share_id == ListingShare.id)
+        .where(
+            ListingShare.property_id == prop.id,
+            ListingShare.target_agency_id == agency_id,
+            ListingShare.status == ShareStatus.ACTIVE,
+            ListingSharePermission.view_summary.is_(True),
+            or_(ListingShare.expires_at.is_(None), ListingShare.expires_at > utcnow()),
+        )
+        .limit(1)
+    )).first()
+    return shared is not None, False
+
+
+async def _require_property_view(
+    session: SessionDep,
+    property_id: uuid.UUID,
+    principal: PrincipalDep,
+    request: Request,
+) -> tuple[Property, bool]:
+    """Load a property and return a safe 404 for every unauthorized read."""
+    prop = await _load(session, property_id)
+    allowed, exact_pin = await _can_view_property(session, prop, principal, request)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "property_not_found"},
+        )
+    return prop, exact_pin
+
+
+async def _require_property_manage(
+    session: SessionDep,
+    property_id: uuid.UUID,
+    principal: Principal,
+    request: Request,
+) -> Property:
+    """Authorize a mutation; a read/share grant can never escalate to write."""
+    prop = await _load(session, property_id)
+    if _is_global_admin(principal, request):
+        return prop
+
+    agency_id = await _property_scope(session, principal, request)
+    owner_personal = prop.agency_id is None and prop.owner_subject == principal.subject
+    if owner_personal or (agency_id is not None and agency_id == prop.agency_id):
+        return prop
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={"error": "property_not_found"},
+    )
 
 
 async def _media_by_property(
@@ -155,6 +299,22 @@ def _summary(
     if not exact_pin and latitude is not None and longitude is not None:
         latitude, longitude = geo.blur_point(latitude, longitude)
     cover_url, images_count = _cover_url(prop, media)
+    canonical_source = LEGACY_SOURCE_ALIASES.get(prop.source, prop.source)
+    first_party = canonical_source in {
+        PropertySource.INTERNAL_USER,
+        PropertySource.INTERNAL_AGENCY,
+    }
+    message_available = bool(
+        first_party and prop.owner_subject and prop.agency_id
+        and prop.status is PropertyStatus.ACTIVE
+    )
+    message_reason = (
+        "پیام داخلی برای این آگهی آماده است."
+        if message_available
+        else "حساب آگهی‌دهنده برای پیام داخلی از این آگهی در دادهٔ قابل ارائه مشخص نشده است."
+        if first_party
+        else "این آگهی از یک منبع بیرونی دریافت شده و آگهی‌دهنده در سامانه شکارچی حساب ندارد؛ ارسال پیام درون‌برنامه‌ای ممکن نیست."
+    )
     return PropertySummary(
         id=prop.id,
         title=prop.title,
@@ -197,6 +357,10 @@ def _summary(
         description=prop.description or "",
         cover_url=cover_url,
         images_count=images_count,
+        message_available=message_available,
+        message_unavailable_reason=message_reason,
+        contact_available=False,
+        contact_unavailable_reason="اطلاعات تماس مجاز و قابل نمایش برای این آگهی در دسترس نیست.",
     )
 
 
@@ -368,6 +532,7 @@ async def submit_property(
             settings=settings,
             cipher=PiiCipher.from_key_file(settings.resolve_path(settings.pii_key_file)),
             created_by_id=actor_user_id,
+            owner_subject=principal.subject,
             agency_id=agency_id,
             prepare_new=lock_entitlement_scope,
             check_new_quota=check_listing_entitlement,
@@ -377,6 +542,11 @@ async def submit_property(
         raise HTTPException(
             status_code=402,
             detail={"error": exc.code, "message": str(exc)},
+        ) from exc
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "property_not_found"},
         ) from exc
     except ValueError as exc:
         raise HTTPException(
@@ -400,6 +570,7 @@ async def submit_property(
 async def list_properties(
     session: SessionDep,
     _principal: PropertiesAccessDep,
+    request: Request,
     q: str | None = Query(default=None, description="متن آزاد روی عنوان/محله"),
     # Repeated on purpose: the city filter is multi-select (an advisor's market
     # is the capital *and* its satellites), and the province chips expand to
@@ -504,10 +675,15 @@ async def list_properties(
     5. **وضعیت**: نوع ملک، نوع معامله، وضعیت ارزش‌گذاری
     """
     conditions = []
-    # Anonymous visitors may see only currently active public inventory. The
-    # caller cannot broaden this to drafts, withdrawn, sold, or archived rows.
+    # Public/global inventory is ACTIVE-only. First-party inventory is visible
+    # only inside the caller's workspace, to its owner, or through an active
+    # share with summary permission. This condition is deliberately independent
+    # of the user-supplied status filter, so `?status=DRAFT` cannot widen scope.
     if _principal is None:
-        conditions.append(Property.status == PropertyStatus.ACTIVE)
+        conditions.append(and_(Property.agency_id.is_(None), Property.status == PropertyStatus.ACTIVE))
+    elif not _is_global_admin(_principal, request):
+        agency_id = await _property_scope(session, _principal, request)
+        conditions.append(_property_visibility_condition(_principal, request, agency_id))
     if q:
         like = f"%{q.strip()}%"
         conditions.append(or_(Property.title.ilike(like), Property.neighborhood.ilike(like)))
@@ -693,6 +869,8 @@ async def inventory_cities(
 async def list_bargains(
     session: SessionDep,
     settings: SettingsDep,
+    principal: PrincipalDep,
+    request: Request,
     neighborhood: str | None = Query(default=None, description="نام محله (اختیاری)"),
     city: str | None = Query(default=None, description="نام شهر (اختیاری)"),
     cities: list[str] | None = Query(default=None),
@@ -730,9 +908,11 @@ async def list_bargains(
                 "message": "Set VALUATION_ENABLED=true to use the bargain radar.",
             },
         )
+    agency_id = await _property_scope(session, principal, request)
     rows = await valuation.find_bargains(
         session, neighbourhood=neighborhood, city=city, limit=limit,
         cities=cities, city_ids=city_ids, province_ids=province_ids,
+        visibility=_property_visibility_condition(principal, request, agency_id),
     )
     # Office staff work from this node's own book, so the exact pin is shown;
     # the public portal keeps using the masked projection.
@@ -751,6 +931,8 @@ async def list_bargains(
 )
 async def neighbourhood_market(
     session: SessionDep,
+    principal: PrincipalDep,
+    request: Request,
     city: str | None = Query(default=None),
     cities: list[str] | None = Query(default=None),
     city_ids: list[str] | None = Query(default=None),
@@ -767,6 +949,7 @@ async def neighbourhood_market(
     Median price per square metre, not a mean: portal asking prices carry enough
     outliers that a mean neighbourhood is a neighbourhood nobody can buy in.
     """
+    agency_id = await _property_scope(session, principal, request)
     overview = await market.neighbourhood_market(
         session,
         city=city,
@@ -776,6 +959,7 @@ async def neighbourhood_market(
         deal_types=deal_type,
         min_files=min_files,
         limit=limit,
+        visibility=_property_visibility_condition(principal, request, agency_id),
     )
     return NeighbourhoodMarketResponse(
         city=overview.city,
@@ -814,6 +998,8 @@ async def value_property(
     property_id: uuid.UUID,
     session: SessionDep,
     settings: SettingsDep,
+    principal: PrincipalDep,
+    request: Request,
     _license: LicenseGuard,
 ) -> ValuationResponse:
     if not settings.valuation_enabled:
@@ -821,7 +1007,7 @@ async def value_property(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"error": "valuation_disabled", "message": "Set VALUATION_ENABLED=true."},
         )
-    prop = await _load(session, property_id)
+    prop = await _require_property_manage(session, property_id, principal, request)
     result = await valuation.value_property(session, prop)
     return ValuationResponse(
         property_id=prop.id,
@@ -844,9 +1030,11 @@ async def update_price(
     payload: PriceUpdateRequest,
     session: SessionDep,
     settings: SettingsDep,
+    principal: PrincipalDep,
+    request: Request,
     _license: LicenseGuard,
 ) -> PropertySummary:
-    prop = await _load(session, property_id)
+    prop = await _require_property_manage(session, property_id, principal, request)
     entry = await submission.record_price(
         session, prop, new_price=payload.new_price, source=PriceChangeSource.MANUAL,
         source_ref=payload.reason or None,
@@ -874,6 +1062,7 @@ async def upload_property_media(
     property_id: uuid.UUID,
     session: SessionDep,
     principal: PropertiesAccessDep,
+    request: Request,
     _license: LicenseGuard,
     files: list[UploadFile] = File(..., description="عکس یا ویدیوی ملک"),
 ) -> PropertyMediaListResponse:
@@ -888,7 +1077,9 @@ async def upload_property_media(
     browser cannot render, a file over the per-type ceiling, or more than
     ``MAX_FILES_PER_REQUEST`` in one go.
     """
-    await _load(session, property_id)
+    if principal is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "property_not_found"})
+    await _require_property_manage(session, property_id, principal, request)
     if not files:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -972,6 +1163,8 @@ async def upload_property_media(
 async def read_property_media(
     media_id: uuid.UUID,
     session: SessionDep,
+    principal: PrincipalDep,
+    request: Request,
     _license: LicenseGuard,
 ) -> FileResponse:
     """The bytes behind a row uploaded through this node's own form.
@@ -990,6 +1183,7 @@ async def read_property_media(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "media_not_found", "message": "فایل پیدا نشد."},
         )
+    await _require_property_view(session, row.property_id, principal, request)
     path = property_media_store.resolve_stored(row.local_path)
     if path is None:
         raise HTTPException(
@@ -1012,6 +1206,8 @@ async def read_property_media(
 async def list_property_media(
     property_id: uuid.UUID,
     session: SessionDep,
+    principal: PrincipalDep,
+    request: Request,
     _license: LicenseGuard,
 ) -> PropertyMediaListResponse:
     """Every servable image of a listing.
@@ -1022,7 +1218,7 @@ async def list_property_media(
     dropped, or an upload whose file is gone from disk -- are skipped rather
     than returned as a broken ``<img>``.
     """
-    await _load(session, property_id)
+    await _require_property_view(session, property_id, principal, request)
     return await _media_list(session, property_id)
 
 
@@ -1067,6 +1263,8 @@ async def nearby_poi(
     property_id: uuid.UUID,
     session: SessionDep,
     settings: SettingsDep,
+    principal: PrincipalDep,
+    request: Request,
     _license: LicenseGuard,
     radius_m: int = Query(
         default=None, ge=100, le=2000, description="Metres; defaults to settings"
@@ -1079,7 +1277,7 @@ async def nearby_poi(
     it just has no "amenities nearby" block, which is the honest answer for a pin
     we do not have.
     """
-    prop = await _load(session, property_id)
+    prop, _exact_pin = await _require_property_view(session, property_id, principal, request)
     empty = {key: [] for key in poi_service.BUCKETS}
     if prop.latitude is None or prop.longitude is None:
         return NearbyPoiResponse(property_id=property_id, radius_m=0, buckets=empty)
@@ -1136,10 +1334,12 @@ async def report_property(
 async def price_history(
     property_id: uuid.UUID,
     session: SessionDep,
+    principal: PrincipalDep,
+    request: Request,
     _license: LicenseGuard,
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[PriceHistoryEntry]:
-    prop = await _load(session, property_id)
+    await _require_property_view(session, property_id, principal, request)
     rows = (
         await session.exec(
             select(PropertyPriceHistory)
@@ -1171,6 +1371,8 @@ async def price_history(
 async def visit_availability(
     property_id: uuid.UUID,
     session: SessionDep,
+    principal: PrincipalDep,
+    request: Request,
     _license: LicenseGuard,
     date_from: date | None = Query(
         default=None, description="اول بازه (ISO)؛ پیش‌فرض امروز"
@@ -1191,7 +1393,7 @@ async def visit_availability(
     so offering a Friday slot would only manufacture a request the desk has
     to refuse.
     """
-    await _load(session, property_id)
+    await _require_property_view(session, property_id, principal, request)
     today = date.today()
     start = date_from or today
     end = date_to or min(start + timedelta(days=6), today + timedelta(days=62))
@@ -1279,6 +1481,7 @@ async def book_visit_slot(
     payload: VisitBookingCreate,
     session: SessionDep,
     principal: PrincipalDep,
+    request: Request,
     _license: LicenseGuard,
 ) -> VisitBookingResponse:
     """File one visit request; the desk confirms it on the CRM board.
@@ -1289,7 +1492,7 @@ async def book_visit_slot(
     ``IntegrityError`` path answers 409 as well and two visitors racing for
     the same hour is normal traffic, not a 500.
     """
-    await _load(session, property_id)
+    await _require_property_manage(session, property_id, principal, request)
     held = (
         await session.exec(
             select(PropertyVisitBooking).where(
@@ -1355,15 +1558,17 @@ async def book_visit_slot(
 async def get_property(
     property_id: uuid.UUID,
     session: SessionDep,
+    principal: PrincipalDep,
+    request: Request,
     _license: LicenseGuard,
 ) -> PropertySummary:
-    prop = await _load(session, property_id)
+    prop, exact_pin = await _require_property_view(session, property_id, principal, request)
     # Media is loaded here so `cover_url` and `images_count` describe the same
     # listing the detail page is about. Without it this route reported zero images
     # for every property, including ones with a full gallery, which made the
     # response disagree with the sibling `/media` route for the same id.
     media = await _media_by_property(session, [prop.id])
-    return _summary(prop, exact_pin=True, media=media.get(prop.id, []))
+    return _summary(prop, exact_pin=exact_pin, media=media.get(prop.id, []))
 @router.get(
     "/deal-summary",
     response_model=DealSummaryResponse,

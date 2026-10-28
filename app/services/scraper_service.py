@@ -27,11 +27,7 @@ from app.schemas.scraper import ScrapeJobCreate
 from app.services.ingestion.pipeline import run_search_job
 from app.services.scraper.phone_extractor import PhoneExtractor
 from app.services.scraper.registry import DEFAULT_SOURCE_KEY, get_source
-from app.services.scraper.category_mapping import (
-    JobValidationError,
-    resolve_categories,
-    validate_job_target,
-)
+from app.services.scraper.category_mapping import JobValidationError, validate_job_target
 
 logger = get_logger("app.services.scraper_service")
 
@@ -66,89 +62,160 @@ async def create_job(
     city = payload.city or (s.city_list[0] if s.city_list else "")
     category = payload.category or (s.category_list[0] if s.category_list else "")
     # Resolve and validate the effective target before touching persistence.
-    # Generic categories are converted to the verified source-owned slug here,
-    # so every caller (API, scheduler and demand collection) gets the same gate.
+    # Every caller (API, scheduler and demand collection) uses this gate before
+    # persistence; source-specific route slugs are stored separately in params.
     requested_source = payload.source or DEFAULT_SOURCE_KEY
-    try:
-        mapping = validate_job_target(requested_source, city, category, s)
-    except JobValidationError:
-        # Legacy category compatibility must never bypass source/city checks.
-        raise
+    dry_run = payload.params.get("dry_run") is True
+    execution_scope = str(payload.params.get("execution_scope") or "")
+    if payload.params.get("source_category") and not (
+        (trigger == ScrapeJobTrigger.MANUAL and execution_scope.startswith("demand:"))
+        or (trigger == ScrapeJobTrigger.SCHEDULED and execution_scope.startswith("schedule:"))
+    ):
+        raise JobValidationError("UNSUPPORTED_CATEGORY", "source category override is reserved for internal mapped jobs")
+    if execution_scope.startswith("schedule:") and trigger != ScrapeJobTrigger.SCHEDULED:
+        raise JobValidationError("UNSUPPORTED_CATEGORY", "scheduled execution scopes require scheduled trigger")
+    if trigger == ScrapeJobTrigger.SCHEDULED and not execution_scope.startswith("schedule:"):
+        raise JobValidationError("UNSUPPORTED_CATEGORY", "scheduled trigger requires a scheduler execution scope")
+    mapping = validate_job_target(requested_source, city, category, s)
     source = get_source(requested_source)
     if requested_source.strip().lower() == "delta":
         from app.services.scraper.delta_taxonomy import normalise_city
 
-        try:
-            city = normalise_city(city)
-        except ValueError:
-            # Existing callers may persist an unsupported placeholder; runtime
-            # dispatch remains fail-closed in the client before network I/O.
-            pass
+        city = normalise_city(city)
     elif requested_source.strip().lower() == "divar":
         from app.services.scraper.cities import normalize_city_slug
 
         city = normalize_city_slug(city)
+    elif requested_source.strip().lower() == "sheypoor":
+        from app.services.scraper.demand_locations import canonical_demand_city
+
+        canonical_city = canonical_demand_city(city)
+        if canonical_city is not None:
+            city = canonical_city["slug"]
+    if payload.districts and source.validate_districts is not None:
+        try:
+            source.validate_districts(city, payload.districts)
+        except (TypeError, ValueError) as exc:
+            raise JobValidationError("UNSUPPORTED_DISTRICT", "district mapping is not verified") from exc
+    if dry_run:
+        raise JobValidationError("DRY_RUN", "dry-run is validation-only; no job is persisted")
     source_category = mapping.categories[0]
     resolved_source_category = source_category
+    if execution_scope.startswith("schedule:") and trigger != ScrapeJobTrigger.SCHEDULED:
+        raise JobValidationError("UNSUPPORTED_CATEGORY", "scheduled execution scopes require scheduled trigger")
+    if execution_scope.startswith("schedule:") and not (
+        trigger == ScrapeJobTrigger.SCHEDULED
+        and source.key in {"delta", "sheypoor"}
+        and payload.params.get("source_category")
+    ) and source.key != "divar":
+        raise JobValidationError("UNSUPPORTED_CATEGORY", "scheduled source mapping is not enabled")
 
     # Demand collection already owns an explicit source crosswalk and passes a
     # source-specific slug. Keep canonical UI categories for all other jobs;
     # the worker resolves them to `source_category` at execution time.
     internal_demand = (
         payload.params.get("execution_scope", "").startswith("demand:")
-        and payload.params.get("source_category") in mapping.categories
+        and bool(payload.params.get("source_category"))
     )
+    if execution_scope.startswith("demand:") and not internal_demand:
+        raise JobValidationError("UNSUPPORTED_CATEGORY", "demand scope requires an explicit mapped source category")
+    if internal_demand and (trigger != ScrapeJobTrigger.MANUAL or source.key not in {"delta", "sheypoor"}):
+        raise JobValidationError("UNSUPPORTED_CATEGORY", "demand mappings are restricted to supported manual source jobs")
+    if internal_demand and source.key == "sheypoor":
+        from app.services.scraper.demand_locations import source_city_targets
+
+        location_id = payload.params["execution_scope"].split(":", 1)[1]
+        if source_city_targets(location_id).get(source.key) != city:
+            raise JobValidationError("UNMAPPED_CITY", "demand Sheypoor city does not match the curated crosswalk")
     internal_schedule = (
         trigger == ScrapeJobTrigger.SCHEDULED
         and payload.params.get("execution_scope", "").startswith("schedule:")
-        and payload.params.get("source_category") in mapping.categories
-        and source.key == "sheypoor"
+        and bool(payload.params.get("source_category"))
+        and source.key in {"sheypoor", "delta"}
     )
     if payload.params.get("source_category") and not (internal_demand or internal_schedule):
         raise JobValidationError("UNSUPPORTED_CATEGORY", "source category override is reserved for internal mapped jobs")
+    if trigger == ScrapeJobTrigger.SCHEDULED and source.key != "divar" and not internal_schedule:
+        raise JobValidationError("UNSUPPORTED_CATEGORY", "scheduled jobs require explicit verified source mapping")
+    if internal_schedule and source.key == "divar":
+        raise JobValidationError("UNSUPPORTED_CATEGORY", "source category overrides are not supported for Divar schedules")
     if payload.params.get("property_type_hint") is not None:
         raise JobValidationError("UNSUPPORTED_CATEGORY", "property type hints are not trusted for listing classification")
-    if source.key == "divar" and category not in {
-        "apartment-sell", "apartment-rent", "house-villa-sell", "house-villa-rent"
-    }:
+    if source.key == "divar":
         from app.services.scraper.parser import map_category
 
         if map_category(category) is None:
             raise JobValidationError("UNSUPPORTED_CATEGORY", "Divar category is not recognized")
         source_category = category
-    if internal_demand or internal_schedule:
-        source_category = str(payload.params["source_category"]).strip().lower()
-        try:
-            mapping = resolve_categories(source.key, category)
-            if source_category not in mapping.categories:
-                raise JobValidationError("UNSUPPORTED_CATEGORY", "source category does not match verified mapping")
-        except JobValidationError:
-            from app.services.scraper.sheypoor_taxonomy import resolve_slug
+    if trigger == ScrapeJobTrigger.SCHEDULED and source.key == "divar":
+        from app.services.scraper.parser import map_category
 
-            if source.key != "sheypoor" or resolve_slug(source_category) is None:
-                raise
+        if map_category(category) is None:
+            raise JobValidationError("UNSUPPORTED_CATEGORY", "Divar scheduled category is not recognized")
+        source_category = category
     if internal_demand:
         from app.services.scraper.demand_locations import source_city_targets
 
         location_id = payload.params["execution_scope"].split(":", 1)[1]
-        expected = source_city_targets(location_id).get(source.key)
-        if expected != city:
-            raise JobValidationError("UNMAPPED_CITY", "demand execution city does not match curated source crosswalk")
-    elif internal_schedule and source.key == "sheypoor":
-        from app.services.scraper.demand_locations import demand_location
+        expected_city = source_city_targets(location_id).get(source.key)
+        if expected_city != city:
+            raise JobValidationError("UNMAPPED_CITY", "demand city does not match the curated crosswalk")
+        if str(payload.params["source_category"]).strip().lower() not in mapping.categories:
+            raise JobValidationError("UNSUPPORTED_CATEGORY", "demand category does not match the verified source mapping")
+        source_category = str(payload.params["source_category"]).strip().lower()
+        if source.key == "sheypoor":
+            from app.services.scraper.sheypoor_taxonomy import resolve_slug
 
-        city_row = demand_location(city)
-        if city_row is None or city_row.get("slug") != city:
-            raise JobValidationError("UNMAPPED_CITY", "scheduled Sheypoor city does not match curated source crosswalk")
-    elif trigger == ScrapeJobTrigger.SCHEDULED and source.key == "sheypoor":
-        source_category = resolved_source_category
-    elif source.key == "sheypoor":
+            if resolve_slug(source_category) is None:
+                raise JobValidationError("UNSUPPORTED_CATEGORY", "unverified Sheypoor source category")
+        elif source.key == "delta":
+            if source_category not in mapping.categories:
+                raise JobValidationError("UNSUPPORTED_CATEGORY", "unverified Delta source category")
+        else:
+            raise JobValidationError("UNSUPPORTED_CATEGORY", "demand mapping is unsupported for source")
+    elif internal_schedule and source.key == "sheypoor":
         from app.services.scraper.sheypoor_taxonomy import resolve_slug
 
-        if resolve_slug(source_category) is None:
+        source_category = str(payload.params["source_category"]).strip().lower()
+        if source_category not in mapping.categories or resolve_slug(source_category) is None:
+            raise JobValidationError("UNSUPPORTED_CATEGORY", "unverified scheduled Sheypoor category")
+    elif internal_schedule and source.key == "delta":
+        requested_category = str(payload.params["source_category"]).strip().lower()
+        if requested_category not in mapping.categories:
+            raise JobValidationError("UNSUPPORTED_CATEGORY", "scheduled Delta category does not match the verified mapping")
+        source_category = requested_category
+    if (
+        source.key == "delta"
+        and not internal_demand
+        and not internal_schedule
+        and source_category != category.strip().lower()
+    ):
+        raise JobValidationError("UNSUPPORTED_CATEGORY", "Delta category must match its verified source route")
+    if trigger == ScrapeJobTrigger.SCHEDULED and source.key == "sheypoor":
+        from app.services.scraper.demand_locations import demand_location
+        from app.services.scraper.sheypoor_taxonomy import resolve_slug
+
+        city_row = demand_location(city)
+        if city_row is None:
+            from app.services.scraper.demand_locations import canonical_demand_city
+
+            city_row = canonical_demand_city(city)
+        if city_row is None or city_row.get("slug") != city:
+            raise JobValidationError("UNMAPPED_CITY", "scheduled Sheypoor city does not match curated source crosswalk")
+        if internal_schedule:
+            source_category = str(payload.params["source_category"]).strip().lower()
+        else:
+            source_category = resolved_source_category
+        if source_category not in mapping.categories or resolve_slug(source_category) is None:
             raise JobValidationError("UNSUPPORTED_CATEGORY", "category has no verified Sheypoor taxonomy entry")
+    if dry_run:
+        raise JobValidationError("DRY_RUN", "dry-run is validation-only; no job is persisted")
     effective_category = category
     effective_scope = str(payload.params.get("execution_scope") or "")
+    if trigger == ScrapeJobTrigger.SCHEDULED and not effective_scope:
+        effective_scope = f"schedule:{utcnow().date().isoformat()}"
+    elif trigger == ScrapeJobTrigger.API and not effective_scope:
+        effective_scope = f"api:{utcnow().date().isoformat()}"
 
     # Serialize check/create for a target, then suppress only active duplicate
     # work. Completed work can be explicitly run again on a later trigger.
@@ -158,23 +225,44 @@ async def create_job(
             bind = session.get_bind()
         except Exception:
             bind = None
-    if bind is not None and bind.dialect.name == "postgresql":
-        await session.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-            {"key": f"scrape-target:{source.key}:{city}:{effective_category}:{payload.kind.value}:{effective_scope}"},
-        )
-    duplicate = await session.execute(
-        select(ScrapeJob).where(
-            ScrapeJob.source == source.key,
-            ScrapeJob.city == city,
-            ScrapeJob.category == effective_category,
-            ScrapeJob.kind == payload.kind,
-            ScrapeJob.params["execution_scope"].as_string() == effective_scope,
-            ScrapeJob.status.in_((ScrapeJobStatus.PENDING, ScrapeJobStatus.RUNNING)),
-        ).limit(1)
+    locked_postgres = bind is not None and bind.dialect.name == "postgresql"
+    in_transaction = getattr(session, "in_transaction", None)
+    owns_lock_transaction = locked_postgres and not (
+        bool(in_transaction()) if callable(in_transaction) else False
     )
-    existing = duplicate.scalar_one_or_none()
+    if locked_postgres:
+        try:
+            await session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                {"key": f"scrape-target:{source.key}:{city}:{effective_category}:{payload.kind.value}:{effective_scope}"},
+            )
+        except Exception:
+            await session.rollback()
+            raise
+    try:
+        duplicate = await session.execute(
+            select(ScrapeJob).where(
+                ScrapeJob.source == source.key,
+                ScrapeJob.city == city,
+                ScrapeJob.category == effective_category,
+                ScrapeJob.kind == payload.kind,
+                ScrapeJob.params["execution_scope"].as_string() == effective_scope,
+                ScrapeJob.status.in_((ScrapeJobStatus.PENDING, ScrapeJobStatus.RUNNING)),
+            ).limit(1)
+        )
+    except Exception:
+        if locked_postgres:
+            await session.rollback()
+        raise
+    try:
+        existing = duplicate.scalar_one_or_none()
+    except Exception:
+        if locked_postgres:
+            await session.rollback()
+        raise
     if existing is not None:
+        if locked_postgres:
+            await session.rollback()
         return existing
 
     job_params = {
@@ -185,21 +273,23 @@ async def create_job(
         "execution_scope": effective_scope,
         "districts": list(payload.districts),
     }
-    if payload.params.get("dry_run") is True:
-        raise JobValidationError("DRY_RUN", "dry-run requests cannot persist or launch jobs")
-
     job = ScrapeJob(
         kind=payload.kind,
         status=ScrapeJobStatus.PENDING,
         trigger=trigger,
         city=city,
         category=effective_category,
+        source=source.key,
         params=job_params,
         triggered_by_id=triggered_by_id,
     )
     session.add(job)
-    await session.commit()
-    await session.refresh(job)
+    try:
+        await session.commit()
+        await session.refresh(job)
+    except Exception:
+        await session.rollback()
+        raise
     return job
 
 
@@ -345,10 +435,45 @@ async def trigger_and_maybe_run(
     *,
     settings: Settings | None = None,
     wait: bool = False,
-) -> ScrapeJob:
+) -> ScrapeJob | None:
     """Create a job and either run it inline (tests) or in the background (API)."""
     s = settings or get_settings()
+    if payload.params.get("dry_run") is True:
+        city = payload.city or (s.city_list[0] if s.city_list else "")
+        category = payload.category or (s.category_list[0] if s.category_list else "")
+        source = get_source(payload.source or DEFAULT_SOURCE_KEY)
+        validate_job_target(source.key, city, category, s)
+        if payload.districts and source.validate_districts is not None:
+            try:
+                source.validate_districts(city, payload.districts)
+            except (TypeError, ValueError) as exc:
+                raise JobValidationError("UNSUPPORTED_DISTRICT", "district mapping is not verified") from exc
+        return None
     job = await create_job(session, payload, trigger=ScrapeJobTrigger.API, settings=s)
+    params = dict(job.params or {})
+    if wait:
+        await _run_job_with_session(session, job, params, s)
+        await session.refresh(job)
+    else:
+        launch_job_background(job.id, params)
+    job.updated_at = utcnow()
+    return job
+
+
+async def trigger_with_trigger(
+    session: AsyncSession,
+    payload: ScrapeJobCreate,
+    *,
+    trigger: ScrapeJobTrigger,
+    triggered_by_id: UUID | None = None,
+    settings: Settings | None = None,
+    wait: bool = False,
+) -> ScrapeJob:
+    """Validated service entry for API, manual, scheduler and demand jobs."""
+    s = settings or get_settings()
+    job = await create_job(
+        session, payload, trigger=trigger, triggered_by_id=triggered_by_id, settings=s
+    )
     params = dict(job.params or {})
     if wait:
         # Inline execution (tests / CLI): reuse the caller's session so the
@@ -371,4 +496,5 @@ __all__ = [
     "recover_orphaned_jobs",
     "launch_job_background",
     "trigger_and_maybe_run",
+    "trigger_with_trigger",
 ]

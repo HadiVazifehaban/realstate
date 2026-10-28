@@ -149,6 +149,9 @@ class Property(SQLModel, table=True):
     )
 
     created_by_id: uuid.UUID | None = Field(default=None, foreign_key="agency_user.id")
+    # Keycloak subject of the account that filed an internal listing. Scraped
+    # rows stay NULL and can never be used to create an internal conversation.
+    owner_subject: str | None = Field(default=None, max_length=255, index=True)
     # Set only for direct first-party listings submitted from a validated
     # workspace. Scraped/global inventory remains unscoped (NULL).
     agency_id: uuid.UUID | None = Field(default=None, foreign_key="agency.id", index=True)

@@ -14,18 +14,17 @@ real stored listings, with all the derived columns the read path fills in.
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
+import os
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import async_sessionmaker
+from app.core.config import Settings
 
 from app import main as main_module
 from app.api import deps as deps_module
-from app.core.identity import bootstrap_principal
 from app.models.enums import DealType, PropertySource, PropertyStatus, PropertyType
-
-pytestmark = pytest.mark.asyncio
 
 #: A recognisable title prefix, so the tests can pick their own rows out of a
 #: shared node holding tens of thousands of scraped listings.
@@ -80,60 +79,80 @@ _SEED: list[dict[str, Any]] = [
 
 
 @pytest.fixture
-async def seeded(client):
-    """Insert the rows above once, then remove them when the case is done.
-
-    A shared node's book would otherwise make every filter ambiguous: with
-    6k real listings in the table, ``min_rooms=3`` matches thousands of them and
-    the assertion can no longer say which row it expected.
-    """
-    from app.db.session import AsyncSessionLocal
-    from app.models import (
-        Property,
-        PropertyMedia,
-        PropertyOwnerPII,
-        PropertyPriceHistory,
-        PropertyReport,
-    )
+def seeded(client, phase15_engine):
+    """Seed only the preflight-approved disposable PostgreSQL instance."""
+    if os.getenv("SHEKARCHI_TEST_INTEGRATION") != "1":
+        pytest.skip("property filter persistence requires explicit isolated Integration opt-in")
+    from sqlmodel.ext.asyncio.session import AsyncSession
+    from app.api import deps as deps_module
+    from app.db import session as db_session
     from app.services import submission
-    from sqlmodel import select
 
-    ids: list = []
-    async with AsyncSessionLocal() as session:
-        for payload in _SEED:
-            payload = dict(payload)
-            payload["property_type"] = PropertyType(payload["property_type"])
-            payload["deal_type"] = DealType(payload["deal_type"])
-            result = await submission.submit_property(session, **payload)
-            ids.append(result.property_id)
-        await session.commit()
+    original_engine = db_session.engine
+    original_factory = db_session.AsyncSessionLocal
+    original_submit_engine = submission.engine
+    isolated_factory = async_sessionmaker(
+        bind=phase15_engine, class_=AsyncSession, expire_on_commit=False, autoflush=False
+    )
+    db_session.engine = phase15_engine
+    db_session.AsyncSessionLocal = isolated_factory
+    submission.engine = phase15_engine
 
+    async def get_test_session():
+        async with isolated_factory() as session:
+            yield session
+
+    app = main_module.app
+    from app.core.identity import bootstrap_principal
+    previous_override = app.dependency_overrides.get(deps_module.get_session)
+    app.dependency_overrides[deps_module.get_session] = get_test_session
+    seeded_ids: list[str] = []
     try:
-        yield ids
-    finally:
-        async with AsyncSessionLocal() as session:
-            # Children first: `property_price_history`, `property_media` and the
-            # owner vault all carry a plain FK with no ON DELETE, so deleting the
-            # listing before them violates the constraint and leaves the row in
-            # place -- which would then leak into the next case's assertions.
-            for model in (
-                PropertyPriceHistory,
-                PropertyMedia,
-                PropertyReport,
-                PropertyOwnerPII,
-            ):
-                rows = (
-                    await session.exec(
-                        select(model).where(model.property_id.in_(ids))
+        from app.core.identity import bootstrap_principal
+
+        async def seed_rows():
+            principal = bootstrap_principal()
+            for item in _SEED:
+                async with isolated_factory() as session:
+                    result = await submission.submit_property(
+                        session,
+                        latitude=item["latitude"], longitude=item["longitude"],
+                        deal_type=DealType(item["deal_type"]),
+                        property_type=PropertyType(item["property_type"]),
+                        title=item["title"], area=item["area"], rooms=item["rooms"],
+                        floor=item.get("floor"), year_built=item.get("year_built"),
+                        total_price=item["total_price"],
+                        has_parking=item.get("has_parking", False),
+                        has_elevator=item.get("has_elevator", False),
+                        has_balcony=item.get("has_balcony", False),
+                        settings=Settings(), owner_subject="phase15-filter-test",
                     )
-                ).all()
-                for row in rows:
-                    await session.delete(row)
-            for prop_id in ids:
-                prop = await session.get(Property, prop_id)
-                if prop is not None:
-                    await session.delete(prop)
-            await session.commit()
+                    await session.commit()
+                seeded_ids.append(str(result.property_id))
+
+        asyncio.run(seed_rows())
+        yield
+    finally:
+        async def cleanup_rows():
+            from app.models.property import Property
+            from app.models.property_price_history import PropertyPriceHistory
+            from sqlalchemy import delete
+            async with isolated_factory() as session:
+                if seeded_ids:
+                    await session.execute(
+                        delete(PropertyPriceHistory).where(PropertyPriceHistory.property_id.in_(seeded_ids))
+                    )
+                    await session.execute(delete(Property).where(Property.id.in_(seeded_ids)))
+                    await session.commit()
+
+        asyncio.run(cleanup_rows())
+        if previous_override is None:
+            app.dependency_overrides.pop(deps_module.get_session, None)
+        else:
+            app.dependency_overrides[deps_module.get_session] = previous_override
+        db_session.engine = original_engine
+        db_session.AsyncSessionLocal = original_factory
+        submission.engine = original_submit_engine
 
 
 @pytest.fixture
@@ -144,17 +163,22 @@ def client():
     guards are satisfied rather than removed — this exercises the real
     dependency chain and only the licence lookup itself is stood in.
     """
+    if os.getenv("SHEKARCHI_TEST_INTEGRATION") != "1":
+        pytest.skip("property filter API tests require explicit isolated Integration opt-in")
     app = main_module.app
+    from app.core.identity import bootstrap_principal
 
     async def _license_ok(session=None, settings=None):
         return None
 
+    previous_overrides = dict(app.dependency_overrides)
     app.dependency_overrides[deps_module.get_principal] = lambda: bootstrap_principal()
+    app.dependency_overrides[deps_module.get_properties_access] = lambda: bootstrap_principal()
     app.dependency_overrides[deps_module.verify_license_active] = _license_ok
     with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client
-    app.dependency_overrides.pop(deps_module.get_principal, None)
-    app.dependency_overrides.pop(deps_module.verify_license_active, None)
+    app.dependency_overrides.clear()
+    app.dependency_overrides.update(previous_overrides)
 
 
 def _seed_titles(items: list[dict]) -> set[str]:
@@ -301,7 +325,6 @@ async def test_published_window_of_zero_hours_matches_nothing(client, seeded) ->
 # --------------------------------------------------------------------------- #
 # Bad input
 # --------------------------------------------------------------------------- #
-@pytest.mark.asyncio
 async def test_out_of_range_value_is_rejected_not_silently_ignored(client) -> None:
     """A negative room count fails as a 422, not as 'no filter'."""
     response = client.get("/api/v1/properties", params={"min_rooms": -1})
@@ -330,15 +353,20 @@ def test_city_filter_is_repeated_not_single_valued() -> None:
 def test_multi_city_filter_returns_only_those_cities(client) -> None:
     """Repeated `city` narrows to exactly those cities, and never widens.
 
-    The count comparison, not a row-id comparison: the feed is paged, so the
-    filtered window legitimately holds rows that sit outside the first page of
-    the unfiltered one. What must hold is that no row from another city slips
-    through, and that the market is no larger than the whole book.
+    The count comparison, not a row-id comparison: the feed is paged, so filtered
+    rows may sit outside the unfiltered first page. No other city may slip through.
     """
     total = client.get("/api/v1/properties", params={"limit": 1}).json()["count"]
     both = _get(client, limit=2500, city=["تهران", "مشهد"])
     assert {item["city"] for item in both} <= {"تهران", "مشهد"}
     assert len(both) <= total
+
+
+def test_filter_fixture_engine_is_never_the_application_default() -> None:
+    """The API DB dependency must be supplied by the isolated-test override."""
+    from app.db import session as db_session
+
+    assert db_session.engine.url.database != "avgcrm"
 
 
 def test_scraper_trigger_accepts_several_cities() -> None:

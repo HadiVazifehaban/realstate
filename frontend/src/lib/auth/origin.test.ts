@@ -73,18 +73,32 @@ describe("Auth.js origin policy", () => {
     ).toMatchObject({ ok: false, reason: "forwarded-header" });
   });
 
-  it("rejects static Auth.js URLs because they pin a single callback origin", () => {
+  it("accepts a static Auth.js URL only for its exact origin", () => {
     const allowedRequest = request("http://localhost:3000/api/auth/providers");
-    expect(resolveAuthOrigin(allowedRequest, { AUTH_URL: "https://shekkarchi.ir" })).toMatchObject({
-      ok: false,
-      reason: "static-auth-url"
-    });
     expect(
-      resolveAuthOrigin(allowedRequest, { NEXTAUTH_URL: "http://localhost:3000" })
+      resolveAuthOrigin(allowedRequest, {
+        AUTH_URL: "http://localhost:3000",
+        NEXTAUTH_URL: "http://localhost:3000"
+      })
+    ).toEqual({ ok: true, origin: "http://localhost:3000" });
+    expect(
+      resolveAuthOrigin(allowedRequest, {
+        AUTH_URL: "https://shekkarchi.ir",
+        NEXTAUTH_URL: "https://shekkarchi.ir"
+      })
     ).toMatchObject({
       ok: false,
       reason: "static-auth-url"
     });
+  });
+
+  it("rejects mismatched static Auth.js URLs", () => {
+    expect(
+      resolveAuthOrigin(request("http://localhost:3000/api/auth/providers"), {
+        AUTH_URL: "http://localhost:3000",
+        NEXTAUTH_URL: "https://shekkarchi.ir"
+      })
+    ).toMatchObject({ ok: false, reason: "static-auth-url" });
   });
 
   it("accepts a separately configured local browser origin", () => {

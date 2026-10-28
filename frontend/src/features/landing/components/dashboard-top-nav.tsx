@@ -13,7 +13,7 @@ const containsPath = (items: NavItem[], path: string): boolean =>
     (item) => !item.disabled && (item.url === path || containsPath(item.items ?? [], path))
   );
 
-export function DashboardTopNav() {
+export function DashboardTopNav({ ariaLabel = "ابزارهای سامانه" }: { ariaLabel?: string }) {
   const groups = useFilteredNavGroups(navGroups);
   const pathname = usePathname()?.replace(/\/$/, "") ?? "";
   const root = useRef<HTMLElement>(null);
@@ -38,7 +38,7 @@ export function DashboardTopNav() {
     };
   }, []);
   return (
-    <nav ref={root} className="landing-dashboard-nav" aria-label="ابزارهای سامانه">
+    <nav ref={root} className="landing-dashboard-nav" aria-label={ariaLabel}>
       {groups.map((group) => {
         const Icon = Icons[group.items[0]?.icon ?? "dashboard"];
         return (

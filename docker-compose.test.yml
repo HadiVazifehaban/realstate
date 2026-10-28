@@ -1,0 +1,30 @@
+# Explicitly disposable PostgreSQL for local integration tests only.
+# Run only after reviewing the safety checklist and receiving approval.
+services:
+  test-db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: phase23_test
+      POSTGRES_PASSWORD: ${PHASE23_TEST_DB_PASSWORD:?Set a unique disposable test password in /tmp/phase23-test.env}
+      POSTGRES_DB: phase23_test
+    volumes:
+      - phase23_test_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phase23_test -d phase23_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks:
+      - phase23_test_net
+    restart: "no"
+    # Deliberately no ports: host services cannot accidentally reach it, and
+    # Compose does not attach this service to the project's default network.
+
+volumes:
+  phase23_test_pgdata:
+    name: phase23_test_pgdata
+
+networks:
+  phase23_test_net:
+    name: phase23_test_net
+    internal: true

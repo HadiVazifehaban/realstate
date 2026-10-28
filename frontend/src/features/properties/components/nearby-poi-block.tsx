@@ -80,6 +80,11 @@ export function NearbyPoiBlock({ propertyId, className, bare = false, compact = 
   // A listing without coordinates resolves with radius 0 and every bucket empty,
   // which the grid already renders honestly. No special case needed.
   const buckets = data?.buckets ?? {};
+  const hasResults = BUCKETS.some(({ key }) => (buckets[key] ?? []).length > 0);
+
+  if (!isPending && !isError && !hasResults) {
+    return bare ? <span className='nearby-poi-empty hidden' aria-hidden /> : null;
+  }
 
   const body = isPending ? (
     <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

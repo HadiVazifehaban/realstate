@@ -40,3 +40,91 @@
     transition: none !important;
   }
 }
+
+@media (max-width: 767px) {
+  .network-workspace,
+  .network-workspace .network-content,
+  .network-workspace [data-slot='card'] {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .network-workspace .network-hero {
+    margin-bottom: 0.75rem;
+    padding: 0.9rem;
+    border-radius: 1rem;
+  }
+
+  .network-workspace .network-hero > div {
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .network-workspace .network-hero h1 {
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+
+  .network-workspace .network-hero p {
+    margin-top: 0.25rem;
+    font-size: 0.7rem;
+    line-height: 1.7;
+  }
+
+  .network-workspace > [data-slot='page-container'] {
+    min-width: 0;
+  }
+
+  .network-workspace nav[aria-label='بخش‌های شبکه همکاری'] {
+    display: flex;
+    width: 100%;
+    margin-bottom: 0.85rem;
+    gap: 0.4rem;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding: 0.4rem;
+    scrollbar-width: none;
+  }
+
+  .network-workspace nav[aria-label='بخش‌های شبکه همکاری']::-webkit-scrollbar {
+    display: none;
+  }
+
+  .network-workspace nav[aria-label='بخش‌های شبکه همکاری'] > a {
+    flex: 0 0 9.5rem;
+    min-height: 3.25rem;
+    padding: 0.55rem 0.7rem;
+  }
+
+  .network-workspace .network-content [data-slot='table-container'],
+  .network-workspace .network-content [data-slot='table-wrapper'] {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .network-workspace .network-content table {
+    min-width: 42rem;
+  }
+
+  .network-workspace .network-content [data-slot='tabs-list'] {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .network-workspace .network-content [data-slot='tabs-list']::-webkit-scrollbar {
+    display: none;
+  }
+
+  .network-workspace .network-content [data-slot='tabs-trigger'] {
+    flex: 0 0 auto;
+    padding-inline: 0.7rem;
+    font-size: 0.7rem;
+  }
+
+  .network-workspace .network-content form,
+  .network-workspace .network-content [data-slot='card-content'] {
+    min-width: 0;
+  }
+}

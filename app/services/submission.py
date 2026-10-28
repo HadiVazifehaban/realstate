@@ -20,6 +20,7 @@ from sqlmodel import select
 from app.core.config import Settings
 from app.core.crypto import PiiCipher
 from app.core.logging import get_logger
+from app.db.session import engine
 from app.models import Property, PropertyOwnerPII, PropertyPriceHistory
 from app.models.enums import (
     DealType,
@@ -145,6 +146,7 @@ async def record_price(
     source: PriceChangeSource,
     source_ref: str | None = None,
     created_by_id: uuid.UUID | None = None,
+    owner_subject: str | None = None,
     agency_id: uuid.UUID | None = None,
     prepare_new: Callable[[], Awaitable[None]] | None = None,
     check_new_quota: Callable[[], Awaitable[None]] | None = None,
@@ -230,6 +232,7 @@ async def submit_property(
     settings: Settings | None = None,
     cipher: PiiCipher | None = None,
     created_by_id: uuid.UUID | None = None,
+    owner_subject: str | None = None,
     agency_id: uuid.UUID | None = None,
     prepare_new: Callable[[], Awaitable[None]] | None = None,
     check_new_quota: Callable[[], Awaitable[None]] | None = None,
@@ -294,6 +297,23 @@ async def submit_property(
         existing = await find_existing()
 
     created = existing is None
+    if existing is not None:
+        # Deduplication is still a write to the canonical row. A first-party
+        # listing from another workspace or a different personal owner must not
+        # be updated merely because the coordinates/specs match. Scraped rows
+        # have no owner/workspace and remain mergeable by the normal provenance
+        # rules.
+        same_workspace = existing.agency_id == agency_id
+        same_personal_owner = (
+            existing.agency_id is None
+            and existing.owner_subject is not None
+            and existing.owner_subject == owner_subject
+        )
+        scraped_unscoped = (
+            existing.agency_id is None and existing.owner_subject is None
+        )
+        if not (same_workspace or same_personal_owner or scraped_unscoped):
+            raise PermissionError("property_scope_mismatch")
     if existing is None:
         if check_new_quota is not None:
             await check_new_quota()
@@ -315,6 +335,7 @@ async def submit_property(
             storage_node_id="local",
             content_hash=content_hash,
             created_by_id=created_by_id,
+            owner_subject=owner_subject,
             agency_id=agency_id,
         )
     elif submitter_type is not None:

@@ -14,6 +14,7 @@ import {
   formatFloor,
   formatPublishedAgo
 } from "../utils/labels";
+import { useAuthContext } from "@/hooks/use-auth";
 
 /**
  * Listing card for the property feed, in the same ultra-luxury treatment as the
@@ -40,6 +41,7 @@ interface ListingCardProps {
 }
 
 export function ListingCard({ property, className, emphasis, compact = false }: ListingCardProps) {
+  const { user } = useAuthContext();
   const location = [property.neighborhood, property.city].filter(Boolean).join("، ");
   const age = formatBuildingAge(property.year_built);
   const floor = formatFloor(property.floor, property.total_floors);
@@ -56,7 +58,7 @@ export function ListingCard({ property, className, emphasis, compact = false }: 
       )}
     >
       <Link
-        href={`/dashboard/properties/${property.id}`}
+        href={user ? `/dashboard/properties/${property.id}` : `/auth/sign-in?callbackUrl=${encodeURIComponent(`/dashboard/properties/${property.id}`)}`}
         aria-label={property.title || PROPERTY_TYPE_LABELS[property.property_type]}
         className="flex h-full flex-col rounded-[inherit] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-accent"
       >

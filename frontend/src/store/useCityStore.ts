@@ -67,7 +67,10 @@ function writeStoredCity(key: string, city: ShekarchiCity | null): void {
   }
 }
 
-async function fetchServerCity(): Promise<ShekarchiCity | null> {
+async function fetchServerCity(subject: string | null): Promise<ShekarchiCity | null> {
+  // Auth.js may still be resolving on the first mobile render. Do not probe a
+  // protected preferences endpoint without a signed user subject.
+  if (!subject) return null;
   try {
     const response = await fetch(`${apiBaseUrl()}/users/me/preferences`, {
       cache: 'no-store',
@@ -167,7 +170,7 @@ export const useCityStore = create<CityStoreState>()(
             readStoredCity(LEGACY_STORAGE_KEY);
         }
         // سرور برنده است: شهر سرور روی کش همان کاربر می‌نشیند.
-        const server = await fetchServerCity();
+        const server = await fetchServerCity(subject);
         const winner = server ?? local;
         if (winner) {
           set({ activeCity: winner, isCityModalOpen: false, initialGate: false });
@@ -182,7 +185,7 @@ export const useCityStore = create<CityStoreState>()(
         set({ hasSyncedServer: true, hasHydrated: true });
       },
       syncWithServer: async () => {
-        const server = await fetchServerCity();
+        const server = await fetchServerCity(get().subject);
         if (server) {
           const { subject } = get();
           set({ activeCity: server, isCityModalOpen: false, initialGate: false });

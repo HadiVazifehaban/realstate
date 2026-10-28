@@ -23,7 +23,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 
 revision: str = "a3d7f1c95b24"
 down_revision: Union[str, None] = "f1a2b3c4d5e6"
@@ -36,6 +36,16 @@ INDEX = "ix_scrape_job_source"
 
 
 def upgrade() -> None:
+    if context.is_offline_mode():
+        # The preceding clean-chain revision creates scrape_job. Catalog checks
+        # are online-only; render the deterministic first-application DDL.
+        op.add_column(
+            TABLE,
+            sa.Column(COLUMN, sa.String(length=32), nullable=False, server_default="divar"),
+        )
+        op.execute(sa.text(f"UPDATE {TABLE} SET {COLUMN} = 'divar' WHERE {COLUMN} IS NULL"))
+        op.create_index(INDEX, TABLE, [COLUMN])
+        return
     bind = op.get_bind()
     existing = {c["name"] for c in sa.inspect(bind).get_columns(TABLE)}
     if COLUMN not in existing:
@@ -56,6 +66,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if context.is_offline_mode():
+        op.drop_index(INDEX, table_name=TABLE)
+        op.drop_column(TABLE, COLUMN)
+        return
     bind = op.get_bind()
     indexes = {i["name"] for i in sa.inspect(bind).get_indexes(TABLE)}
     if INDEX in indexes:

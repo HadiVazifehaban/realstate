@@ -76,6 +76,11 @@ from app.models.property_media import PropertyMedia
 from app.models.property_owner_pii import PropertyOwnerPII
 from app.models.property_price_history import PropertyPriceHistory
 from app.models.property_report import PropertyReport
+from app.models.publication import (
+    PropertyMediaPublication,
+    PropertyPublication,
+    PropertyPublicationAudit,
+)
 from app.models.scrape_job import ScrapeJob
 from app.models.sync_outbox import SyncOutbox
 from app.models.user_preference import UserPreference

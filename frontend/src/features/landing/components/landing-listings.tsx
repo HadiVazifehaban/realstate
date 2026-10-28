@@ -49,7 +49,7 @@ export function LandingListings() {
   };
   const listings = useQuery({
     queryKey: ["properties", "landing-showcase", filters],
-    queryFn: () => fetchProperties(filters),
+    queryFn: () => fetchProperties(filters, false),
     staleTime: 30_000,
     retry: false
   });
@@ -209,7 +209,7 @@ export function LandingListings() {
             </button>
           ))}
         </div>
-        <Link href="/dashboard/properties">
+        <Link href="/">
           همهٔ آگهی‌ها <IconArrowUpLeft size={17} aria-hidden />
         </Link>
       </div>
@@ -222,20 +222,13 @@ export function LandingListings() {
           </div>
         ) : listings.isError ? (
           <div className="landing-listings-message" role="alert">
-            <h3>{unauthorized ? "برای مشاهدهٔ ویترین وارد حساب شوید" : "دریافت آگهی‌ها ممکن نشد"}</h3>
+            <h3>{unauthorized ? "نمایش عمومی آگهی‌ها در دسترس نیست" : "دریافت آگهی‌ها ممکن نشد"}</h3>
             <p>
               {unauthorized
-                ? "نمایش آگهی‌ها تابع دسترسی حساب شما در سامانه است."
+                ? "قرارداد فعلی سرویس، فهرست آگهی‌ها را به کاربران دارای دسترسی مجاز محدود می‌کند؛ ورود به‌تنهایی این مجوز را ایجاد نمی‌کند."
                 : "ارتباط با فهرست املاک برقرار نشد؛ دوباره تلاش کنید."}
             </p>
-            {unauthorized ? (
-              <Link
-                className="landing-button landing-button-outline"
-                href="/auth/sign-in?callbackUrl=%2Fdashboard%23search"
-              >
-                ورود به حساب
-              </Link>
-            ) : (
+            {!unauthorized && (
               <button
                 className="landing-button landing-button-outline"
                 type="button"

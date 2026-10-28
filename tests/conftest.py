@@ -2,16 +2,83 @@
 
 from __future__ import annotations
 
+import os
+import asyncio
 import sys
+from urllib.parse import urlparse
 from pathlib import Path
 
 import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+pytest_plugins = ("pytest_asyncio",)
+
+def pytest_sessionstart(session) -> None:
+    """Fail closed before collection if opt-in Integration lacks its isolated target."""
+    if os.getenv("SHEKARCHI_TEST_INTEGRATION") != "1":
+        return
+    url = os.getenv("PHASE15_TEST_DATABASE_URL", "")
+    if not url:
+        pytest.exit("PHASE15_TEST_DATABASE_URL required before importing application", returncode=2)
+    os.environ["DATABASE_URL"] = url
+    os.environ["KEYCLOAK_ISSUER"] = os.getenv("PHASE15_TEST_KEYCLOAK_ISSUER", "")
+    os.environ["KEYCLOAK_REALM"] = os.getenv("PHASE15_TEST_KEYCLOAK_REALM", "")
+    os.environ["SMS_PROVIDER"] = os.getenv("PHASE15_TEST_SMS_PROVIDER", "")
+    os.environ["ZIBAL_ENABLED"] = os.getenv("PHASE15_TEST_ZIBAL_ENABLED", "")
+    from scripts.phase15_preflight import main as preflight
+
+    try:
+        asyncio.run(preflight())
+        os.environ["SHEKARCHI_TEST_PROCESS"] = "1"
+    except Exception as exc:  # noqa: BLE001 - fail closed before collection
+        pytest.exit(f"Test database preflight failed: {exc}", returncode=2)
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+
 from app.core.crypto import PiiCipher  # noqa: E402
+
+
+@pytest.fixture(scope="session")
+def phase15_database_url() -> str:
+    """Return only the preflight-approved disposable PostgreSQL URL."""
+    if os.getenv("SHEKARCHI_TEST_INTEGRATION") != "1" or os.getenv("SHEKARCHI_TEST_PROCESS") != "1":
+        pytest.fail("Phase 1.6 database fixture requires successful isolated preflight")
+    url = os.environ["PHASE15_TEST_DATABASE_URL"]
+    parsed = urlparse(url)
+    if parsed.path.lstrip("/") in {"", "avgcrm", "avg"}:
+        pytest.fail("refusing application/default database name")
+    return url
+
+
+@pytest.fixture(scope="session")
+def phase15_engine(phase15_database_url):
+    """A process-scoped engine bound explicitly to the disposable DB."""
+    from sqlalchemy.engine import make_url
+    from sqlalchemy.pool import NullPool
+
+    url = make_url(phase15_database_url)
+    driver = {"postgresql+psycopg": "postgresql+asyncpg"}.get(url.drivername, url.drivername)
+    # Tests create/close event loops independently; pooled asyncpg connections
+    # are loop-bound and otherwise leak across tests.
+    engine = create_async_engine(url.set(drivername=driver), poolclass=NullPool)
+    yield engine
+    asyncio.run(engine.dispose())
+
+
+@pytest.fixture
+def phase15_session_factory(phase15_engine):
+    """Per-test async sessions using the approved isolated engine."""
+    return async_sessionmaker(
+        bind=phase15_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+    )
 
 
 @pytest.fixture()

@@ -1,0 +1,73 @@
+name: shekarchi-phase15-test
+
+services:
+  app-test-db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: phase15_app
+      POSTGRES_PASSWORD: ${PHASE15_APP_DB_PASSWORD:?required}
+      POSTGRES_DB: shekarchi_phase15
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    volumes:
+      - phase15_app_pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:15432:5432"
+    networks: [phase15]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phase15_app -d shekarchi_phase15"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  keycloak-test-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: phase15_keycloak
+      POSTGRES_PASSWORD: ${PHASE15_KEYCLOAK_DB_PASSWORD:?required}
+      POSTGRES_DB: shekarchi_phase15_keycloak
+    volumes:
+      - phase15_keycloak_pgdata:/var/lib/postgresql/data
+    networks: [phase15]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phase15_keycloak -d shekarchi_phase15_keycloak"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  keycloak-test:
+    image: shekarchi-keycloak:26.0.8-captcha-threshold-v2
+    depends_on:
+      keycloak-test-db:
+        condition: service_healthy
+    command: ["start-dev"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-test-db:5432/shekarchi_phase15_keycloak
+      KC_DB_USERNAME: phase15_keycloak
+      KC_DB_PASSWORD: ${PHASE15_KEYCLOAK_DB_PASSWORD:?required}
+      KC_BOOTSTRAP_ADMIN_USERNAME: phase15-bootstrap
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${PHASE15_KEYCLOAK_BOOTSTRAP_PASSWORD:?required}
+      KC_HOSTNAME: ${PHASE15_KEYCLOAK_HOSTNAME:-http://127.0.0.1:18082}
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "false"
+    volumes:
+      - ${PHASE15_REALM_FILE:?prepare a test-only realm export}:/opt/keycloak/data/import/phase15-test-realm.json:ro
+    ports:
+      - "127.0.0.1:18082:8080"
+    networks: [phase15]
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+networks:
+  phase15:
+    name: shekarchi_phase15_net
+    internal: true
+
+volumes:
+  phase15_app_pgdata:
+    name: shekarchi_phase15_app_pgdata
+  phase15_keycloak_pgdata:
+    name: shekarchi_phase15_keycloak_pgdata

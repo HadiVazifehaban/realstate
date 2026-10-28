@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { TILE_URL, tileErrorMessage } from '../config/tiles';
+import { tileErrorMessage } from '../config/tiles';
 import type { MapPin } from './map-canvas';
 
 /**
@@ -36,6 +36,7 @@ export function PropertyMap({
   // Tile errors arrive through a window event because Leaflet's TileLayer is
   // created inside react-leaflet, out of reach of React state here.
   const [tilesDown, setTilesDown] = useState(false);
+  const [mapKey, setMapKey] = useState(0);
 
   useEffect(() => {
     const onError = () => setTilesDown(true);
@@ -56,17 +57,24 @@ export function PropertyMap({
         } ${className ?? ""}`}
         style={{ height }}
       >
-        <MapCanvas pins={pins} center={center} zoom={zoom} />
+        <MapCanvas key={mapKey} pins={pins} center={center} zoom={zoom} />
       </div>
 
       {tilesDown && (
-        <Alert variant='destructive'>
-          <AlertTitle>سرویس تایل در دسترس نیست</AlertTitle>
-          <AlertDescription>
-            {tileErrorMessage()}
-            <span className='mt-1 block font-mono text-xs' dir='ltr'>
-              {TILE_URL}
-            </span>
+        <Alert className='border-gold-primary/20 bg-gold-primary/5 py-2' role='status'>
+          <AlertTitle className='text-xs'>نمایش نقشه موقتاً ممکن نیست</AlertTitle>
+          <AlertDescription className='flex flex-wrap items-center justify-between gap-2 text-xs'>
+            <span>{tileErrorMessage()}</span>
+            <button
+              type='button'
+              className='text-gold-primary underline underline-offset-2'
+              onClick={() => {
+                setTilesDown(false);
+                setMapKey((value) => value + 1);
+              }}
+            >
+              تلاش دوباره
+            </button>
           </AlertDescription>
         </Alert>
       )}

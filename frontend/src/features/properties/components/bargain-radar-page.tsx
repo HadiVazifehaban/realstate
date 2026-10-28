@@ -22,6 +22,7 @@ import { SOURCE_LABELS } from '../utils/labels';
 import { marketMedianFor } from '../utils/market';
 import { useQueryStates } from 'nuqs';
 import { parseAsArrayOf, parseAsString } from 'nuqs';
+import { useAuthContext } from '@/hooks/use-auth';
 
 /**
  * Rows the first render carries, and how many each "نمایش بیشتر" click adds.
@@ -83,6 +84,7 @@ function normalizeCities(city: string | string[] | undefined): string[] {
  * the AVM is still gathering comparables.
  */
 export default function BargainRadarPage() {
+  const { user, isLoading: authLoading } = useAuthContext();
   // The showcase toolbar's filter state lives HERE, not in the rails widget:
   // every control in it filters the whole page, so the same values drive the
   // grid query below and the rails above. Keeping them in one place is what
@@ -210,7 +212,7 @@ export default function BargainRadarPage() {
 
   // The query must always occupy the same hook slot, including while the
   // persisted city is hydrating. Disable fetching, not the hook itself.
-  const result = useProperties(query, citySelected);
+  const result = useProperties(query, Boolean(citySelected && !authLoading && user));
   const data = citySelected ? result.data : undefined;
   const isPending = citySelected && result.isPending;
   const isError = citySelected && result.isError;

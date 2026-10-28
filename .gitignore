@@ -9,6 +9,7 @@ venv/
 .mypy_cache/
 
 # Secrets & runtime data (NEVER commit)
+.env.phase23-test
 /mellipayamak.env
 keycloak-shekarchi-sms/build-output/
 .env

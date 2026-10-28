@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import LicenseGuard, SessionDep, SettingsDep
 from app.schemas.scraper import (
@@ -19,8 +19,8 @@ from app.schemas.scraper import (
     ScrapeStatsResponse,
 )
 from app.services import scraper_service
-from app.services.scraper.city_mapping import get_city_meta, get_supported_cities
 from app.services.scraper.registry import UnknownSourceError, get_source
+from app.services.scraper.category_mapping import JobValidationError, validate_job_target
 from app.services import scraper_stats
 
 router = APIRouter()
@@ -84,29 +84,48 @@ async def trigger_scrape(
             },
         )
 
-    # Fail fast on slugs this portal has no id for, instead of letting the job
-    # die mid-scrape. Each source validates against its own registry.
+    # Validate every requested target with the same central gate as all other
+    # job-creation paths before queueing the first city.
     try:
         for city in requested:
-            if source.validate_city is not None:
-                source.validate_city(city)
+            validate_job_target(source.key, city, category, settings)
             if payload.districts and source.validate_districts is not None:
                 source.validate_districts(city, payload.districts)
-    except Exception as exc:  # noqa: BLE001 - surfaced as 422 below
+    except (JobValidationError, TypeError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"error": "unknown_city_or_district", "message": str(exc)},
+            detail={"error": getattr(exc, "code", "unknown_city_or_district"), "message": str(exc)},
         ) from exc
 
     # One sweep per city, all queued before returning, so a six-city filter is
     # six jobs the caller can watch rather than one long one they cannot.
     jobs = []
+    dry_run = payload.params.get("dry_run") is True
     for city in requested:
         single = payload.model_copy(update={"city": city, "cities": []})
-        job = await scraper_service.trigger_and_maybe_run(
-            session, single, settings=settings, wait=False
-        )
-        jobs.append(job)
+        if dry_run:
+            try:
+                await scraper_service.trigger_and_maybe_run(session, single, settings=settings, wait=False)
+            except JobValidationError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"error": exc.code, "message": str(exc)},
+                ) from exc
+            continue
+        try:
+            job = await scraper_service.trigger_and_maybe_run(
+                session, single, settings=settings, wait=False
+            )
+            if job is not None:
+                jobs.append(job)
+        except JobValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": exc.code, "message": str(exc)},
+            ) from exc
+
+    if dry_run:
+        return {"status": "validated", "queued": 0, "cities": requested, "source": source.key, "category": category}
 
     # The response stays one job's shape for the existing callers; the extra
     # jobs are surfaced through `queued`, which the UI counts for its toast.
@@ -184,7 +203,6 @@ async def scraper_stats_endpoint(
 )
 async def set_focus_city(
     city: str,
-    background_tasks: BackgroundTasks,
     session: SessionDep,
     settings: SettingsDep,
     _license: LicenseGuard,
@@ -200,16 +218,16 @@ async def set_focus_city(
             "message": "No specific city selected",
             "city": None,
         }
+
+    from app.services.scraper.demand_locations import demand_location
+
+    if demand_location(city) is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": "unknown_focus_city", "message": "City is not in the curated location catalog."},
+        )
     
     # Check if city is supported
-    meta = get_city_meta(city)
-    if not meta:
-        return {
-            "status": "error",
-            "message": f"City '{city}' is not supported for scraping",
-            "supported_cities": get_supported_cities(),
-        }
-    
     if not settings.scraper_enabled:
         return {
             "status": "skipped",
@@ -217,44 +235,12 @@ async def set_focus_city(
             "city": city,
         }
     
-    # Trigger background scraping for the selected city
-    category = settings.category_list[0] if settings.category_list else "real-estate"
-    
-    async def run_city_scrape():
-        try:
-            for source_name in ["divar", "sheypoor"]:
-                try:
-                    source = get_source(source_name)
-                    if source.validate_city is not None:
-                        source.validate_city(city)
-                    
-                    payload = ScrapeJobCreate(
-                        source=source_name,
-                        city=city,
-                        category=category,
-                    )
-                    await scraper_service.trigger_and_maybe_run(
-                        session, payload, settings=settings, wait=False
-                    )
-                except Exception as exc:
-                    from app.core.logging import get_logger
-                    logger = get_logger("app.scraper.focus")
-                    logger.error(f"Failed to trigger scrape for {source_name}/{city}: {exc}")
-        except Exception as exc:
-            from app.core.logging import get_logger
-            logger = get_logger("app.scraper.focus")
-            logger.error(f"Failed to run city scrape: {exc}")
-    
-    background_tasks.add_task(run_city_scrape)
-    
+    # This endpoint persists only the user's focus preference in client state;
+    # it must not create jobs or start scraping as a side effect.
     return {
         "status": "success",
         "city": city,
-        "message": f"Scraping triggered for {city}",
-        "platforms": {
-            "divar": {"slug": meta.divar_slug, "city_id": meta.divar_city_id},
-            "sheypoor": {"province": meta.sheypoor_province, "city": meta.sheypoor_city},
-        },
+        "message": "Focus city selected; no scrape job was created.",
     }
 
 

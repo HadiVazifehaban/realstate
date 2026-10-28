@@ -44,10 +44,11 @@ def build_property_fields(
     source: PropertySource = PropertySource.DIVAR_SCRAPER,
 ) -> dict[str, Any]:
     """Public, owner-free fields for the ``Property`` model."""
-    # The persisted legacy schema requires a concrete enum. Never turn a
-    # combined/unknown source category into APARTMENT: only detail evidence may
-    # supply the type. When absent, omit the key so legacy callers/model schema
-    # default behavior remains unchanged rather than asserting guessed evidence.
+    # Never turn a combined/unknown source category into APARTMENT: only detail
+    # evidence may supply the type. The current DB schema is NOT NULL, so reject
+    # an unresolved detail before the persistence layer can apply a model default.
+    if detail.property_type is None:
+        raise ValueError("listing property type is unknown from source detail evidence")
     #
     # City Gate guard: the parser's city slot sometimes carries a neighbourhood
     # (``پونک``), a phase (``فاز ۱``) or a street -- those rows would vanish the
@@ -59,7 +60,7 @@ def build_property_fields(
     fields: dict[str, Any] = {
         "title": detail.title or "",
         "description": detail.description or "",
-        **({"property_type": detail.property_type} if detail.property_type is not None else {}),
+        "property_type": detail.property_type,
         "deal_type": detail.deal_type or DealType.SALE,
         "province": located["province"] if located else "",
         "city": located["name"] if located else city,

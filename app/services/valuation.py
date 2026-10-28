@@ -298,6 +298,7 @@ async def find_bargains(
     province_ids: list[str] | None = None,
     cities: list[str] | None = None,
     limit: int = 50,
+    visibility=None,
 ) -> list[Property]:
     """Listings the engine flagged as below market -- the bargain radar feed."""
     query = select(Property).where(
@@ -312,6 +313,8 @@ async def find_bargains(
                                   cities=cities or ([city] if city else None))
     if location is not None:
         query = query.where(location)
+    if visibility is not None:
+        query = query.where(visibility)
     return list((await session.exec(query.limit(limit))).all())
 
 

@@ -75,6 +75,13 @@ export async function fetchMessages(conversationId: string): Promise<Message[]> 
   return rows.map(mapMessage);
 }
 
+export async function openPropertyConversation(propertyId: string): Promise<Conversation> {
+  return mapConversation(await request<ApiConversation>(
+    `/chat/properties/${encodeURIComponent(propertyId)}/conversation`,
+    { method: 'POST' },
+  ));
+}
+
 export async function sendMessage(conversationId: string, body: string, clientMessageId: string): Promise<Message> {
   const row = await request<ApiMessage>(`/chat/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: 'POST', body: JSON.stringify({ body, client_message_id: clientMessageId })

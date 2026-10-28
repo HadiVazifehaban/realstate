@@ -16,6 +16,7 @@ import org.keycloak.authentication.Authenticator;
 import org.keycloak.authentication.authenticators.browser.UsernamePasswordForm;
 import org.keycloak.authentication.authenticators.util.AuthenticatorUtils;
 import org.keycloak.models.*;
+import org.keycloak.models.UserCredentialModel;
 
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.MultivaluedHashMap;
@@ -144,6 +145,7 @@ public class SmsAuthenticator extends UsernamePasswordForm {
             String phone = formData.getFirst("phone");
             String normalized = normalizePhone(phone, context);
             if (normalized == null) return;
+            String purpose = "recovery".equals(formData.getFirst("loginMode")) ? "recovery" : "login";
             setSessionNote(context, NOTE_OTP_ELIGIBLE, "false");
             UserModel user = findUniqueVerifiedUser(context, context.getRealm(), normalized);
             if (!eligible(context, user)) {
@@ -154,7 +156,7 @@ public class SmsAuthenticator extends UsernamePasswordForm {
                         safeLoginFormData(formData), "smsOtpRequestGeneric"));
                 return;
             }
-            if (issueOtp(context, config, normalized, "login")) {
+            if (issueOtp(context, config, normalized, purpose)) {
                 showOtpForm(context, GENERIC_OTP_MESSAGE);
             } else {
                 context.challenge(renderUnifiedLogin(context, config,
@@ -215,12 +217,21 @@ public class SmsAuthenticator extends UsernamePasswordForm {
             }
             if ("true".equals(getSessionNote(context, NOTE_OTP_ELIGIBLE)) && verifyOtp(context, config, code == null ? "" : code)) {
                 context.getAuthenticationSession().removeAuthNote(NOTE_FAILED_ATTEMPTS);
-                completeAuthentication(context, config);
+                if ("recovery".equals(getSessionNote(context, NOTE_FLOW))) {
+                    showResetPasswordForm(context, null);
+                } else {
+                    completeAuthentication(context, config);
+                }
             } else {
                 incrementFailedAttempts(context);
                 context.getEvent().detail("otp_result", "invalid").error("invalid_user_credentials");
                 showOtpForm(context, "کد وارد شده نامعتبر یا منقضی است");
             }
+            return;
+        }
+
+        if ("resetPassword".equals(action)) {
+            resetPassword(context, formData);
             return;
         }
 
@@ -487,6 +498,43 @@ public class SmsAuthenticator extends UsernamePasswordForm {
         }
         Response response = form.createForm("login-otp-sms.ftl");
         context.forceChallenge(response);
+    }
+
+    private void showResetPasswordForm(AuthenticationFlowContext context, String error) {
+        var form = context.form()
+                .setAttribute("unifiedLogin", true)
+                .setAttribute("phoneMasked", maskPhone(getSessionNote(context, NOTE_PHONE)));
+        if (error != null && !error.isBlank()) form.setError(error);
+        context.forceChallenge(form.createForm("login-reset-password.ftl"));
+    }
+
+    private void resetPassword(AuthenticationFlowContext context, MultivaluedMap<String, String> formData) {
+        String password = formData.getFirst("password");
+        String confirmation = formData.getFirst("password-confirm");
+        String userId = getSessionNote(context, NOTE_USER_ID);
+        if (password == null || password.length() < 12 || password.length() > 128
+                || !password.equals(confirmation) || userId == null
+                || !"recovery".equals(getSessionNote(context, NOTE_FLOW))) {
+            showResetPasswordForm(context, "رمز عبور باید حداقل ۱۲ کاراکتر باشد و با تکرار آن یکسان باشد.");
+            return;
+        }
+        UserModel user = context.getSession().users().getUserById(context.getRealm(), userId);
+        String phone = getSessionNote(context, NOTE_PHONE);
+        if (!eligible(context, user) || phone == null || !matches(phone, getVerifiedPhone(user))) {
+            context.failure(AuthenticationFlowError.INVALID_USER);
+            return;
+        }
+        try {
+            user.credentialManager().updateCredential(UserCredentialModel.password(password, false));
+            try (Stream<UserSessionModel> sessions = context.getSession().sessions().getUserSessionsStream(context.getRealm(), user)) {
+                sessions.toList().forEach(session -> context.getSession().sessions().removeUserSession(context.getRealm(), session));
+            }
+            context.getEvent().detail("password_reset", "sms_recovery");
+            context.setUser(user);
+            context.success();
+        } catch (RuntimeException invalidPassword) {
+            showResetPasswordForm(context, "رمز انتخاب‌شده با سیاست امنیتی سامانه سازگار نیست.");
+        }
     }
 
     private String normalizePhone(String phone, AuthenticationFlowContext context) {

@@ -266,6 +266,11 @@ async def run_search_job(
             # Source-owned category slugs (e.g. bounded demand tasks) are
             # already validated by create_job and retained in job params.
             pass
+    params = dict(job.params or {})
+    if source.key == "delta":
+        category = str(params.get("source_category") or category)
+    elif source.key == "sheypoor":
+        category = str(params.get("source_category") or category)
     districts = list((job.params or {}).get("districts") or [])
 
     job.status = ScrapeJobStatus.RUNNING
@@ -277,8 +282,10 @@ async def run_search_job(
         for page in range(1, max_pages + 1):
             payload = await client.search(city, category, page, districts=districts or None)
             summaries = source.parse_search(payload)
-            from app.services.market_demand import filter_source_summaries
-            summaries = await filter_source_summaries(source.key, city, summaries)
+            if params.get("execution_scope", "").startswith("demand:"):
+                from app.services.market_demand import filter_source_summaries
+
+                summaries = await filter_source_summaries(source.key, city, summaries)
             job.pages_scraped += 1
             job.items_found += len(summaries)
             if not summaries:
@@ -295,11 +302,14 @@ async def run_search_job(
                     detail = source.parse_detail(
                         detail_payload, summary.token, phone=phone
                     )
+                    if not params.get("execution_scope", "").startswith("demand:"):
+                        detail.city = summary.city or city
                     if source.key in ("delta", "sheypoor"):
                         from app.services.location_catalog import normalized_name
+                        from app.services.location_catalog import resolve_city
                         from app.services.scraper.demand_locations import canonical_demand_city
 
-                        expected = canonical_demand_city(city)
+                        expected = canonical_demand_city(city) if params.get("execution_scope", "").startswith("demand:") else None
                         actual = resolve_city(detail.city, detail.province) if detail.city else None
                         if detail.city and actual is None:
                             # A non-empty but unresolved detail value is not
@@ -311,7 +321,7 @@ async def run_search_job(
                             if expected and normalized_name(actual["name"]) != normalized_name(expected["name"]):
                                 job.items_failed += 1
                                 continue
-                        elif source.key == "sheypoor" and not (detail_payload.get("city") or detail_payload.get("city_slug")):
+                        elif source.key == "sheypoor" and params.get("execution_scope", "").startswith("demand:") and not (detail_payload.get("city") or detail_payload.get("city_slug")):
                             # The exact source search result is city-scoped and
                             # the client retained that listing's search city.
                             search_city = resolve_city(str(detail_payload.get("__search_city") or ""))

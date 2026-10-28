@@ -166,7 +166,8 @@ export interface NeighbourhoodMarketFilters {
  * median that nobody can transact at is worse than no number at all.
  */
 export function fetchNeighbourhoodMarket(
-  filters: NeighbourhoodMarketFilters = {}
+  filters: NeighbourhoodMarketFilters = {},
+  requireAuth = true
 ): Promise<NeighbourhoodMarketResponse> {
   const search = new URLSearchParams();
   if (filters.city) search.set('city', filters.city);
@@ -178,7 +179,9 @@ export function fetchNeighbourhoodMarket(
   if (filters.limit) search.set('limit', String(filters.limit));
   const query = search.toString();
   return request<NeighbourhoodMarketResponse>(
-    `/properties/market/neighbourhoods${query ? `?${query}` : ''}`
+    `/properties/market/neighbourhoods${query ? `?${query}` : ''}`,
+    undefined,
+    requireAuth
   );
 }
 
@@ -260,8 +263,11 @@ export interface PropertyListFilters {
 }
 
 /** Live inventory feed: crawled + first-party listings, newest first. */
-export function fetchProperties(filters: PropertyListFilters = {}): Promise<PropertyListResponse> {
-  return request<PropertyListResponse>(`/properties${toQuery({ ...filters })}`);
+export function fetchProperties(
+  filters: PropertyListFilters = {},
+  requireAuth = true
+): Promise<PropertyListResponse> {
+  return request<PropertyListResponse>(`/properties${toQuery({ ...filters })}`, undefined, requireAuth);
 }
 
 /** A scrape job the node queued in response to a crawl request. */

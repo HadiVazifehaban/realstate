@@ -35,18 +35,23 @@ async def test_existing_inventory_never_starts_job(monkeypatch):
 async def test_empty_maragheh_uses_source_slug_and_bounded_job(monkeypatch):
     job = ScrapeJob(city='maragheh', source='sheypoor', category='real-estate')
     launch = AsyncMock(return_value=job)
-    monkeypatch.setattr(market_demand.scraper_service, 'trigger_and_maybe_run', launch)
-    session = SimpleNamespace(execute=AsyncMock(side_effect=[result(None), None, result(None), None]))
+    monkeypatch.setattr(market_demand.scraper_service, 'trigger_with_trigger', launch)
+    session = SimpleNamespace(execute=AsyncMock(side_effect=[result(None), result(None), result(None), result(None)]))
     answer = await market_demand.ensure_city_inventory(
         session, 'مراغه', SimpleNamespace(scraper_enabled=True, source_list=('sheypoor',)))
     assert answer['status'] == 'collecting'
     assert launch.await_count == 2
+    assert [call.kwargs['trigger'] for call in launch.await_args_list] == [
+        market_demand.ScrapeJobTrigger.MANUAL,
+        market_demand.ScrapeJobTrigger.MANUAL,
+    ]
     payload = launch.call_args.args[1]
     assert (payload.city, payload.source, payload.max_pages, payload.fetch_phones) == (
         'maragheh', 'sheypoor', 1, False)
+    assert payload.category == 'apartment-rent'
+    assert payload.params['source_category'] == 'house-apartment-for-rent'
     from app.services.scraper.sheypoor_taxonomy import resolve_slug
-    assert resolve_slug(payload.category) is not None
-
+    assert resolve_slug(payload.params['source_category']) is not None
 
 def test_platform_coverage_does_not_guess_unverified_sources():
     maragheh = source_city_targets('مراغه')
@@ -63,7 +68,7 @@ async def test_source_scoping_fails_closed_for_delta_neighbour_cities():
     from app.services.market_demand import filter_source_summaries
     rows = [SimpleNamespace(city='دزفول'), SimpleNamespace(city='اندیمشک'),
             SimpleNamespace(city='')]
-    assert await filter_source_summaries('delta', 'andimeshk', rows) == rows
+    assert await filter_source_summaries('delta', 'andimeshk', rows) == rows[1:2]
 
 
 @pytest.mark.asyncio
@@ -74,7 +79,7 @@ async def test_source_scoping_fails_closed_for_delta_neighbour_cities():
 ])
 async def test_active_and_recent_jobs_are_reused(monkeypatch, status, expected):
     launch = AsyncMock()
-    monkeypatch.setattr(market_demand.scraper_service, 'trigger_and_maybe_run', launch)
+    monkeypatch.setattr(market_demand.scraper_service, 'trigger_with_trigger', launch)
     job = ScrapeJob(city='maragheh', source='sheypoor', status=status)
     session = SimpleNamespace(execute=AsyncMock(side_effect=[result(job), result(job)]))
     answer = await market_demand.ensure_city_inventory(
@@ -91,10 +96,10 @@ async def test_empty_city_queues_each_configured_supported_source(monkeypatch):
                         status=ScrapeJobStatus.PENDING)
         jobs.append(payload)
         return job
-    monkeypatch.setattr(market_demand.scraper_service, 'trigger_and_maybe_run', make_job)
+    monkeypatch.setattr(market_demand.scraper_service, 'trigger_with_trigger', make_job)
     responses = []
     for _ in range(4):  # two Sheypoor categories, two Delta categories
-        responses.extend((result(None), None))
+        responses.extend((result(None), result(None)))
     session = SimpleNamespace(execute=AsyncMock(side_effect=responses))
     answer = await market_demand.ensure_city_inventory(
         session, 'تهران', SimpleNamespace(scraper_enabled=True,
@@ -107,6 +112,43 @@ async def test_empty_city_queues_each_configured_supported_source(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_postgres_demand_lock_precedes_lookup(monkeypatch):
+    events = []
+
+    class _Dialect:
+        name = "postgresql"
+
+    class _Bind:
+        dialect = _Dialect()
+
+    class _Session:
+        bind = _Bind()
+
+        async def execute(self, statement, params=None):
+            statement = str(statement)
+            events.append(statement)
+            if "pg_advisory_xact_lock" in statement:
+                return result(None)
+            return result(None)
+
+        async def rollback(self):
+            return None
+
+    async def trigger(*args, **kwargs):
+        return ScrapeJob(city="tehran", source="delta", category="apartment-sell",
+                         status=ScrapeJobStatus.PENDING)
+
+    monkeypatch.setattr(market_demand.scraper_service, "trigger_with_trigger", trigger)
+    await market_demand.ensure_city_inventory(
+        _Session(), "تهران", SimpleNamespace(scraper_enabled=True, source_list=("delta",))
+    )
+    locks = [i for i, sql in enumerate(events) if "pg_advisory_xact_lock" in sql]
+    lookups = [i for i, sql in enumerate(events) if "scrape_job" in sql]
+    assert len(locks) == len(lookups) == 2
+    assert all(lock < lookup for lock, lookup in zip(locks, lookups))
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('city,enabled,sources,expected', [
     ('مراغه', False, ('sheypoor',), 'disabled'),
     ('مراغه', True, ('divar',), 'unsupported'),
@@ -115,7 +157,7 @@ async def test_empty_city_queues_each_configured_supported_source(monkeypatch):
 ])
 async def test_disabled_and_unmapped_cities_do_not_queue(monkeypatch, city, enabled, sources, expected):
     launch = AsyncMock()
-    monkeypatch.setattr(market_demand.scraper_service, 'trigger_and_maybe_run', launch)
+    monkeypatch.setattr(market_demand.scraper_service, 'trigger_with_trigger', launch)
     session = SimpleNamespace(execute=AsyncMock(side_effect=[result(None)]))
     answer = await market_demand.ensure_city_inventory(
         session, city, SimpleNamespace(scraper_enabled=enabled, source_list=sources))
@@ -131,8 +173,8 @@ async def test_existing_inventory_does_not_hide_missing_portal_inventory(monkeyp
                         status=ScrapeJobStatus.PENDING)
         calls.append(payload)
         return job
-    monkeypatch.setattr(market_demand.scraper_service, 'trigger_and_maybe_run', launch)
-    session = SimpleNamespace(execute=AsyncMock(side_effect=[result(None), None, result(None), None]))
+    monkeypatch.setattr(market_demand.scraper_service, 'trigger_with_trigger', launch)
+    session = SimpleNamespace(execute=AsyncMock(side_effect=[result(None), result(None), result(None), result(None)]))
     answer = await market_demand.ensure_city_inventory(
         session, 'مراغه', SimpleNamespace(scraper_enabled=True, source_list=('sheypoor',)))
     assert answer['status'] == 'collecting'

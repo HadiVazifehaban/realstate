@@ -1,0 +1,43 @@
+{
+  "realm": "shekarchi-phase15-test",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      {"name": "ROLE_ADMIN"},
+      {"name": "ROLE_SUPERVISOR"},
+      {"name": "ROLE_AGENCY_MANAGER"},
+      {"name": "ROLE_SENIOR_BROKER"},
+      {"name": "ROLE_JUNIOR_BROKER"},
+      {"name": "ROLE_OWNER"},
+      {"name": "ROLE_VERIFIED_USER"},
+      {"name": "ROLE_UNVERIFIED_USER"},
+      {"name": "ROLE_DATA_ANALYST"}
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "shekarchi-phase15-admin",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "__INJECT_AT_RUNTIME__",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["roles"]
+    },
+    {
+      "clientId": "shekarchi-phase15-frontend",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://127.0.0.1:13000/*"],
+      "webOrigins": ["http://127.0.0.1:13000"]
+    }
+  ]
+}

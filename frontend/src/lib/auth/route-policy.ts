@@ -13,6 +13,9 @@ const PUBLIC_AUTH_API_PATHS = new Set([
   '/api/auth/keycloak-logout'
 ]);
 const PUBLIC_BACKEND_EXACT = new Set([
+  '/backend/api/v1/properties',
+  '/backend/api/v1/properties/cities',
+  '/backend/api/v1/properties/market/neighbourhoods',
   '/backend/api/v1/billing/plans',
   '/backend/api/v1/site/social-links',
   '/backend/api/v1/health',
@@ -27,6 +30,7 @@ const PUBLIC_BACKEND_EXACT = new Set([
 ]);
 
 const PAGE_ROLE_POLICIES: Array<[string, string[]]> = [
+  ['/dashboard/settings/keycloak', ['ROLE_ADMIN']],
   ['/dashboard/settings/social-links', ['ROLE_ADMIN', 'ROLE_SUPER_ADMIN', 'admin', 'super_admin']],
   ['/dashboard/properties/submit', ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_AGENCY_MANAGER', 'ROLE_SENIOR_BROKER', 'ROLE_JUNIOR_BROKER', 'ROLE_OWNER']],
   ['/dashboard/properties', ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_AGENCY_MANAGER', 'ROLE_SENIOR_BROKER', 'ROLE_JUNIOR_BROKER']],

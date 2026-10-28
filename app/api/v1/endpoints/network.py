@@ -22,6 +22,7 @@ from sqlmodel import select
 from app.api.deps import ActiveAgencyDep, LicenseGuard, PrincipalDep, SessionDep
 from app.models.base import utcnow
 from app.models.agency_network import Agency, AgencyCooperation, AgencyMembership
+from app.models.property import Property
 from app.models.network_collab import (
     AuditEvent,
     CommissionAgreement,
@@ -787,6 +788,34 @@ async def _authorize_share_membership(
         )
 
 
+async def _require_property_source(
+    session: SessionDep, property_id: uuid.UUID, source_agency_id: uuid.UUID
+) -> Property:
+    """Bind network mutations to the office that owns the property row."""
+    prop = await session.get(Property, property_id)
+    if prop is None or prop.agency_id != source_agency_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "property_not_found", "message": "فایل برای این دفتر پیدا نشد."},
+        )
+    return prop
+
+
+async def _require_any_agency_access(
+    session: SessionDep, principal: PrincipalDep, agency_ids: tuple[uuid.UUID, ...]
+) -> uuid.UUID:
+    """Authorize a manager on either side without trusting a payload selector."""
+    last_error: HTTPException | None = None
+    for agency_id in agency_ids:
+        try:
+            await _require_active_agency_access(session, principal, agency_id, manager=True)
+            return agency_id
+        except HTTPException as exc:
+            last_error = exc
+    assert last_error is not None
+    raise last_error
+
+
 @router.post(
     "/shares",
     response_model=ListingShareDetailRead,
@@ -818,6 +847,7 @@ async def create_share(
     await _require_active_agency_access(session, principal, payload.source_agency_id, manager=True)
     source = await _require_agency(session, payload.source_agency_id)
     target = await _require_agency(session, payload.target_agency_id)
+    await _require_property_source(session, payload.property_id, source.id)
     if source.id == target.id:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -1034,6 +1064,7 @@ async def create_referral(
     await _require_active_agency_access(session, principal, payload.source_agency_id, manager=True)
     source = await _require_agency(session, payload.source_agency_id)
     target = await _require_agency(session, payload.target_agency_id)
+    await _require_property_source(session, payload.property_id, source.id)
     if source.id == target.id:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -1097,6 +1128,7 @@ async def update_referral_stage(
     referral_id: uuid.UUID,
     payload: ReferralStageUpdate,
     session: SessionDep,
+    principal: PrincipalDep,
     _licence: LicenseGuard,
 ) -> LeadReferralRead:
     row = await session.get(LeadReferral, referral_id)
@@ -1105,6 +1137,9 @@ async def update_referral_stage(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "referral_not_found", "message": "ارجاع پیدا نشد."},
         )
+    await _require_any_agency_access(
+        session, principal, (row.source_agency_id, row.target_agency_id)
+    )
     try:
         row.stage = ReferralStatus(payload.stage)
     except ValueError:
@@ -1149,6 +1184,7 @@ async def create_transfer(
     await _require_active_agency_access(session, principal, payload.from_agency_id, manager=True)
     await _require_agency(session, payload.from_agency_id)
     await _require_agency(session, payload.to_agency_id)
+    await _require_property_source(session, payload.property_id, payload.from_agency_id)
     row = ListingTransferHistory(
         property_id=payload.property_id,
         from_agency_id=payload.from_agency_id,
@@ -1265,6 +1301,7 @@ async def create_commission(
     await _require_active_agency_access(session, principal, payload.source_agency_id, manager=True)
     await _require_agency(session, payload.source_agency_id)
     await _require_agency(session, payload.target_agency_id)
+    await _require_property_source(session, payload.property_id, payload.source_agency_id)
 
     agreement = CommissionAgreement(
         property_id=payload.property_id,
@@ -1345,6 +1382,9 @@ async def get_commission(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "agreement_not_found", "message": "توافق پورسانت پیدا نشد."},
         )
+    await _require_any_agency_access(
+        session, principal, (agreement.source_agency_id, agreement.target_agency_id)
+    )
     return await _agreement_detail(session, agreement)
 
 
@@ -1407,6 +1447,12 @@ async def record_payment(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "allocation_not_found", "message": "سهم پیدا نشد."},
         )
+    agreement = await session.get(CommissionAgreement, alloc.agreement_id)
+    if agreement is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "agreement_not_found"})
+    await _require_any_agency_access(
+        session, principal, (alloc.agency_id, agreement.source_agency_id, agreement.target_agency_id)
+    )
     payment = CommissionPayment(
         allocation_id=alloc.id,
         amount=payload.amount,
@@ -1417,8 +1463,7 @@ async def record_payment(
     session.add(payment)
     await session.flush()
     # Roll the agreement up from the ledger so its status tracks reality.
-    agreement = await session.get(CommissionAgreement, alloc.agreement_id)
-    if agreement is not None and agreement.status is CommissionStatus.LOCKED:
+    if agreement.status is CommissionStatus.LOCKED:
         agreement.status = CommissionStatus.PARTIALLY_PAID
         agreement.updated_at = utcnow()
         session.add(agreement)

@@ -159,6 +159,28 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: "مدیریت Keycloak",
+        url: "/dashboard/settings/keycloak",
+        icon: "lock",
+        description: "مدیریت Realm هویت با مجوزهای تأییدشده",
+        access: { roles: ["ROLE_ADMIN"] },
+        isActive: false,
+        items: [
+          { title: "داشبورد Keycloak", url: "/dashboard/settings/keycloak", icon: "dashboard", access: { roles: ["ROLE_ADMIN"] } },
+          { title: "کاربران", url: "/dashboard/settings/keycloak/users", icon: "teams", access: { roles: ["ROLE_ADMIN"] } },
+          { title: "گروه‌ها", url: "/dashboard/settings/keycloak/groups", icon: "workspace", access: { roles: ["ROLE_ADMIN"] } },
+          { title: "نقش‌ها", url: "/dashboard/settings/keycloak/roles", icon: "badgeCheck", access: { roles: ["ROLE_ADMIN"] } },
+          { title: "Clientها", url: "/dashboard/settings/keycloak/clients", icon: "settings", access: { roles: ["ROLE_ADMIN"] } },
+          { title: "Client Scopeها", url: "/dashboard/settings/keycloak/client-scopes", icon: "settings", access: { roles: ["ROLE_ADMIN"] } },
+          { title: "تنظیمات Realm", url: "/dashboard/settings/keycloak/realm-settings", icon: "settings", access: { roles: ["ROLE_ADMIN"] } },
+          { title: "Authentication Flowها", url: "/dashboard/settings/keycloak/authentication", icon: "lock", access: { roles: ["ROLE_ADMIN"] } },
+          { title: "Identity Providerها", url: "/dashboard/settings/keycloak/identity-providers", icon: "network", access: { roles: ["ROLE_ADMIN"] } },
+          { title: "User Federation", url: "/dashboard/settings/keycloak/user-federation", icon: "network", access: { roles: ["ROLE_ADMIN"] } },
+          { title: "رویدادها", url: "/dashboard/settings/keycloak/events", icon: "calendar", access: { roles: ["ROLE_ADMIN"] } },
+          { title: "مجوزهای مدیر", url: "/dashboard/settings/keycloak/admin-permissions", icon: "fileTypeDoc", access: { roles: ["ROLE_ADMIN"] } }
+        ]
+      },
+      {
         title: "تیم و سطوح دسترسی",
         url: "/dashboard/users",
         icon: "teams",

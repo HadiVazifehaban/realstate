@@ -106,8 +106,8 @@ export function OsmLocationPicker({
 
   return (
     <div className={cn('flex flex-col gap-4', className)}>
-      <div className='flex items-center justify-between gap-2'>
-        <div className='flex items-center gap-2'>
+      <div className='flex flex-wrap items-center gap-2 sm:justify-between'>
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
           <Label htmlFor='local-latitude'>عرض جغرافیایی</Label>
           <Input
             id='local-latitude'
@@ -117,10 +117,10 @@ export function OsmLocationPicker({
             max={90}
             value={position.lat}
             onChange={(event) => handleManualLat(Number(event.target.value))}
-            className='w-28'
+            className='w-full max-w-28'
           />
         </div>
-        <div className='flex items-center gap-2'>
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
           <Label htmlFor='local-longitude'>طول جغرافیایی</Label>
           <Input
             id='local-longitude'
@@ -130,14 +130,14 @@ export function OsmLocationPicker({
             max={180}
             value={position.lng}
             onChange={(event) => handleManualLng(Number(event.target.value))}
-            className='w-32'
+            className='w-full max-w-32'
           />
         </div>
       </div>
 
       <div
         className={cn(
-          'flex flex-row items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-xs',
+          'flex flex-col items-stretch gap-2 rounded-md border border-border px-3 py-2 text-xs sm:flex-row sm:items-center sm:justify-between',
           gpsError ? 'bg-destructive/10' : 'bg-muted/40'
         )}
       >

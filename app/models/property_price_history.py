@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import BigInteger, Column, UniqueConstraint
+from sqlalchemy.dialects.postgresql import ENUM as PostgreSQLEnum
 from sqlmodel import SQLModel, Field
 
 from app.models.base import pg_enum, timestamp_column, utcnow, uuid_column
@@ -37,7 +38,17 @@ class PropertyPriceHistory(SQLModel, table=True):
     change_percentage: float = Field(default=0.0, description="درصد تغییر نسبت به قیمت قبلی")
 
     source: PriceChangeSource = Field(
-        default=PriceChangeSource.SCRAPER, sa_column=pg_enum(PriceChangeSource, "price_source")
+        default=PriceChangeSource.SCRAPER,
+        sa_column=Column(
+            PostgreSQLEnum(
+                PriceChangeSource,
+                name="price_source",
+                values_callable=lambda members: [member.value for member in members],
+                create_type=False,
+                validate_strings=True,
+            ),
+            nullable=False,
+        ),
     )
     source_ref: str | None = Field(default=None, max_length=128)
     created_by_id: uuid.UUID | None = Field(default=None, foreign_key="agency_user.id")

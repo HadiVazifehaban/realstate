@@ -71,7 +71,16 @@ def resolve_categories(source: str, category: str) -> CategoryResolution:
     source_key = (source or "").strip().lower()
     requested = (category or "").strip().lower()
     if requested not in GENERIC_CATEGORIES:
-        raise UnsupportedCategoryError("category is not in the supported generic taxonomy")
+        # Source-owned slugs are accepted only when present in the corresponding
+        # pinned taxonomy. This supports internal/manual source-target jobs
+        # without guessing cross-source routes.
+        if source_key == "sheypoor" and requested in _SHEYPOOR_VERIFIED:
+            return CategoryResolution(source_key, requested, (requested,))
+        if source_key == "delta":
+            parts = requested.split("-")
+            if len(parts) == 2 and parts[0] in DELTA_PROPERTY_TYPES and parts[1] in {"sell", "rent"}:
+                return CategoryResolution(source_key, requested, (requested,))
+        raise UnsupportedCategoryError("category is not in the supported generic or source-owned taxonomy")
 
     if source_key == "delta":
         result = _DELTA_MAP.get(requested)
@@ -162,13 +171,6 @@ def validate_job_target(source: str, city: str, category: str, settings) -> Cate
     try:
         return resolve_categories(key, category)
     except UnsupportedCategoryError as exc:
-        # Legacy/internal taxonomy entries are permitted only when the source
-        # owns a category validator; generic cross-source slugs stay fail-closed.
-        if key == "divar":
-            from app.services.scraper.parser import map_category
-
-            if map_category(category) is not None:
-                return CategoryResolution(key, category, (category,))
         raise JobValidationError("UNSUPPORTED_CATEGORY", str(exc)) from exc
 
 

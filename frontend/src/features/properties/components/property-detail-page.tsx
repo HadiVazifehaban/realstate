@@ -23,7 +23,13 @@ import { PropertyShowcaseSidebar } from './property-showcase-sidebar';
 import { VisitSchedulerWidget } from './visit-scheduler-widget';
 import { usePriceHistory, useProperty, usePropertyMedia, useRevalueProperty } from '../hooks';
 import type { ValuationStatus } from '../types';
-import { PRICE_SOURCE_LABELS, formatDeviation } from '../utils/labels';
+import {
+  DEAL_TYPE_LABELS,
+  PRICE_SOURCE_LABELS,
+  PROPERTY_STATUS_LABELS,
+  PROPERTY_TYPE_LABELS,
+  formatDeviation
+} from '../utils/labels';
 
 /**
  * One listing, in the showcase treatment: a wide media column (gallery, map,
@@ -79,10 +85,10 @@ export default function PropertyDetailPage({ propertyId }: { propertyId: string 
 
   const location = [property.neighborhood, property.city].filter(Boolean).join('، ');
   const galleryTitle = property.title || `${property.property_type} در ${location}`;
-  const hasPin = property.latitude !== null && property.longitude !== null;
+  const hasPin = property.latitude != null && property.longitude != null;
 
   return (
-    <div className='property-detail-viewport mk-detail-standard showcase-shell min-h-0 min-w-0 overflow-x-clip rounded-2xl p-2 sm:p-3'>
+    <div className='property-detail-viewport mk-detail-standard showcase-shell property-detail-premium min-h-0 min-w-0 overflow-x-clip rounded-2xl p-2 sm:p-3'>
       <div className='property-detail-toolbar mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2'>
         <nav className='text-showcase-dim flex flex-wrap items-center gap-1.5 text-[0.68rem]'>
           <Link href='/dashboard/properties' className='hover:text-gold-primary transition-colors'>
@@ -116,6 +122,37 @@ export default function PropertyDetailPage({ propertyId }: { propertyId: string 
           </Button>
         </div>
       </div>
+
+      <section className='property-detail-summary showcase-panel mb-3 grid min-w-0 gap-3 p-3 sm:mb-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-5'>
+        <div className='min-w-0'>
+          <p className='text-showcase-dim mb-1 text-xs font-medium'>
+            {location || 'موقعیت در آگهی ثبت نشده است'}
+          </p>
+          <h1 className='text-showcase-text text-lg font-bold leading-8 sm:text-2xl'>{galleryTitle}</h1>
+          <div className='mt-2 flex flex-wrap gap-2 text-xs text-showcase-muted'>
+            <span className='rounded-full border border-border px-2.5 py-1'>{DEAL_TYPE_LABELS[property.deal_type]}</span>
+            <span className='rounded-full border border-border px-2.5 py-1'>{PROPERTY_TYPE_LABELS[property.property_type]}</span>
+            <span className='rounded-full border border-border px-2.5 py-1'>{PROPERTY_STATUS_LABELS[property.status]}</span>
+            <span className='rounded-full border border-border px-2.5 py-1'>شناسه {toPersianDigits(property.id.slice(0, 8))}</span>
+          </div>
+        </div>
+        <div className='min-w-0 border-t border-border pt-3 text-start sm:border-t-0 sm:border-s sm:pt-0 sm:ps-5'>
+          <p className='text-showcase-dim mb-1 text-xs'>قیمت آگهی</p>
+          <p className='text-gold-primary text-xl font-extrabold tabular-nums sm:text-2xl'>
+            {property.deal_type === 'SALE'
+              ? (property.total_price == null ? 'قیمت ثبت نشده' : formatToman(property.total_price))
+              : property.deal_type === 'FULL_MORTGAGE'
+                ? `رهن کامل ${property.deposit_amount == null ? 'ثبت نشده' : formatToman(property.deposit_amount)}`
+                : `رهن ${property.deposit_amount == null ? 'ثبت نشده' : formatToman(property.deposit_amount)} · اجاره ${property.monthly_rent == null ? 'ثبت نشده' : formatToman(property.monthly_rent)}`}
+          </p>
+        </div>
+        <div className='grid grid-cols-2 gap-2 border-t border-border pt-3 sm:col-span-2 sm:grid-cols-4'>
+          <SummaryFact icon={<Icons.statArea className='size-4' />} label='متراژ' value={property.area ? `${toPersianDigits(property.area.toLocaleString('en-US'))} متر` : null} />
+          <SummaryFact icon={<Icons.statBed className='size-4' />} label='اتاق‌خواب' value={property.rooms == null ? null : toPersianDigits(String(property.rooms))} />
+          <SummaryFact icon={<Icons.building className='size-4' />} label='طبقه' value={property.floor == null ? null : toPersianDigits(String(property.floor))} />
+          <SummaryFact icon={<Icons.calendar className='size-4' />} label='سال ساخت' value={property.year_built == null ? null : toPersianDigits(String(property.year_built))} />
+        </div>
+      </section>
 
       <div className='property-detail-grid grid min-w-0 grid-cols-1 items-start gap-3'>
         {/* ------------------------------------------------- media column --- */}
@@ -185,6 +222,16 @@ export default function PropertyDetailPage({ propertyId }: { propertyId: string 
 
         <VisitSchedulerWidget propertyId={property.id} compact />
       </div>
+    </div>
+  );
+}
+
+function SummaryFact({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | null }) {
+  return (
+    <div className='flex min-w-0 items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2'>
+      <span className='text-gold-primary shrink-0'>{icon}</span>
+      <span className='text-showcase-dim shrink-0 text-xs'>{label}</span>
+      <span className='text-showcase-text ms-auto truncate text-sm font-semibold'>{value ?? '—'}</span>
     </div>
   );
 }

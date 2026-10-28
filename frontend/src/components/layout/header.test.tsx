@@ -10,10 +10,14 @@ vi.mock("@/features/landing/components/brand", () => ({
   )
 }));
 vi.mock("@/features/landing/components/dashboard-top-nav", () => ({
-  DashboardTopNav: () => <nav aria-label="ابزارهای سامانه" />
+  DashboardTopNav: ({ ariaLabel = "ابزارهای سامانه" }: { ariaLabel?: string }) => (
+    <nav aria-label={ariaLabel} />
+  )
 }));
 vi.mock("../org-switcher", () => ({ OrgSwitcher: () => <button>Office switcher</button> }));
-vi.mock("./header-location-picker", () => ({ default: () => <button aria-label="انتخاب شهر و استان">تهران</button> }));
+vi.mock("./header-location-picker", () => ({
+  default: () => <button aria-label="انتخاب شهر و استان">تهران</button>
+}));
 vi.mock("../themes/theme-selector", () => ({
   ThemeSelector: () => <button>Theme selector</button>
 }));
@@ -50,17 +54,39 @@ describe("dashboard header", () => {
     expect(screen.getByRole("link", { name: "ثبت ملک" }).getAttribute("href")).toBe(
       "/dashboard/properties/submit"
     );
-    for (const name of ["Office switcher", "Theme mode", "Login", "Profile"]) {
+    for (const name of ["Office switcher", "Login", "Profile"]) {
       expect(
         container
           .querySelector(".dashboard-header-utilities")
           ?.contains(screen.getByRole("button", { name }))
       ).toBe(true);
     }
+    expect(
+      container.querySelector(".dashboard-header-theme")?.contains(
+        screen.getByRole("button", { name: "Theme mode" })
+      )
+    ).toBe(true);
     expect(container.querySelector(".dashboard-submit")?.textContent).toContain("ثبت ملک");
-    expect(container.querySelector(".dashboard-header-primary")?.children.length).toBe(3);
+    expect(container.querySelector(".dashboard-header-primary")?.children.length).toBe(4);
     expect(screen.queryByRole("button", { name: "Notifications" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Theme selector" })).toBeNull();
     expect(container.querySelector("#theme-selector")).toBeNull();
+  });
+
+  it("renders a mobile theme toggle before the profile control", () => {
+    const { container } = render(<Header />);
+    const utilities = container.querySelector(".dashboard-header-utilities");
+    const theme = utilities?.querySelector(".dashboard-header-theme");
+    const hamburger = container.querySelector(".dashboard-mobile-menu");
+    const profile = screen.getByRole("button", { name: "Profile" });
+
+    expect(theme).not.toBeNull();
+    expect(theme?.contains(screen.getByRole("button", { name: "Theme mode" }))).toBe(true);
+    expect(
+      Boolean(theme && theme.compareDocumentPosition(profile) & Node.DOCUMENT_POSITION_FOLLOWING)
+    ).toBe(true);
+    expect(
+      Boolean(hamburger && theme && hamburger.compareDocumentPosition(theme) & Node.DOCUMENT_POSITION_FOLLOWING)
+    ).toBe(true);
   });
 });

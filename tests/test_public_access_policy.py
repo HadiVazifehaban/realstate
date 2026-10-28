@@ -7,12 +7,46 @@ from app.core.config import AuthMode, Settings, get_settings
 
 @pytest.mark.asyncio
 async def test_plan_catalog_is_public_but_payment_and_account_routes_are_private():
+    from sqlalchemy.ext.asyncio import create_async_engine
     from fastapi import FastAPI
     from app.api.v1.router import api_router
+    from app.models.billing import SubscriptionPlan, ZibalGatewayConfiguration
+    from sqlmodel import SQLModel
     from app.services import billing
 
     application = FastAPI()
     application.include_router(api_router, prefix="/api/v1")
+    test_engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with test_engine.begin() as connection:
+        await connection.run_sync(
+            lambda conn: SQLModel.metadata.create_all(
+                conn, tables=[
+                    ZibalGatewayConfiguration.__table__,
+                    SubscriptionPlan.__table__,
+                ]
+            )
+        )
+
+    async def test_session():
+        from sqlmodel.ext.asyncio.session import AsyncSession
+
+        async with AsyncSession(test_engine, expire_on_commit=False) as session:
+            yield session
+
+    application.dependency_overrides[deps.get_session] = test_session
+    from sqlmodel.ext.asyncio.session import AsyncSession
+
+    async with AsyncSession(test_engine, expire_on_commit=False) as session:
+        for plan in billing.PLANS.values():
+            session.add(SubscriptionPlan(
+                id=plan.id, title=plan.title, description=plan.description,
+                price_toman=plan.price_toman, duration_days=plan.duration_days,
+                listing_quota=plan.listing_quota, sms_quota=plan.sms_quota,
+                regions_quota=plan.regions_quota, advisor_quota=plan.advisor_quota,
+                is_unlimited=plan.is_unlimited, features=list(plan.features),
+                is_active=plan.is_active, sort_order=plan.sort_order,
+            ))
+        await session.commit()
     application.dependency_overrides[get_settings] = lambda: Settings(
         auth_mode=AuthMode.KEYCLOAK, keycloak_issuer="https://id.example/realms/test"
     )
@@ -21,7 +55,9 @@ async def test_plan_catalog_is_public_but_payment_and_account_routes_are_private
     ) as client:
         response = await client.get("/api/v1/billing/plans")
         assert response.status_code == 200
-        assert response.json() == {"plans": [billing.public_plan(plan) for plan in billing.PLANS.values()]}
+        body = response.json()
+        assert [plan["id"] for plan in body["plans"]] == list(billing.PLANS)
+        assert set(body["payment_methods"]) == {"CARD_TO_CARD", "ZIBAL", "ZIBAL_TEST_MODE"}
         for method, path, payload in [
             ("GET", "/api/v1/billing/orders", None),
             ("GET", "/api/v1/billing/subscriptions/current", None),
@@ -30,6 +66,7 @@ async def test_plan_catalog_is_public_but_payment_and_account_routes_are_private
             result = await client.request(method, path, json=payload)
             assert result.status_code == 401, (path, result.text)
         assert (await client.post("/api/v1/billing/plans", json={})).status_code == 405
+    await test_engine.dispose()
 
 
 @pytest.mark.asyncio

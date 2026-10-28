@@ -45,17 +45,28 @@ export function resolveAuthOrigin(
     AUTH_TRUST_HOST: process.env.AUTH_TRUST_HOST
   }
 ): OriginValidation {
-  // NextAuth v5 replaces the request URL with this static origin when either
-  // variable is present, which makes one instance serve only one callback host.
-  if (env.AUTH_URL || env.NEXTAUTH_URL) {
-    return { ok: false, reason: "static-auth-url" };
-  }
-
   try {
     const requestUrl = new URL(request.url);
     const host = request.headers.get("host");
     if (!host || requestUrl.username || requestUrl.password) {
       return { ok: false, reason: "invalid-origin" };
+    }
+
+    // Each deployment may pin Auth.js to its own canonical origin. Accept the
+    // pin only for the exact request origin; never let a local request inherit
+    // the production callback (or vice versa).
+    const staticAuthUrls = [env.AUTH_URL, env.NEXTAUTH_URL].filter(Boolean) as string[];
+    if (staticAuthUrls.length) {
+      const staticOrigins = staticAuthUrls.map((value) => {
+        const parsed = new URL(value);
+        if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+          throw new Error("unsafe static auth URL");
+        }
+        return parsed.origin;
+      });
+      if (new Set(staticOrigins).size !== 1 || requestUrl.origin !== staticOrigins[0]) {
+        return { ok: false, reason: "static-auth-url" };
+      }
     }
 
     const configuredOrigins = env.AUTH_ALLOWED_ORIGINS

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, time
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.enums import (
     DealType,
@@ -203,6 +203,54 @@ class PropertySummary(BaseModel):
     #: LAN filesystem path, which the browser could not load.
     cover_url: str | None = None
     images_count: int = 0
+    message_available: bool = False
+    message_unavailable_reason: str | None = None
+    contact_available: bool = False
+    contact_unavailable_reason: str | None = None
+
+
+class PublicListingDTO(BaseModel):
+    """Explicit allowlist for a future public listing contract.
+
+    This DTO is intentionally not wired to a route in Phase 1. Keeping it
+    independent from ``PropertySummary`` prevents an internal response field
+    from becoming public by inheritance or a later refactor.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    public_id: uuid.UUID
+    sanitized_title: str
+    sanitized_description: str
+    property_type: PropertyType
+    deal_type: DealType
+    neighborhood: str = ""
+    city: str = ""
+    area: float | None = None
+    rooms: int | None = None
+    total_price: int | None = None
+    price_per_meter: int | None = None
+    approximate_latitude: float | None = None
+    approximate_longitude: float | None = None
+    privacy_radius_m: int = int(PRIVACY_BLUR_RADIUS_M)
+    has_elevator: bool = False
+    has_parking: bool = False
+    has_storage: bool = False
+    has_balcony: bool = False
+    deposit_amount: int | None = None
+    monthly_rent: int | None = None
+
+
+class PublicMediaDTO(BaseModel):
+    """Allowlisted public derivative; never a local path or internal media ID."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    public_media_id: uuid.UUID
+    derivative_url: str
+    media_type: MediaType
+    sort_order: int = 0
+    is_cover: bool = False
 
 
 class PropertyMediaItem(BaseModel):

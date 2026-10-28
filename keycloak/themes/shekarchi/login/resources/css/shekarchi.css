@@ -136,6 +136,14 @@ body {
   line-height: 1.8;
   color: var(--mk-muted);
 }
+.mk-recovery-phone {
+  margin-bottom: 16px;
+  text-align: center;
+}
+.mk-recovery-actions {
+  display: grid;
+  gap: 10px;
+}
 
 /* Hide the stock Keycloak wordmark header (realm display name). The realm
    name still reaches screen readers via the card title. */

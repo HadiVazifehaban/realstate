@@ -33,7 +33,7 @@ async def reports():
     async with AsyncSession(engine, expire_on_commit=False) as session:
         a, b, c, d = [uuid.uuid4() for _ in range(4)]
         session.add_all([
-            Agency(id=ident, slug=f"office-{i}", name=f"Office {i}")
+            Agency(id=ident, slug=f"office-{i}", name=f"Office {i}", referral_code=f"test-office-{i}")
             for i, ident in enumerate((a, b, c, d))
         ])
         # A's incoming and outgoing records; B/C-only records must not leak.

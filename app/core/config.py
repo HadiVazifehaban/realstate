@@ -84,7 +84,10 @@ class Settings(BaseSettings):
 
     # -- Database ---------------------------------------------------------------
     # psycopg3 supports both sync (Alembic) and async (runtime) usage.
-    database_url: str = "postgresql+psycopg://avg:avg_secret@localhost:5432/avgcrm"
+    database_url: str = Field(
+        default="postgresql+psycopg://avg:avg_secret@localhost:5432/avgcrm",
+        validation_alias=AliasChoices("DATABASE_URL", "PHASE15_TEST_DATABASE_URL"),
+    )
 
     # -- Filesystem paths -------------------------------------------------------
     data_dir: Path = Path("data")
@@ -142,6 +145,10 @@ class Settings(BaseSettings):
 
     # Blank issuer/auth_mode=LICENSE is what makes Keycloak optional locally.
     keycloak_issuer: str = ""
+    # Optional server-to-server JWKS endpoint. Token ``iss`` validation always
+    # uses keycloak_issuer; this endpoint only avoids routing key retrieval
+    # through the public browser-facing Keycloak hostname in Docker.
+    keycloak_jwks_url: str = ""
     keycloak_audience: str = "maskanchi-backend-api"
     # Only the frontend OIDC client is allowed to present user access tokens to
     # this API. `azp` distinguishes its access token from tokens minted for an

@@ -14,6 +14,7 @@ import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/scrollbar";
 import "../styles/globals.css";
+import "../styles/properties-mobile.css";
 import RequireCitySelection from '@/components/RequireCitySelection';
 import { AUTH_BYPASS_ENABLED, KEYCLOAK_ENABLED } from '@/lib/utils';
 import { getValidAuthSession } from '@/lib/auth/server-session';

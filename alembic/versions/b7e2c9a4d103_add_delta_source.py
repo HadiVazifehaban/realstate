@@ -26,7 +26,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "b7e2c9a4d103"
@@ -56,6 +56,17 @@ def _swap_enum(labels: tuple[str, ...]) -> None:
     """
     bind = op.get_bind()
     old_name = "property_source_old"
+
+    if context.is_offline_mode():
+        values = ", ".join("'" + label.replace("'", "''") + "'" for label in labels)
+        op.execute('ALTER TYPE property_source RENAME TO "property_source_old"')
+        op.execute(f'CREATE TYPE property_source AS ENUM ({values})')
+        op.execute(
+            "ALTER TABLE property ALTER COLUMN source "
+            "TYPE property_source USING source::text::property_source"
+        )
+        op.execute('DROP TYPE "property_source_old"')
+        return
 
     # A partial run may have left the type already renamed out of the way.
     exists = bind.execute(

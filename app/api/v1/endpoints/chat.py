@@ -12,6 +12,9 @@ from sqlalchemy.exc import IntegrityError
 from app.api.deps import ActiveAgencyDep, PrincipalDep, SessionDep
 from app.models.chat import ChatConversation, ChatMembership, ChatMessage
 from app.models.agency_network import AgencyMembership
+from app.models.enums import LEGACY_SOURCE_ALIASES, PropertySource, PropertyStatus
+from app.models.property import Property
+from app.models.agency_network import Agency
 from app.schemas.chat import (
     ChatConversationCreate,
     ChatConversationRead,
@@ -129,6 +132,88 @@ async def _read_conversations(
 
 def _is_chat_admin(principal: PrincipalDep) -> bool:
     return "ROLE_ADMIN" in principal.realm_roles
+
+
+@router.post("/properties/{property_id}/conversation", response_model=ChatConversationRead, status_code=201)
+async def create_property_conversation(
+    property_id: uuid.UUID,
+    session: SessionDep,
+    principal: PrincipalDep,
+    active: ActiveAgencyDep,
+) -> ChatConversationRead:
+    """Open/reuse a conversation only for a live internal listing/account."""
+    if _is_chat_admin(principal):
+        raise HTTPException(403, detail={"error": "chat_admin_create_forbidden"})
+    scoped, _membership, agency = active
+    tenant, requester = _identity(scoped, str(agency.id))
+    prop = await session.get(Property, property_id)
+    if prop is None or prop.status is not PropertyStatus.ACTIVE:
+        raise HTTPException(404, detail={"error": "property_not_available"})
+    source = LEGACY_SOURCE_ALIASES.get(prop.source, prop.source)
+    if source not in {PropertySource.INTERNAL_USER, PropertySource.INTERNAL_AGENCY}:
+        raise HTTPException(409, detail={
+            "error": "external_listing_no_chat",
+            "message": "این آگهی از یک منبع بیرونی دریافت شده و آگهی‌دهنده در سامانه شکارچی حساب ندارد؛ ارسال پیام درون‌برنامه‌ای ممکن نیست.",
+        })
+    owner = (prop.owner_subject or "").strip()
+    if not owner:
+        raise HTTPException(409, detail={
+            "error": "listing_owner_unavailable",
+            "message": "حساب آگهی‌دهنده برای این آگهی در دسترس نیست؛ ارسال پیام ممکن نیست.",
+        })
+    if requester == owner:
+        raise HTTPException(409, detail={"error": "self_message_forbidden", "message": "ارسال پیام به خودتان مجاز نیست."})
+    if prop.agency_id is not None and prop.agency_id != agency.id:
+        raise HTTPException(404, detail={"error": "property_not_available"})
+    owner_membership = (await session.exec(select(AgencyMembership.id).where(
+        AgencyMembership.agency_id == agency.id,
+        AgencyMembership.user_subject == owner,
+        AgencyMembership.revoked_at.is_(None),
+    ))).first()
+    if owner_membership is None:
+        raise HTTPException(409, detail={
+            "error": "listing_owner_unavailable",
+            "message": "حساب فعال آگهی‌دهنده برای این آگهی پیدا نشد؛ ارسال پیام ممکن نیست.",
+        })
+
+    existing = (await session.exec(select(ChatConversation).where(
+        ChatConversation.property_id == property_id,
+        ChatConversation.tenant_id == tenant,
+        ChatConversation.requester_subject == requester,
+        ChatConversation.owner_subject == owner,
+    ))).first()
+    if existing is not None:
+        return (await _read_conversations(session, [existing]))[0]
+
+    conversation = ChatConversation(
+        tenant_id=tenant,
+        property_id=property_id,
+        requester_subject=requester,
+        owner_subject=owner,
+        title=(prop.title or "گفت‌وگوی آگهی")[:160],
+        created_by_subject=requester,
+    )
+    session.add(conversation)
+    await session.flush()
+    session.add_all([
+        ChatMembership(conversation_id=conversation.id, tenant_id=tenant, user_subject=requester),
+        ChatMembership(conversation_id=conversation.id, tenant_id=tenant, user_subject=owner),
+    ])
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        existing = (await session.exec(select(ChatConversation).where(
+            ChatConversation.property_id == property_id,
+            ChatConversation.tenant_id == tenant,
+            ChatConversation.requester_subject == requester,
+            ChatConversation.owner_subject == owner,
+        ))).first()
+        if existing is None:
+            raise HTTPException(409, detail={"error": "conversation_conflict"})
+        return (await _read_conversations(session, [existing]))[0]
+    await session.refresh(conversation)
+    return (await _read_conversations(session, [conversation]))[0]
 
 
 @router.post("/conversations", response_model=ChatConversationRead, status_code=201)

@@ -143,6 +143,7 @@ function MediaStage({
   compact: boolean;
 }) {
   const [active, setActive] = React.useState(0);
+  const [viewerOpen, setViewerOpen] = React.useState(false);
 
   // A new listing can have fewer items than the previous one; without this the
   // viewer would keep pointing past the end of the rail.
@@ -165,6 +166,17 @@ function MediaStage({
     },
     [urls.length]
   );
+
+  React.useEffect(() => {
+    if (!viewerOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setViewerOpen(false);
+      if (event.key === 'ArrowLeft') step(1);
+      if (event.key === 'ArrowRight') step(-1);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [viewerOpen, step]);
 
   if (urls.length === 0) {
     return (
@@ -235,6 +247,9 @@ function MediaStage({
               type='button'
               className='showcase-circle-button'
               aria-label='ذخیره در علاقه‌مندی‌ها'
+              disabled
+              aria-disabled='true'
+              title='ذخیرهٔ علاقه‌مندی در این سامانه هنوز در دسترس نیست.'
             >
               <Icons.exclusive className='size-4' />
             </button>
@@ -246,6 +261,14 @@ function MediaStage({
             >
               <Icons.share className='size-4' />
             </button>
+            <button
+              type='button'
+              className='showcase-circle-button'
+              aria-label='نمایش تمام‌صفحه تصویر'
+              onClick={() => setViewerOpen(true)}
+            >
+              <Icons.media className='size-4' />
+            </button>
           </div>
         )}
 
@@ -255,6 +278,47 @@ function MediaStage({
           </span>
         )}
       </div>
+
+      {viewerOpen && kind === 'IMAGE' && (
+        <div
+          className='fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-3 sm:p-8'
+          role='dialog'
+          aria-modal='true'
+          aria-label='گالری تمام‌صفحه'
+          onClick={() => setViewerOpen(false)}
+        >
+          <button
+            type='button'
+            className='absolute end-4 top-4 z-10 rounded-full border border-white/25 bg-black/40 p-2 text-white hover:bg-white/15'
+            aria-label='بستن گالری'
+            onClick={() => setViewerOpen(false)}
+          >
+            <Icons.close className='size-5' />
+          </button>
+          {urls.length > 1 && <button type='button' className='showcase-circle-button absolute end-4 top-1/2 z-10 -translate-y-1/2' aria-label='تصویر قبلی' onClick={(event) => { event.stopPropagation(); step(-1); }}><Icons.chevronRight className='size-5' /></button>}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={urls[current]} alt={title} className='max-h-full max-w-full object-contain' onClick={(event) => event.stopPropagation()} />
+          {urls.length > 1 && <button type='button' className='showcase-circle-button absolute start-4 top-1/2 z-10 -translate-y-1/2' aria-label='تصویر بعدی' onClick={(event) => { event.stopPropagation(); step(1); }}><Icons.chevronLeft className='size-5' /></button>}
+          <div className='absolute inset-x-0 bottom-0 flex justify-center gap-2 overflow-x-auto bg-gradient-to-t from-black/75 to-transparent px-12 pb-3 pt-10'>
+            {urls.map((url, index) => (
+              <button
+                key={`${url}-${index}`}
+                type='button'
+                aria-label={`نمایش تصویر ${toPersianDigits(String(index + 1))}`}
+                aria-current={index === current}
+                onClick={(event) => { event.stopPropagation(); setActive(index); }}
+                className={`h-12 w-16 shrink-0 overflow-hidden rounded-md border-2 ${index === current ? 'border-[#c78b5c]' : 'border-white/30 opacity-70'}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt='' loading='lazy' className='size-full object-cover' />
+              </button>
+            ))}
+          </div>
+          <span className='absolute bottom-4 rounded-full bg-black/60 px-3 py-1 text-sm text-white' aria-live='polite'>
+            {`${toPersianDigits((current + 1).toLocaleString('en-US'))} / ${toPersianDigits(urls.length.toLocaleString('en-US'))}`}
+          </span>
+        </div>
+      )}
 
       {urls.length > 1 && (
         <div className={cn('mt-2 grid grid-cols-4 gap-1.5 sm:gap-2', compact && 'property-detail-gallery-thumbs')} aria-label={`${noun}های آگهی`}>

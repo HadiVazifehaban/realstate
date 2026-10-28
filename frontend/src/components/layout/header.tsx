@@ -15,15 +15,36 @@ export default function Header() {
     <header className="dashboard-top-header" dir="rtl">
       <div className="dashboard-header-primary">
         <LandingBrand dashboard header />
-        <DashboardTopNav />
+        <div className="hidden min-[1600px]:block">
+          <DashboardTopNav />
+        </div>
+        <details className="dashboard-mobile-menu">
+          <summary aria-label="بازکردن منوی اصلی">
+            <Icons.menu aria-hidden />
+          </summary>
+          <div className="dashboard-mobile-menu-panel">
+            <DashboardTopNav ariaLabel="ناوبری موبایل" />
+          </div>
+        </details>
         <div className="dashboard-header-utilities">
-          <OrgSwitcher />
-          <div className="dashboard-header-city-picker"><HeaderLocationPicker /></div>
-          <Link className="dashboard-submit" href="/dashboard/properties/submit">
+          <div className="hidden md:block">
+            <OrgSwitcher />
+          </div>
+          <div className="dashboard-header-city-picker hidden md:block">
+            <HeaderLocationPicker />
+          </div>
+          <Link
+            className="dashboard-submit hidden md:inline-flex"
+            href="/dashboard/properties/submit"
+          >
             <Icons.plusCircle size={18} aria-hidden /> <span>ثبت ملک</span>
           </Link>
-          <ThemeModeToggle />
-          <CtaLogin />
+          <div className="dashboard-header-theme hidden md:block">
+            <ThemeModeToggle />
+          </div>
+          <div className="dashboard-header-login">
+            <CtaLogin />
+          </div>
           <UserNav />
         </div>
       </div>

@@ -8,8 +8,7 @@ import {
   IconCrown,
   IconCheck,
   IconArrowLeft,
-  IconStar,
-  IconShieldCheck
+  IconStar
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchPlans, toman } from "@/features/billing/api/client";
@@ -158,13 +157,6 @@ export function LandingPlans() {
       <p className="landing-data-note">
         سهمیهٔ پلن به‌معنای پوشش جغرافیایی همهٔ شهرها یا مناطق نیست. پوشش تحلیل و نقشه به داده‌های موجود
         وابسته است. جزئیات نهایی در صفحهٔ اشتراک نمایش داده می‌شود.
-      </p>
-      <p className="landing-payment-note">
-        <IconShieldCheck aria-hidden size={22} />
-        <strong>پرداخت کارت‌به‌کارت با تأیید مالی</strong>
-        فرآیند موجود: ایجاد سفارش، پرداخت کارت‌به‌کارت و ارسال رسید در بخش اشتراک؛ فعال‌سازی فقط پس از
-        تأیید واحد مالی و مطابق وضعیت سفارش انجام می‌شود. سفارش آزمایشی، اشتراک را فعال نمی‌کند.
-        انتخاب لینک‌های این صفحه هیچ سفارش یا پرداختی ایجاد نمی‌کند.
       </p>
     </section>
   );

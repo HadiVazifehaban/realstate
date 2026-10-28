@@ -60,6 +60,7 @@
   // CAPTCHA refresh uses a separate form so the password and challenge answer
   // are never sent. Carry only the permitted username into that request.
   const refreshForm = document.getElementById('kc-captcha-refresh-form');
+  const recoveryForm = document.getElementById('mk-recovery-form');
   const refreshButton = document.querySelector('.mk-captcha-refresh');
   const username = document.getElementById('username');
   if (refreshForm && refreshButton && username) {
@@ -123,18 +124,14 @@
     });
   }
 
-  if (recoveryLink && refreshForm) {
+  if (recoveryLink && recoveryForm) {
     recoveryLink.addEventListener('click', (event) => {
       event.preventDefault();
       if (passwordInput) passwordInput.value = '';
       activateTab('sms', true);
-      const mode = refreshForm.querySelector('input[name="loginMode"]');
-      if (mode) mode.value = 'recovery';
-      if (phoneInput) {
-        const preservedPhone = refreshForm.querySelector('input[name="phone"]');
-        if (preservedPhone) preservedPhone.value = phoneInput.value;
-      }
-      refreshForm.requestSubmit();
+      const recoveryPhone = recoveryForm.querySelector('input[name="phone"]');
+      if (recoveryPhone && phoneInput) recoveryPhone.value = phoneInput.value;
+      recoveryForm.requestSubmit();
     });
   }
 })();

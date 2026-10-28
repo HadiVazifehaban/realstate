@@ -167,6 +167,7 @@ async def neighbourhood_market(
     deal_types: list[DealType] | None = None,
     min_files: int = 1,
     limit: int = 200,
+    visibility=None,
 ) -> MarketOverview:
     """Per-neighbourhood medians for one city (or the whole node)."""
     types = deal_types or [DealType.SALE]
@@ -181,6 +182,8 @@ async def neighbourhood_market(
         Property.status.not_in(list(EXCLUDED_STATUSES)),
         Property.neighborhood != "",
     ]
+    if visibility is not None:
+        conditions.append(visibility)
     from app.services.location_catalog import location_condition
 
     location = location_condition(Property, city_ids=city_ids, province_ids=province_ids,
@@ -223,7 +226,7 @@ async def neighbourhood_market(
     # list short, and a header that silently reports only the cards it drew
     # would understate the city.
     total_files, priced_files, city_median = await _totals(
-        session, city=city, deal_types=types, location=location
+        session, city=city, deal_types=types, location=location, visibility=visibility
     )
 
     return MarketOverview(
@@ -238,7 +241,8 @@ async def neighbourhood_market(
 
 
 async def _totals(
-    session: AsyncSession, *, city: str | None, deal_types: list[DealType], location=None
+    session: AsyncSession, *, city: str | None, deal_types: list[DealType], location=None,
+    visibility=None,
 ) -> tuple[int, int, float | None]:
     priced = _priced_condition(deal_types)
     conditions = [
@@ -249,6 +253,8 @@ async def _totals(
         conditions.append(location)
     elif city:
         conditions.append(Property.city == city)
+    if visibility is not None:
+        conditions.append(visibility)
 
     row = (
         await session.exec(

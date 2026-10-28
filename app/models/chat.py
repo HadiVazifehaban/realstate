@@ -20,10 +20,16 @@ class ChatConversation(SQLModel, table=True):
     __table_args__ = (
         CheckConstraint("length(title) <= 160", name="ck_chat_conversation_title_length"),
         UniqueConstraint("id", "tenant_id", name="uq_chat_conversation_id_tenant"),
+        UniqueConstraint("property_id", "tenant_id", "requester_subject", "owner_subject", name="uq_chat_property_participants"),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=uuid_column())
     tenant_id: str = Field(index=True, max_length=255)
+    # Legacy rooms are not property conversations. Nullable columns preserve
+    # that contract; the dedicated property-chat endpoint supplies all three.
+    property_id: uuid.UUID | None = Field(default=None, foreign_key="property.id", index=True)
+    requester_subject: str | None = Field(default=None, index=True, max_length=255)
+    owner_subject: str | None = Field(default=None, index=True, max_length=255)
     title: str = Field(default="", max_length=160)
     created_by_subject: str = Field(max_length=255)
     created_at: datetime = Field(default_factory=utcnow, sa_column=timestamp_column())

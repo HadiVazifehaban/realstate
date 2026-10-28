@@ -196,7 +196,9 @@ def _make_session() -> AsyncSession:
     from sqlalchemy.dialects.postgresql import ENUM as PgEnum
     from geoalchemy2 import Geometry
     global _SHARED_SCHEMA_DONE
-    factory = async_sessionmaker(bind=_shared_engine(), class_=AsyncSession, expire_on_commit=False)
+    factory = async_sessionmaker(
+        bind=_shared_engine(), class_=AsyncSession, expire_on_commit=False
+    )
     async def _init() -> AsyncSession:
         global _SHARED_SCHEMA_DONE
         session = factory()
@@ -222,11 +224,21 @@ def _make_session() -> AsyncSession:
                 own.create_all(conn)
                 # Defensive: if any geometry DDL slipped through as a no-op (sqlite
                 # has no GeomFromEWKT), ensure those columns exist as TEXT.
-                existing = {r[0] for r in conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()}
+                existing = {
+                    r[0]
+                    for r in conn.execute(
+                        text("SELECT name FROM sqlite_master WHERE type='table'")
+                    ).fetchall()
+                }
                 for table_name, col_name in geo_cols:
                     if table_name not in existing:
                         continue
-                    cols = {r[1] for r in conn.execute(text(f'PRAGMA table_info(\"{table_name}\")')).fetchall()}
+                    cols = {
+                        r[1]
+                        for r in conn.execute(
+                            text(f'PRAGMA table_info(\"{table_name}\")')
+                        ).fetchall()
+                    }
                     if col_name not in cols:
                         conn.execute(text(f'ALTER TABLE \"{table_name}\" ADD COLUMN \"{col_name}\" TEXT'))
             conn = await session.connection()
@@ -644,15 +656,30 @@ def test_job_create_persists_districts(session) -> None:
 
     async def _inner() -> None:
         payload = ScrapeJobCreate(
+            source="sheypoor",
             city="tehran",
-            category="apartment-sell",
+            category="houses-apartments-for-sale",
             districts=[" tehran-saat-abad ", ""],
         )
         # Whitespace-only entries are dropped by the schema validator.
         assert payload.districts == ["tehran-saat-abad"]
-        job = await scraper_service.create_job(session, payload, settings=TEST_SETTINGS)
+        job = await scraper_service.create_job(session, payload, settings=_verified_job_settings())
         assert job.params["districts"] == ["tehran-saat-abad"]
     _run(_inner())
+
+
+def _verified_job_settings(**overrides) -> Settings:
+    base = {
+        "database_url": "sqlite+aiosqlite://",
+        "scraper_enabled": True,
+        "scraper_cities": "tehran,mashhad",
+        "scraper_categories": "apartment-sell",
+        "scraper_sources": "delta,sheypoor",
+        "scraper_pace_min_seconds": 0.0,
+        "scraper_pace_max_seconds": 0.0,
+    }
+    base.update(overrides)
+    return Settings(**base)
 
 
 def _sched_settings(**overrides) -> "Settings":
@@ -680,6 +707,7 @@ def _patched_scheduler(session_ok: bool = True, lock_acquired: bool = True,
     real_license = sched._license_usable
     real_lock = sched._scheduler_lock
     real_launch = sched.scraper_service.launch_job_background
+    real_trigger = sched.scraper_service.trigger_with_trigger
     captured: list = []
 
     async def _allow(_s, _st):
@@ -689,12 +717,18 @@ def _patched_scheduler(session_ok: bool = True, lock_acquired: bool = True,
     async def _lock(_s):
         yield lock_acquired
 
+    async def _offline_trigger(session, payload, **kwargs):
+        kwargs.pop("wait", None)
+        kwargs["trigger"] = ScrapeJobTrigger.SCHEDULED
+        return await sched.scraper_service.create_job(session, payload, **kwargs)
+
     def _launch(job_id, _params):
         captured.append(job_id)
         return None
 
     sched._license_usable = _allow
     sched._scheduler_lock = _lock
+    sched.scraper_service.trigger_with_trigger = _offline_trigger
     sched.scraper_service.launch_job_background = _launch
     try:
         yield captured if launched is None else launched
@@ -702,6 +736,7 @@ def _patched_scheduler(session_ok: bool = True, lock_acquired: bool = True,
         sched._license_usable = real_license
         sched._scheduler_lock = real_lock
         sched.scraper_service.launch_job_background = real_launch
+        sched.scraper_service.trigger_with_trigger = real_trigger
 
 
 def _sqlite_sessionmaker():
@@ -994,23 +1029,23 @@ def test_scheduler_creates_scheduled_jobs_per_city_category(session) -> None:
     from app.services.scraper_scheduler import ScrapeScheduler
 
     assert session is not None
-    # Cities not used by other tests in this shared DB (the overlap guard would
-    # otherwise skip them because an earlier test left a PENDING job).
+    # Supported Delta cities, kept distinct from the overlap test below.
     sch = ScrapeScheduler(
-        _sched_settings(scraper_cities="qom,arak", scraper_sources="divar"),
+        _sched_settings(scraper_cities="tehran,mashhad", scraper_sources="delta", scraper_scheduler_enabled=True),
         session_factory=_sqlite_sessionmaker(),
     )
     with _patched_scheduler() as launched:
         jobs = _run(sch.tick())
-        assert len(jobs) == 2, "qom + arak x apartment-sell"
+        assert len(jobs) == 2, "tehran + mashhad x apartment-sell"
         assert {(j.city, j.category) for j in jobs} == {
-            ("qom", "apartment-sell"),
-            ("arak", "apartment-sell"),
+            ("tehran", "apartment-sell"),
+            ("mashhad", "apartment-sell"),
         }
         for j in jobs:
             assert j.trigger.value == "SCHEDULED"
             assert j.params["max_pages"] == 2
-            assert j.source == "divar"
+            assert j.source == "delta"
+            assert j.params["source_category"] == "apartment-sell"
         # Every created job was handed to the background runner.
         assert len(launched) == len(jobs)
 
@@ -1027,16 +1062,18 @@ def test_scheduler_covers_every_configured_source(session) -> None:
     assert session is not None
     sch = ScrapeScheduler(
         _sched_settings(
-            scraper_cities="yazd", scraper_sources="divar,delta", max_pages=1
+            scraper_cities="isfahan,shiraz", scraper_sources="delta", max_pages=1, scraper_scheduler_enabled=True
         ),
         session_factory=_sqlite_sessionmaker(),
     )
     with _patched_scheduler():
         jobs = _run(sch.tick())
 
-    assert {j.source for j in jobs} == {"divar", "delta"}
-    assert len(jobs) == 2, "1 city x 1 category x 2 sources"
-    assert all(j.city == "yazd" and j.category == "apartment-sell" for j in jobs)
+    assert {j.source for j in jobs} == {"delta"}
+    assert len(jobs) == 2, "2 cities x 1 category x 1 verified source"
+    assert {j.city for j in jobs} == {"isfahan", "shiraz"}
+    assert all(j.category == "apartment-sell" for j in jobs)
+    assert all(j.params["source_category"] == "apartment-sell" for j in jobs)
 
 
 def test_scheduler_defaults_to_every_registered_source(session) -> None:
@@ -1056,11 +1093,11 @@ def test_scheduler_skips_overlapping_job(session) -> None:
     from app.schemas.scraper import ScrapeJobCreate
     from app.services.scraper_scheduler import ScrapeScheduler
 
-    payload = ScrapeJobCreate(source="divar", city="tehran", category="apartment-sell")
-    _run(scraper_service.create_job(session, payload, settings=TEST_SETTINGS))
+    payload = ScrapeJobCreate(source="delta", city="tehran", category="apartment-sell")
+    _run(scraper_service.create_job(session, payload, settings=_verified_job_settings()))
 
     sch = ScrapeScheduler(
-        _sched_settings(scraper_cities="tehran", scraper_sources="divar"),
+        _sched_settings(scraper_cities="tehran", scraper_sources="delta", scraper_scheduler_enabled=True),
         session_factory=_sqlite_sessionmaker(),
     )
     with _patched_scheduler():
@@ -1076,20 +1113,17 @@ def test_scheduler_does_not_treat_another_source_as_overlap(session) -> None:
     from app.schemas.scraper import ScrapeJobCreate
     from app.services.scraper_scheduler import ScrapeScheduler
 
-    # A city no other test in this shared DB touches: an earlier test can leave a
-    # PENDING divar job behind, which would mask this one's slot for reasons that
-    # have nothing to do with the guard under test.
-    payload = ScrapeJobCreate(source="delta", city="zanjan", category="apartment-sell")
-    _run(scraper_service.create_job(session, payload, settings=TEST_SETTINGS))
+    payload = ScrapeJobCreate(source="sheypoor", city="tehran", category="houses-apartments-for-sale")
+    _run(scraper_service.create_job(session, payload, settings=_verified_job_settings()))
 
     sch = ScrapeScheduler(
-        _sched_settings(scraper_cities="zanjan", scraper_sources="divar"),
+        _sched_settings(scraper_cities="tehran", scraper_sources="delta", scraper_scheduler_enabled=True, scraper_schedule_skip_overlapping=False),
         session_factory=_sqlite_sessionmaker(),
     )
     with _patched_scheduler():
         jobs = _run(sch.tick())
 
-    assert [j.source for j in jobs] == ["divar"], "the Divar slot was masked by Delta"
+    assert [j.source for j in jobs] == ["delta"], "the Delta slot must not be masked by Sheypoor"
 
 
 def test_scheduler_start_stop_is_idempotent() -> None:
@@ -1169,7 +1203,7 @@ def test_process_detail_persists_and_emits_event(session: AsyncSession) -> None:
         event_bus.subscribe(NEW_PROPERTY_INGESTED, _listener)
         try:
             detail = DivarListingDetail(
-                token="QX-EVT", title="apt", city="tehran", district="x",
+                token="QX-EVT", title="apt", city="tehran", district="x", property_type=PropertyType.APARTMENT,
                 total_price=9_000_000_000, area=110.0, rooms=2, floor=1,
                 latitude=35.7, longitude=51.4, phone="09120000000",
             )
@@ -1186,10 +1220,10 @@ def test_process_detail_persists_and_emits_event(session: AsyncSession) -> None:
 def test_process_detail_duplicate_updates(session: AsyncSession) -> None:
     async def _inner() -> None:
         cipher = _cipher()
-        d1 = DivarListingDetail(token="QX-DUP", city="tehran", area=100.0, phone="09120000000")
+        d1 = DivarListingDetail(token="QX-DUP", city="tehran", property_type=PropertyType.APARTMENT, area=100.0, phone="09120000000")
         first = await process_detail(session, d1, cipher=cipher, settings=TEST_SETTINGS)
         assert first.is_new
-        d2 = DivarListingDetail(token="QX-DUP", city="tehran", area=105.0, phone="09120000001")
+        d2 = DivarListingDetail(token="QX-DUP", city="tehran", property_type=PropertyType.APARTMENT, area=105.0, phone="09120000001")
         second = await process_detail(session, d2, cipher=cipher, settings=TEST_SETTINGS)
         assert second.is_duplicate
         assert second.property_id == first.property_id
@@ -1199,7 +1233,7 @@ def test_process_detail_duplicate_updates(session: AsyncSession) -> None:
 def test_pii_never_in_property_row(session: AsyncSession) -> None:
     async def _inner() -> None:
         cipher = _cipher()
-        detail = DivarListingDetail(token="QX-PII", city="tehran", phone="09120000000")
+        detail = DivarListingDetail(token="QX-PII", city="tehran", property_type=PropertyType.APARTMENT, phone="09120000000")
         outcome = await process_detail(session, detail, cipher=cipher, settings=TEST_SETTINGS)
         assert outcome.property_id is not None
         prop = await session.get(Property, outcome.property_id)
@@ -1214,9 +1248,9 @@ def test_pii_never_in_property_row(session: AsyncSession) -> None:
 def test_rescrape_without_phone_keeps_pii(session: AsyncSession) -> None:
     async def _inner() -> None:
         cipher = _cipher()
-        d1 = DivarListingDetail(token="QX-KEEP", city="tehran", phone="09120000000")
+        d1 = DivarListingDetail(token="QX-KEEP", city="tehran", property_type=PropertyType.APARTMENT, phone="09120000000")
         first = await process_detail(session, d1, cipher=cipher, settings=TEST_SETTINGS)
-        d2 = DivarListingDetail(token="QX-KEEP", city="tehran", phone=None)
+        d2 = DivarListingDetail(token="QX-KEEP", city="tehran", property_type=PropertyType.APARTMENT, phone=None)
         second = await process_detail(session, d2, cipher=cipher, settings=TEST_SETTINGS)
         assert second.is_duplicate and second.property_id == first.property_id
         row = (await session.exec(PropertyOwnerPII.__table__.select().where(PropertyOwnerPII.property_id == first.property_id))).first()
@@ -1228,7 +1262,7 @@ def test_rescrape_without_phone_keeps_pii(session: AsyncSession) -> None:
 def test_store_owner_pii_skips_without_phone(session: AsyncSession) -> None:
     import uuid as _uuid
     async def _inner() -> None:
-        detail = DivarListingDetail(token="QX-NOPHONE", city="tehran", phone=None)
+        detail = DivarListingDetail(token="QX-NOPHONE", city="tehran", property_type=PropertyType.APARTMENT, phone=None)
         assert await store_owner_pii(session, _uuid.uuid4(), detail, _cipher()) is None
     _run(_inner())
 
@@ -1300,13 +1334,13 @@ def test_parse_phone_normalises() -> None:
 
 def test_run_search_job_end_to_end(session) -> None:
     from dataclasses import replace as _dc_replace
-    from app.services.scraper.parser import DivarListingSummary
+    from app.services.scraper.parser import DivarListingDetail, DivarListingSummary
     from app.services.scraper.registry import get_source
     async def _inner():
-        job = ScrapeJob(kind="SEARCH", city="tehran", category="apartment-sell")
+        job = ScrapeJob(kind="SEARCH", source="delta", city="tehran", category="apartment-sell", params={"execution_scope": "test", "max_pages": 1})
         session.add(job)
         await session.commit()
-        summaries = [DivarListingSummary(token="QX-J1", city="tehran"), DivarListingSummary(token="QX-J2", city="tehran")]
+        summaries = [DivarListingSummary(token="QX-J1", city="تهران"), DivarListingSummary(token="QX-J2", city="تهران")]
         class _Client:
             async def search(self, city, category, page, districts=None):
                 return {}
@@ -1317,18 +1351,30 @@ def test_run_search_job_end_to_end(session) -> None:
                 suffix = "1" if token.endswith("1") else "2"
                 return {
                     "title": token,
-                    "city": "tehran",
+                    "city": "تهران",
+                    "province": "تهران",
+                    "__context": {"property_type": "apartment", "deal": "buy"},
                     "list_widgets": [
                         {"title": "متراژ", "value": "80" if suffix == "1" else "120"},
                         {"title": "محله", "value": f"zone-{suffix}"},
                     ],
                 }
-        # The source carries the parsers, so the job runs whatever the registry
-        # says rather than whatever the pipeline happens to import.
+        # Divar's unverified city IDs prevent live job creation; this tests only
+        # the isolated parser-to-ingestion pipeline with explicit fixture data.
         source = _dc_replace(
-            get_source("divar"), parse_search=lambda payload: summaries
+            get_source("delta"),
+            parse_search=lambda payload: summaries,
+            parse_detail=lambda payload, token, **kwargs: DivarListingDetail(
+                token=token, title=token, city="تهران", province="تهران",
+                district="zone", property_type=PropertyType.APARTMENT,
+                area=80.0 if token.endswith("1") else 120.0,
+                raw=payload,
+            ),
         )
-        return await run_search_job(session, job, client=_Client(), cipher=_cipher(), source=source, settings=TEST_SETTINGS, max_pages=1)
+        job.source = "delta"
+        job.params = {"execution_scope": "test", "max_pages": 1}
+        settings = _verified_job_settings(scraper_sources="delta")
+        return await run_search_job(session, job, client=_Client(), cipher=_cipher(), source=source, settings=settings, max_pages=1)
     job = _run(_inner())
     assert job.status.value == "COMPLETED"
     assert job.items_new == 2 and job.items_found == 2
@@ -1338,8 +1384,8 @@ def test_service_create_and_list(session) -> None:
     from app.schemas.scraper import ScrapeJobCreate
     from app.services import scraper_service
     async def _inner() -> None:
-        payload = ScrapeJobCreate(city="tehran", category="apartment-sell")
-        job = await scraper_service.create_job(session, payload, settings=TEST_SETTINGS)
+        payload = ScrapeJobCreate(source="delta", city="tehran", category="apartment-sell")
+        job = await scraper_service.create_job(session, payload, settings=_verified_job_settings())
         assert job.status.value == "PENDING"
         jobs, total = await scraper_service.list_jobs(session)
         assert total >= 1 and any(j.id == job.id for j in jobs)
@@ -1350,6 +1396,7 @@ def test_service_create_and_list(session) -> None:
 def test_service_trigger_wait_runs_job(session) -> None:
     from app.schemas.scraper import ScrapeJobCreate
     import app.services.scraper_service as svc
+    from app.services.scraper.parser import DivarListingDetail, DivarListingSummary
     class _FakeClient:
         def __init__(self, *a, **k):
             pass
@@ -1364,7 +1411,9 @@ def test_service_trigger_wait_runs_job(session) -> None:
             # earlier tests in the shared DB — vary district via a widget pair.
             return {
                 "title": "t",
-                "city": "tehran",
+                "city": "تهران",
+                "province": "تهران",
+                "__context": {"property_type": "apartment", "deal": "buy"},
                 "list_widgets": [{"title": "محله", "value": "trigger-zone"}],
             }
     # The client now comes from the source registry, so that is what has to be
@@ -1372,20 +1421,30 @@ def test_service_trigger_wait_runs_job(session) -> None:
     # place and put this test on the network.
     from dataclasses import replace as _dc_replace
     from app.services.scraper.registry import SOURCES
-    real_source, real_cipher = SOURCES["divar"], svc.get_pii_cipher
-    SOURCES["divar"] = _dc_replace(real_source, client_factory=lambda settings=None: _FakeClient())
+    real_source, real_cipher = SOURCES["delta"], svc.get_pii_cipher
+    test_token = f"QX-TRIG-{id(session)}"
+    fake_source = _dc_replace(
+        real_source,
+        client_factory=lambda settings=None: _FakeClient(),
+        parse_search=lambda payload: [DivarListingSummary(token=test_token, city="تهران")],
+        parse_detail=lambda payload, token, **kwargs: DivarListingDetail(
+            token=token, title="t", city="تهران", province="تهران", property_type=PropertyType.APARTMENT, area=float(id(session) % 1000 + 80),
+            raw=payload,
+        ),
+    )
+    SOURCES["delta"] = fake_source
     svc.get_pii_cipher = lambda settings=None: _cipher()
     try:
         async def _inner():
             from app.services import scraper_service
-            payload = ScrapeJobCreate(city="tehran", category="apartment-sell")
-            return await scraper_service.trigger_and_maybe_run(session, payload, settings=TEST_SETTINGS, wait=True)
+            payload = ScrapeJobCreate(source="delta", city="tehran", category="apartment-sell")
+            return await scraper_service.trigger_and_maybe_run(session, payload, settings=_verified_job_settings(), wait=True)
         job = _run(_inner())
         assert job.status.value == "COMPLETED"
         assert job.items_new == 1
-        assert job.source == "divar"
+        assert job.source == "delta"
     finally:
-        SOURCES["divar"] = real_source
+        SOURCES["delta"] = real_source
         svc.get_pii_cipher = real_cipher
 
 
@@ -1393,7 +1452,7 @@ def test_scraper_routes_registered_behind_license_guard() -> None:
     from app.api.v1.endpoints.scraper import router as scraper_router
     from app.main import app as fastapi_app
     # The endpoint router itself carries the license guard on every route.
-    assert len(list(scraper_router.routes)) == 4
+    assert len(list(scraper_router.routes)) == 5
     for route in scraper_router.routes:
         dependant = getattr(route, "dependant", None)
         deps = getattr(dependant, "dependencies", []) if dependant else []
@@ -1418,6 +1477,7 @@ def test_scraper_routes_registered_behind_license_guard() -> None:
     assert "/api/v1/scraper/trigger" in app_paths
     assert "/api/v1/scraper/jobs" in app_paths
     assert "/api/v1/scraper/jobs/{job_id}" in app_paths
+    assert "/api/v1/scraper/set-focus-city" in app_paths
 
 
 def test_scraper_trigger_forbidden_without_license() -> None:

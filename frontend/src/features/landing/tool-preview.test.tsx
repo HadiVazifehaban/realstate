@@ -3,7 +3,10 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ city: "رشت" as string | null }));
-vi.mock("@/store/useCityStore", () => ({ useActiveCityName: () => state.city }));
+vi.mock("@/store/useCityStore", () => ({
+  useCityStore: (selector: (value: { activeCity: { name: string } | null }) => unknown) =>
+    selector({ activeCity: state.city ? { name: state.city } : null })
+}));
 vi.mock("@/features/properties/api/client", () => ({
   ApiError: class extends Error {
     constructor(public status: number) {
@@ -103,12 +106,15 @@ it("renders server medians, not invented growth or historical trends, and scopes
   await waitFor(() =>
     expect(document.querySelector(".landing-live-price")?.textContent).toBe("۹۸,۷۶۵,۴۳۲ تومان/متر")
   );
-  expect(fetchNeighbourhoodMarket).toHaveBeenCalledWith({
-    city: "رشت",
-    dealTypes: ["SALE"],
-    minFiles: 1,
-    limit: 100
-  });
+  expect(fetchNeighbourhoodMarket).toHaveBeenCalledWith(
+    {
+      city: "رشت",
+      dealTypes: ["SALE"],
+      minFiles: 1,
+      limit: 100
+    },
+    false
+  );
   expect(screen.getByText(/نه روند زمانی/)).toBeTruthy();
   expect(document.body.textContent).not.toMatch(/۱۳۲٫۸|۴٫۲٪|۱۲ ماه|نمایشی/);
 });

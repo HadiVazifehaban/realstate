@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,9 @@ import {
   formatPublishedAgo
 } from '../utils/labels';
 import { cn, formatToman, toPersianDigits } from '@/lib/utils';
+import { useAuthContext } from '@/hooks/use-auth';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import Link from 'next/link';
 
 /**
  * The listing's financial, legal and contact column.
@@ -68,6 +72,7 @@ export function PropertyShowcaseSidebar({
   onLeadCreated,
   compact = false
 }: PropertyShowcaseSidebarProps) {
+  const { user, isLoading: authLoading } = useAuthContext();
   const [warningOpen, setWarningOpen] = React.useState(false);
   const [reportOpen, setReportOpen] = React.useState(false);
 
@@ -103,33 +108,41 @@ export function PropertyShowcaseSidebar({
       <DescriptionCard property={property} compact={compact} />
       <AdvisorCard property={property} onLeadCreated={onLeadCreated} compact={compact} />
 
-      <Modal
-        title='هشدارهای مهم قبل از معامله'
-        description='این موارد را پیش از هر پرداختی در نظر بگیرید.'
-        isOpen={warningOpen}
-        onClose={() => setWarningOpen(false)}
-      >
-        <ul className='text-showcase-muted mb-6 flex flex-col gap-2 text-xs leading-7'>
-          {TRANSACTION_WARNINGS.map((warning) => (
-            <li key={warning} className='relative ps-3.5'>
-              <span aria-hidden className='text-gold-accent absolute start-0 font-extrabold'>
-                •
-              </span>
-              {warning}
-            </li>
-          ))}
-        </ul>
-        <Button className='w-full' onClick={() => setWarningOpen(false)}>
-          متوجه شدم
-        </Button>
-      </Modal>
+      {user && (
+        <Modal
+          title='هشدارهای مهم قبل از معامله'
+          description='این موارد را پیش از هر پرداختی در نظر بگیرید.'
+          isOpen={warningOpen}
+          onClose={() => setWarningOpen(false)}
+        >
+          <ul className='text-showcase-muted mb-6 flex flex-col gap-2 text-xs leading-7'>
+            {TRANSACTION_WARNINGS.map((warning) => <li key={warning}>{warning}</li>)}
+          </ul>
+          <Button className='w-full' onClick={() => setWarningOpen(false)}>متوجه شدم</Button>
+        </Modal>
+      )}
 
-      <ReportDialog
-        propertyId={property.id}
-        open={reportOpen}
-        onClose={() => setReportOpen(false)}
-      />
+      {user && <ReportDialog propertyId={property.id} open={reportOpen} onClose={() => setReportOpen(false)} />}
+      <GuestActionDialog open={!user && !authLoading && (warningOpen || reportOpen)} propertyId={property.id} onClose={() => { setWarningOpen(false); setReportOpen(false); }} />
     </div>
+  );
+}
+
+function GuestActionDialog({ open, propertyId, onClose }: { open: boolean; propertyId: string; onClose: () => void }) {
+  const callbackUrl = `/dashboard/properties/${encodeURIComponent(propertyId)}`;
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogContent dir='rtl'>
+        <DialogHeader>
+          <DialogTitle>برای استفاده از این قابلیت وارد شکارچی شوید</DialogTitle>
+          <DialogDescription>با ورود یا عضویت در شکارچی می‌توانید از امکانات اختصاصی این بخش استفاده کنید.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Link className='inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-4 text-primary-foreground' href={`/auth/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}`}>ورود / عضویت</Link>
+          <button type='button' className='min-h-10 rounded-md border px-4' onClick={onClose}>انصراف</button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -420,6 +433,10 @@ function AdvisorCard({
 }) {
   const [pending, setPending] = React.useState(false);
   const [created, setCreated] = React.useState(false);
+  const [messagePending, setMessagePending] = React.useState(false);
+  const [guestPrompt, setGuestPrompt] = React.useState(false);
+  const { user, isLoading: authLoading } = useAuthContext();
+  const router = useRouter();
 
   const agency = property.agency_name?.trim() || '';
   const agent = property.agent_name?.trim() || '';
@@ -433,6 +450,7 @@ function AdvisorCard({
    * hook cannot be called from inside a callback.
    */
   const fileLead = React.useCallback(async () => {
+    if (!authLoading && !user) { setGuestPrompt(true); return; }
     setPending(true);
     try {
       const { createLead } = await import('@/features/crm/api/client');
@@ -448,7 +466,22 @@ function AdvisorCard({
     } finally {
       setPending(false);
     }
-  }, [property.id, onLeadCreated]);
+  }, [authLoading, user, property.id, onLeadCreated]);
+
+  const openMessage = React.useCallback(async () => {
+    if (!property.message_available || messagePending) return;
+    if (!authLoading && !user) { setGuestPrompt(true); return; }
+    setMessagePending(true);
+    try {
+      const { openPropertyConversation } = await import('@/features/chat/api/client');
+      await openPropertyConversation(property.id);
+      router.push('/dashboard/chat');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'بازکردن گفت‌وگو ممکن نشد.');
+    } finally {
+      setMessagePending(false);
+    }
+  }, [authLoading, user, messagePending, property.id, property.message_available, router]);
 
   return (
     <section className={cn('showcase-panel relative overflow-hidden border-gold-accent/35', compact && 'property-detail-advisor')}>
@@ -479,20 +512,46 @@ function AdvisorCard({
       </div>
 
       <div className='space-y-2 px-3 py-3.5 sm:px-4 sm:py-4'>
-        <Button
-          className='w-full'
-          disabled={pending}
-          onClick={() => void fileLead()}
-        >
-          <Icons.phone className='size-4' />
-          {pending ? 'در حال ثبت…' : created ? 'در پیگیری ثبت شد' : 'افزودن به پیگیری'}
-        </Button>
+        {user ? (
+          <Button className='w-full' disabled={pending} onClick={() => void fileLead()}>
+            <Icons.phone className='size-4' />
+            {pending ? 'در حال ثبت…' : created ? 'در پیگیری ثبت شد' : 'افزودن به پیگیری'}
+          </Button>
+        ) : (
+          <Button className='w-full' onClick={() => setGuestPrompt(true)}>افزودن به پیگیری</Button>
+        )}
+        {user ? (
+          <Button
+            type='button'
+            variant='outline'
+            className='w-full justify-start gap-2 text-start'
+            disabled={!property.message_available || messagePending}
+            onClick={() => void openMessage()}
+            aria-disabled={!property.message_available}
+            title={property.message_unavailable_reason ?? 'پیام داخلی برای این آگهی در دسترس نیست.'}
+          >
+            <Icons.chat className='size-4 shrink-0' />
+            {messagePending ? 'در حال بازکردن گفت‌وگو…' : 'ارسال پیام'}
+          </Button>
+        ) : property.message_available ? (
+          <Button type='button' variant='outline' className='w-full justify-start gap-2' onClick={() => setGuestPrompt(true)}>
+            <Icons.chat className='size-4 shrink-0' /> ارسال پیام
+          </Button>
+        ) : (
+          <Button type='button' variant='outline' className='w-full justify-start gap-2' disabled title={property.message_unavailable_reason ?? undefined}>
+            <Icons.chat className='size-4 shrink-0' /> ارسال پیام
+          </Button>
+        )}
         <p className='text-showcase-dim text-center text-[0.68rem] leading-6'>
           {hasIdentity
             ? 'ثبت پیگیری، این آگهی را به کارتابل شما اضافه می‌کند.'
             : 'این آگهی از پرتال گرفته شده و اطلاعات تماس آن هنوز تأیید نشده است.'}
         </p>
+        <p role='note' className='text-showcase-dim text-center text-[0.65rem] leading-5'>
+          {property.message_available ? 'گفت‌وگوی داخلی فقط برای آگهی‌های مستقیمِ دارای مالک معتبر در سامانه و با مجوز لازم فعال است.' : property.source === 'DIVAR' || property.source === 'DELTA' || property.source === 'SHEYPOOR' ? 'این آگهی از یک منبع خارجی جمع‌آوری شده و امکان گفت‌وگوی مستقیم در شکارچی برای آن فراهم نیست.' : property.message_unavailable_reason ?? 'پیام داخلی برای این آگهی در دسترس نیست.'}
+        </p>
       </div>
+      <GuestActionDialog open={guestPrompt} propertyId={property.id} onClose={() => setGuestPrompt(false)} />
     </section>
   );
 }

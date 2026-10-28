@@ -28,7 +28,8 @@
 /* Use Iran Sans glyphs only for digits; Persian and Latin text stays Vazirmatn. */
 @font-face {
   font-family: "IranSansDigits";
-  src: url("https://raw.githubusercontent.com/hamid80386/iran-sans/master/fonts/IRANSans-web.woff") format("woff");
+  src: url("https://raw.githubusercontent.com/hamid80386/iran-sans/master/fonts/IRANSans-web.woff")
+    format("woff");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -37,7 +38,8 @@
 
 @font-face {
   font-family: "IranSansDigits";
-  src: url("https://raw.githubusercontent.com/hamid80386/iran-sans/master/fonts/IranianSansBold.ttf") format("truetype");
+  src: url("https://raw.githubusercontent.com/hamid80386/iran-sans/master/fonts/IranianSansBold.ttf")
+    format("truetype");
   font-style: normal;
   font-weight: 700 900;
   font-display: swap;
@@ -52,13 +54,13 @@
 
 /* One semantic palette per mode; Cloud backgrounds are light-only. */
 :root {
-  --background: #f5f7fb;
+  --background: #f4f6f9;
   --foreground: #1e293b;
   --card: #ffffff;
   --card-foreground: #1e293b;
   --popover: #ffffff;
   --popover-foreground: #1e293b;
-  --primary: #925b39;
+  --primary: #9a741c;
   --primary-foreground: #ffffff;
   --secondary: #e8edf4;
   --secondary-foreground: #334155;
@@ -68,18 +70,18 @@
   --accent-foreground: #754628;
   --destructive: #be123c;
   --destructive-foreground: #ffffff;
-  --border: #cbd5e1;
-  --input: #cbd5e1;
-  --ring: #925b39;
+  --border: #d1d9e2;
+  --input: #d1d9e2;
+  --ring: #9a741c;
   --sidebar: #f8fafc;
   --sidebar-foreground: #334155;
   --sidebar-primary: #925b39;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e8edf4;
   --sidebar-accent-foreground: #1e293b;
-  --sidebar-border: #cbd5e1;
-  --sidebar-ring: #925b39;
-  --chart-1: #925b39;
+  --sidebar-border: #d1d9e2;
+  --sidebar-ring: #9a741c;
+  --chart-1: #9a741c;
   --chart-2: #0f766e;
   --chart-3: #0369a1;
   --chart-4: #7c3aed;
@@ -148,58 +150,60 @@
   --shadow: 0 4px 8px -2px rgb(0 0 0 / 0.3);
 }
 @theme inline {
-    --color-background: var(--background);
-    --color-foreground: var(--foreground);
-    --color-card: var(--card);
-    --color-card-foreground: var(--card-foreground);
-    --color-popover: var(--popover);
-    --color-popover-foreground: var(--popover-foreground);
-    --color-primary: var(--primary);
-    --color-primary-foreground: var(--primary-foreground);
-    --color-secondary: var(--secondary);
-    --color-secondary-foreground: var(--secondary-foreground);
-    --color-muted: var(--muted);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-accent: var(--accent);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-destructive: var(--destructive);
-    --color-destructive-foreground: var(--destructive-foreground);
-    --color-border: var(--border);
-    --color-input: var(--input);
-    --color-ring: var(--ring);
-    --color-chart-1: var(--chart-1);
-    --color-chart-2: var(--chart-2);
-    --color-chart-3: var(--chart-3);
-    --color-chart-4: var(--chart-4);
-    --color-chart-5: var(--chart-5);
-    --color-sidebar: var(--sidebar);
-    --color-sidebar-foreground: var(--sidebar-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-    --color-sidebar-border: var(--sidebar-border);
-    --color-sidebar-ring: var(--sidebar-ring);
-    --font-sans: var(--font-sans);
-    --font-mono: var(--font-mono);
-    --font-serif: var(--font-serif);
-    --radius-sm: calc(var(--radius) - 4px);
-    --radius-md: calc(var(--radius) - 2px);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) + 4px);
-    --shadow-2xs: var(--shadow-2xs);
-    --shadow-xs: var(--shadow-xs);
-    --shadow-sm: var(--shadow-sm);
-    --shadow: var(--shadow);
-    --shadow-md: var(--shadow-md);
-    --shadow-lg: var(--shadow-lg);
-    --shadow-xl: var(--shadow-xl);
-    --shadow-2xl: var(--shadow-2xl);
-  }
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-serif: var(--font-serif);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
+}
 
 html:not(.dark) body {
- background-image: radial-gradient(ellipse at 15% 0%, #ffffff 0%, transparent 55%), radial-gradient(ellipse at 90% 30%, #e8eef8 0%, transparent 60%);
- background-attachment: fixed;
+  background-image:
+    radial-gradient(ellipse at 15% 0%, #ffffff 0%, transparent 55%),
+    radial-gradient(ellipse at 90% 30%, #e8eef8 0%, transparent 60%);
+  background-attachment: fixed;
 }
 
 @layer base {
@@ -1104,7 +1108,6 @@ body::-webkit-scrollbar-thumb:hover {
   border-color: var(--border);
 }
 
-
 .mk-detail-standard .hover\:text-white:hover {
   color: var(--foreground);
 }
@@ -1134,13 +1137,15 @@ body::-webkit-scrollbar-thumb:hover {
     overflow: hidden;
   }
 
-  .dashboard-horizontal-shell:has(.property-detail-viewport) [data-slot='infobar-wrapper'] {
+  .dashboard-horizontal-shell:has(.property-detail-viewport) [data-slot="infobar-wrapper"] {
     min-width: 0;
     min-height: 0;
     overflow: hidden;
   }
 
-  .dashboard-horizontal-shell:has(.property-detail-viewport) [data-slot='infobar-wrapper'] [data-slot='infobar'] {
+  .dashboard-horizontal-shell:has(.property-detail-viewport)
+    [data-slot="infobar-wrapper"]
+    [data-slot="infobar"] {
     display: none;
   }
 
@@ -1189,7 +1194,7 @@ body::-webkit-scrollbar-thumb:hover {
     padding: 0.25rem;
   }
 
-  .property-detail-gallery [data-slot='tabs'] {
+  .property-detail-gallery [data-slot="tabs"] {
     display: flex;
     flex: 1 1 0%;
     flex-direction: column;
@@ -1198,18 +1203,18 @@ body::-webkit-scrollbar-thumb:hover {
     gap: 0.15rem;
   }
 
-  .property-detail-gallery [data-slot='tabs-list'] {
+  .property-detail-gallery [data-slot="tabs-list"] {
     flex: 0 0 1.6rem;
     height: 1.6rem;
     padding: 0 0.25rem;
   }
 
-  .property-detail-gallery [data-slot='tabs-trigger'] {
+  .property-detail-gallery [data-slot="tabs-trigger"] {
     font-size: 0.68rem;
   }
 
-  .property-detail-gallery [data-slot='tabs-content'][data-active='true'],
-  .property-detail-gallery [data-slot='tabs-content'][data-state='active'] {
+  .property-detail-gallery [data-slot="tabs-content"][data-active="true"],
+  .property-detail-gallery [data-slot="tabs-content"][data-state="active"] {
     display: flex;
     flex: 1 1 0%;
     flex-direction: column;
@@ -1332,8 +1337,8 @@ body::-webkit-scrollbar-thumb:hover {
     font-size: 0.68rem;
   }
 
-  .property-detail-history [data-slot='table-cell'],
-  .property-detail-history [data-slot='table-head'] {
+  .property-detail-history [data-slot="table-cell"],
+  .property-detail-history [data-slot="table-head"] {
     padding-top: 0.12rem;
     padding-bottom: 0.12rem;
     font-size: 0.58rem;
@@ -1578,11 +1583,11 @@ body::-webkit-scrollbar-thumb:hover {
     height: 7rem;
   }
 
-  .property-detail-scheduler-body [role='grid'] {
+  .property-detail-scheduler-body [role="grid"] {
     gap: 0.12rem;
   }
 
-  .property-detail-scheduler-body [role='grid'] button {
+  .property-detail-scheduler-body [role="grid"] button {
     border-radius: 0.35rem;
     font-size: 0.64rem;
   }
@@ -1631,6 +1636,423 @@ body::-webkit-scrollbar-thumb:hover {
   }
 }
 
+/* Kilid-like listing detail: the page is deliberately scrollable, with a
+   gallery-led column and a readable information/action rail. The compact
+   viewport rules above remain available for the old dashboard shell, but this
+   page no longer clips content to force a single screen. */
+@media (min-width: 1024px) {
+  .dashboard-horizontal-shell:has(.property-detail-viewport),
+  .dashboard-horizontal-shell:has(.property-detail-viewport) > main,
+  .dashboard-horizontal-shell:has(.property-detail-viewport) [data-slot="infobar-wrapper"] {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .property-detail-viewport {
+    display: block;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    padding: 0.9rem clamp(1rem, 2.5vw, 2.75rem) 2.5rem;
+    overflow: visible;
+  }
+
+  .property-detail-toolbar {
+    margin-bottom: 1rem;
+  }
+
+  .property-detail-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.85fr);
+    grid-template-rows: auto auto;
+    align-items: start;
+    gap: 1.25rem;
+    overflow: visible;
+  }
+
+  .property-detail-media {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    display: flex;
+    min-height: 0;
+    gap: 1rem;
+    overflow: visible;
+  }
+
+  .property-detail-gallery {
+    min-height: 0;
+    height: auto;
+    padding: 0.5rem;
+  }
+
+  .property-detail-gallery-stage {
+    height: clamp(320px, 48vw, 540px) !important;
+  }
+
+  .property-detail-location {
+    min-height: 0;
+    padding: 0.5rem;
+  }
+
+  .property-detail-location-grid {
+    height: auto;
+    min-height: 245px;
+    grid-template-columns: minmax(0, 1.05fr) minmax(220px, 0.95fr);
+  }
+
+  .property-detail-map-panel .leaflet-container,
+  .property-detail-map-panel > div:has(.leaflet-container) {
+    height: 245px !important;
+  }
+
+  .property-detail-history {
+    overflow: visible;
+  }
+
+  .property-detail-facts {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+  }
+
+  .property-detail-sidebar {
+    display: flex;
+    min-height: 0;
+    height: auto;
+    gap: 0.75rem;
+    overflow: visible;
+  }
+
+  .property-detail-title,
+  .property-detail-description,
+  .property-detail-advisor {
+    grid-column: auto;
+  }
+
+  .property-detail-title h1 {
+    display: block;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+  }
+
+  .property-detail-description p {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+  }
+
+  .property-detail-scheduler {
+    grid-column: 2;
+    grid-row: 2;
+    height: auto;
+    min-height: 0;
+    align-self: start;
+  }
+
+  .property-detail-scheduler-collapsed {
+    height: auto;
+  }
+}
+
+/* Final detail-page safety rules: never turn the document into a clipped app
+   shell. Only galleries/maps may clip their own media, not the page columns. */
+@media (min-width: 768px) {
+  .dashboard-horizontal-shell:has(.property-detail-viewport),
+  .dashboard-horizontal-shell:has(.property-detail-viewport) > main,
+  .dashboard-horizontal-shell:has(.property-detail-viewport) [data-slot="infobar-wrapper"] {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .property-detail-viewport,
+  .property-detail-grid,
+  .property-detail-media,
+  .property-detail-facts,
+  .property-detail-sidebar {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .property-detail-grid {
+    align-items: start !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .property-detail-viewport,
+  .property-detail-grid,
+  .property-detail-media,
+  .property-detail-facts,
+  .property-detail-sidebar {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .property-detail-grid {
+    gap: 0.75rem;
+  }
+
+  .property-detail-location-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    height: auto !important;
+  }
+
+  .property-detail-map-panel .leaflet-container,
+  .property-detail-map-panel > div:has(.leaflet-container) {
+    height: 220px !important;
+  }
+}
+
+/* Premium, scroll-first property detail redesign. Scoped to this route so the
+   existing public showcase and the rest of the dashboard keep their surfaces. */
+.property-detail-premium {
+  --detail-bg: #0b1118;
+  --detail-card: #111d29;
+  --detail-inset: #172634;
+  --detail-border: #263746;
+  --detail-text: #f4f7fa;
+  --detail-muted: #94a3b8;
+  --detail-gold: #c78b5c;
+  max-width: 100%;
+  border-radius: 0 !important;
+  background: var(--detail-bg) !important;
+  color: var(--detail-text);
+}
+
+.property-detail-premium .showcase-panel {
+  border: 1px solid var(--detail-border);
+  border-radius: 16px;
+  background: var(--detail-card);
+  color: var(--detail-text);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.16);
+}
+
+.property-detail-premium .text-showcase-text,
+.property-detail-premium h1,
+.property-detail-premium h2,
+.property-detail-premium h3 {
+  color: var(--detail-text);
+}
+
+.property-detail-premium .text-showcase-muted,
+.property-detail-premium .text-showcase-dim {
+  color: var(--detail-muted);
+}
+
+.property-detail-premium .text-gold-primary,
+.property-detail-premium .text-gold-accent {
+  color: var(--detail-gold);
+}
+
+.property-detail-premium .property-detail-summary {
+  gap: 1rem;
+  padding: clamp(1rem, 2.2vw, 1.5rem);
+}
+
+.property-detail-premium .property-detail-summary > div:first-child {
+  grid-column: 1;
+}
+
+.property-detail-premium .property-detail-summary > div:nth-child(2) {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.property-detail-premium .property-detail-summary > div:nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+.property-detail-premium .property-detail-summary > div:nth-child(3) > div {
+  border-color: var(--detail-border);
+  background: var(--detail-inset);
+}
+
+.property-detail-premium .property-detail-grid {
+  grid-template-columns: minmax(0, 1.8fr) minmax(300px, 1fr) !important;
+  grid-template-rows: auto auto;
+  gap: 1rem;
+  overflow: visible;
+}
+
+.property-detail-premium .property-detail-media {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  gap: 1rem;
+  overflow: visible;
+}
+
+.property-detail-premium .property-detail-facts {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.property-detail-premium .property-detail-scheduler {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.property-detail-premium .property-detail-gallery-stage {
+  height: clamp(280px, 38vw, 520px);
+  border-radius: 16px;
+}
+
+.property-detail-premium .property-detail-location-grid {
+  min-height: 270px;
+}
+
+.property-detail-premium .property-detail-location .property-detail-map-panel .leaflet-container,
+.property-detail-premium
+  .property-detail-location
+  .property-detail-map-panel
+  > div:has(.leaflet-container) {
+  height: 270px !important;
+}
+
+.property-detail-premium .property-detail-sidebar {
+  display: flex;
+  gap: 1rem;
+}
+
+.property-detail-premium .property-detail-sidebar > section,
+.property-detail-premium .property-detail-sidebar > div {
+  min-width: 0;
+}
+
+.property-detail-premium .property-detail-toolbar {
+  min-height: 2.5rem;
+  padding-block: 0.25rem;
+}
+
+.property-detail-premium :is(button, a, summary, input, select, textarea):focus-visible {
+  outline: 2px solid var(--detail-gold);
+  outline-offset: 3px;
+}
+
+@media (max-width: 1023px) {
+  .property-detail-premium .property-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .property-detail-premium .property-detail-media {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
+  .property-detail-premium .property-detail-facts {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .property-detail-premium .property-detail-scheduler {
+    grid-column: 2;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 639px) {
+  .property-detail-premium {
+    padding: 0.75rem 0.65rem 1.25rem !important;
+  }
+
+  .property-detail-premium .property-detail-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .property-detail-premium .property-detail-summary > div:nth-child(2),
+  .property-detail-premium .property-detail-summary > div:nth-child(3) {
+    grid-column: 1;
+  }
+
+  .property-detail-premium .property-detail-summary > div:nth-child(2) {
+    grid-row: auto;
+  }
+
+  .property-detail-premium .property-detail-summary > div:nth-child(3) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .property-detail-premium .property-detail-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .property-detail-premium .property-detail-facts,
+  .property-detail-premium .property-detail-scheduler {
+    grid-column: 1;
+  }
+
+  .property-detail-premium .property-detail-location-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .property-detail-premium .property-detail-poi-panel {
+    border-inline-start: 0;
+    border-top: 1px solid var(--detail-border);
+  }
+
+  .property-detail-premium .property-detail-gallery-stage {
+    height: clamp(230px, 68vw, 360px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .property-detail-premium *,
+  .property-detail-premium *::before,
+  .property-detail-premium *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Final SHEKARCHI detail polish: light borders, no nested dark card chrome,
+   and a sticky information rail while the gallery/content column scrolls. */
+.mk-detail-standard {
+  background: #060b13 !important;
+  color: #f5f1ed;
+}
+
+.mk-detail-standard .showcase-panel {
+  background: transparent;
+  border-color: rgb(39 39 42 / 0.5);
+  box-shadow: none;
+}
+
+.property-detail-poi-panel:has(.nearby-poi-empty) {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .property-detail-facts {
+    position: sticky;
+    top: 5rem;
+    align-self: start;
+  }
+
+  .property-detail-sidebar .property-detail-advisor {
+    border-color: rgb(39 39 42 / 0.5);
+    background: transparent;
+  }
+
+  .property-detail-sidebar .property-detail-advisor > div:first-child {
+    background: transparent;
+    border-bottom-color: rgb(39 39 42 / 0.5);
+  }
+
+  .property-detail-sidebar .property-detail-advisor > div:nth-of-type(2) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+}
+
 /*
  * Property details fit one desktop viewport. On smaller screens the rules are
  * intentionally absent, so the page keeps normal document scrolling instead
@@ -1648,13 +2070,15 @@ body::-webkit-scrollbar-thumb:hover {
     overflow: hidden;
   }
 
-  .dashboard-horizontal-shell:has(.property-detail-viewport) [data-slot='infobar-wrapper'] {
+  .dashboard-horizontal-shell:has(.property-detail-viewport) [data-slot="infobar-wrapper"] {
     min-width: 0;
     min-height: 0;
     overflow: hidden;
   }
 
-  .dashboard-horizontal-shell:has(.property-detail-viewport) [data-slot='infobar-wrapper'] [data-slot='infobar'] {
+  .dashboard-horizontal-shell:has(.property-detail-viewport)
+    [data-slot="infobar-wrapper"]
+    [data-slot="infobar"] {
     display: none;
   }
 
@@ -1703,7 +2127,7 @@ body::-webkit-scrollbar-thumb:hover {
     padding: 0.25rem;
   }
 
-  .property-detail-gallery [data-slot='tabs'] {
+  .property-detail-gallery [data-slot="tabs"] {
     display: flex;
     flex: 1 1 0%;
     flex-direction: column;
@@ -1712,13 +2136,13 @@ body::-webkit-scrollbar-thumb:hover {
     gap: 0.15rem;
   }
 
-  .property-detail-gallery [data-slot='tabs-list'] {
+  .property-detail-gallery [data-slot="tabs-list"] {
     flex: 0 0 1.6rem;
     height: 1.6rem;
     padding: 0 0.25rem;
   }
 
-  .property-detail-gallery [data-slot='tabs-trigger'] {
+  .property-detail-gallery [data-slot="tabs-trigger"] {
     font-size: 0.68rem;
   }
 
@@ -1728,8 +2152,8 @@ body::-webkit-scrollbar-thumb:hover {
     min-height: 0;
   }
 
-  .property-detail-gallery [data-slot='tabs-content'][data-active='true'],
-  .property-detail-gallery [data-slot='tabs-content'][data-state='active'] {
+  .property-detail-gallery [data-slot="tabs-content"][data-active="true"],
+  .property-detail-gallery [data-slot="tabs-content"][data-state="active"] {
     display: flex;
     flex: 1 1 0%;
     flex-direction: column;
@@ -1842,8 +2266,8 @@ body::-webkit-scrollbar-thumb:hover {
     font-size: 0.68rem;
   }
 
-  .property-detail-history [data-slot='table-cell'],
-  .property-detail-history [data-slot='table-head'] {
+  .property-detail-history [data-slot="table-cell"],
+  .property-detail-history [data-slot="table-head"] {
     padding-top: 0.12rem;
     padding-bottom: 0.12rem;
     font-size: 0.58rem;
@@ -2073,16 +2497,16 @@ body::-webkit-scrollbar-thumb:hover {
     height: 7rem;
   }
 
-  .property-detail-scheduler-body > div > button[role='gridcell'],
-  .property-detail-scheduler-body [role='grid'] button {
+  .property-detail-scheduler-body > div > button[role="gridcell"],
+  .property-detail-scheduler-body [role="grid"] button {
     font-size: 0.64rem;
   }
 
-  .property-detail-scheduler-body [role='grid'] {
+  .property-detail-scheduler-body [role="grid"] {
     gap: 0.12rem;
   }
 
-  .property-detail-scheduler-body [role='grid'] button {
+  .property-detail-scheduler-body [role="grid"] button {
     border-radius: 0.35rem;
   }
 
@@ -2339,9 +2763,9 @@ body::-webkit-scrollbar-thumb:hover {
   --stage-contract: #e5a87b; /* آمادهٔ قرارداد — rose gold, the brand hue */
   --stage-contract-soft: rgb(229 168 123 / 0.11);
   --stage-closed: #34d399; /* معاملهٔ موفق */
-  --stage-closed-soft: rgb(52 211 153 / 0.10);
+  --stage-closed-soft: rgb(52 211 153 / 0.1);
   --stage-lost: #64748b; /* از دست رفته */
-  --stage-lost-soft: rgb(100 116 139 / 0.10);
+  --stage-lost-soft: rgb(100 116 139 / 0.1);
 }
 
 /*
@@ -2647,13 +3071,14 @@ body::-webkit-scrollbar-thumb:hover {
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
+  box-shadow: none;
 }
 
 .lux-nav-pill:hover:not(:disabled) {
   background: var(--gold-accent);
   border-color: var(--gold-accent);
   color: var(--showcase-base);
-  box-shadow: 0 0 16px rgb(229 168 123 / 0.4);
+  box-shadow: none;
 }
 
 .lux-nav-pill:disabled {
@@ -2674,11 +3099,11 @@ body::-webkit-scrollbar-thumb:hover {
   outline-offset: 2px;
 }
 
-[dir='rtl'] .lux-nav-pill--prev:hover:not(:disabled) svg {
+[dir="rtl"] .lux-nav-pill--prev:hover:not(:disabled) svg {
   transform: translateX(2px);
 }
 
-[dir='rtl'] .lux-nav-pill--next:hover:not(:disabled) svg {
+[dir="rtl"] .lux-nav-pill--next:hover:not(:disabled) svg {
   transform: translateX(-2px);
 }
 
@@ -2693,7 +3118,7 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .lux-section-title::before {
-  content: '';
+  content: "";
   width: 4px;
   height: 22px;
   border-radius: 4px;
@@ -2762,7 +3187,9 @@ html:not(.dark) .lux-card {
 
 html:not(.dark) .lux-card:hover {
   border-color: var(--gold-accent);
-  box-shadow: var(--shadow-md), 0 0 22px rgb(229 168 123 / 0.18);
+  box-shadow:
+    var(--shadow-md),
+    0 0 22px rgb(229 168 123 / 0.18);
 }
 
 /* Section header: theme foreground instead of fixed near-white. */
@@ -2829,7 +3256,9 @@ html:not(.dark) .lux-market-above {
 }
 
 /* Cover placeholder plate: navy radial -> theme wash. */
-html:not(.dark) .lux-card .bg-\[radial-gradient\(80\%_80\%_at_50\%_20\%\,rgb\(35\,52\,80\,0\.9\)\,rgb\(6\,11\,19\,1\)\)\] {
+html:not(.dark)
+  .lux-card
+  .bg-\[radial-gradient\(80\%_80\%_at_50\%_20\%\,rgb\(35\,52\,80\,0\.9\)\,rgb\(6\,11\,19\,1\)\)\] {
   background: var(--muted);
 }
 
@@ -2840,7 +3269,7 @@ html:not(.dark) .lux-nav-pill {
   color: var(--gold-dark);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  box-shadow: var(--shadow-xs);
+  box-shadow: none;
 }
 
 html:not(.dark) .lux-nav-pill:hover:not(:disabled) {
@@ -2855,12 +3284,7 @@ html:not(.dark) .bg-\[rgba\(18\,26\,38\,0\.4\)\] {
 
 /* Skeleton shimmer: dark navy sweep -> theme wash sweep. */
 html:not(.dark) .lux-skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--muted) 25%,
-    var(--accent) 50%,
-    var(--muted) 75%
-  );
+  background: linear-gradient(90deg, var(--muted) 25%, var(--accent) 50%, var(--muted) 75%);
   background-size: 200% 100%;
   border-color: var(--border);
 }
@@ -2926,8 +3350,8 @@ html:not(.dark) .lux-swiper .swiper-scrollbar-drag {
 /* Local font family aliases used by the selectable dashboard themes. */
 body {
   --font-sans: var(--font-vazir), sans-serif;
-  --font-serif: Georgia, 'Times New Roman', serif;
-  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --font-serif: Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --font-google-sans-flex: var(--font-vazir);
   --font-source-code-pro: var(--font-mono);
   --font-instrument: var(--font-vazir);
@@ -2944,28 +3368,150 @@ body {
   --font-playfair-display: var(--font-serif);
 }
 
-
 /* Cloud showcase tokens override the formerly fixed listing presentation. */
 html:not(.dark) {
- --gold-primary: #925b39;
- --gold-accent: #925b39;
- --gold-dark: #754628;
- --showcase-base: #f5f7fb;
- --showcase-surface: rgb(255 255 255 / 0.85);
- --showcase-surface-solid: #ffffff;
- --showcase-surface-deep: #edf2f7;
- --showcase-border: #cbd5e1;
- --showcase-border-strong: #925b39;
- --showcase-text: #1e293b;
- --showcase-text-muted: #526176;
- --showcase-text-dim: #526176;
+  --gold-primary: #925b39;
+  --gold-accent: #925b39;
+  --gold-dark: #754628;
+  --showcase-base: #f5f7fb;
+  --showcase-surface: rgb(255 255 255 / 0.85);
+  --showcase-surface-solid: #ffffff;
+  --showcase-surface-deep: #edf2f7;
+  --showcase-border: #cbd5e1;
+  --showcase-border-strong: #925b39;
+  --showcase-text: #1e293b;
+  --showcase-text-muted: #526176;
+  --showcase-text-dim: #526176;
 }
 html:not(.dark) .showcase-shell {
- background-image: radial-gradient(at 0% 0%, #ffffff, transparent 65%);
+  background-image: radial-gradient(at 0% 0%, #ffffff, transparent 65%);
 }
 html:not(.dark) .landing {
- background: radial-gradient(ellipse at 15% 0%, #fff, transparent 55%), linear-gradient(160deg, #f8fafc, #eef2f8);
+  background:
+    radial-gradient(ellipse at 15% 0%, #fff, transparent 55%),
+    linear-gradient(160deg, #f8fafc, #eef2f8);
 }
 html:not(.dark) .landing-button-primary {
- color: #ffffff;
+  color: #ffffff;
+}
+
+/* Final listing-detail desktop override: readable scrollable presentation. */
+@media (min-width: 1024px) {
+  .dashboard-horizontal-shell:has(.property-detail-viewport),
+  .dashboard-horizontal-shell:has(.property-detail-viewport) > main,
+  .dashboard-horizontal-shell:has(.property-detail-viewport) [data-slot="infobar-wrapper"] {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .property-detail-viewport {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 0.9rem clamp(1rem, 2.5vw, 2.75rem) 2.5rem !important;
+    overflow: visible !important;
+  }
+
+  .property-detail-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.85fr) !important;
+    grid-template-rows: auto auto !important;
+    align-items: start !important;
+    gap: 1.25rem !important;
+    overflow: visible !important;
+  }
+
+  .property-detail-media {
+    grid-column: 1 !important;
+    grid-row: 1 / span 2 !important;
+    display: flex !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .property-detail-gallery {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .property-detail-gallery-stage {
+    height: clamp(320px, 48vw, 540px) !important;
+  }
+
+  .property-detail-location-grid {
+    height: auto !important;
+    min-height: 245px !important;
+  }
+
+  .property-detail-map-panel .leaflet-container,
+  .property-detail-map-panel > div:has(.leaflet-container) {
+    height: 245px !important;
+  }
+
+  .property-detail-facts {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    min-height: 0 !important;
+  }
+
+  .property-detail-sidebar {
+    display: flex !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .property-detail-scheduler {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    align-self: start !important;
+  }
+}
+
+/* The detail page must remain a normal document flow after all legacy compact
+   viewport rules above. Keep only media widgets clipped internally. */
+@media (min-width: 768px) {
+  .dashboard-horizontal-shell:has(.property-detail-viewport),
+  .dashboard-horizontal-shell:has(.property-detail-viewport) > main,
+  .dashboard-horizontal-shell:has(.property-detail-viewport) [data-slot="infobar-wrapper"],
+  .property-detail-viewport,
+  .property-detail-grid,
+  .property-detail-media,
+  .property-detail-facts,
+  .property-detail-sidebar {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .property-detail-grid {
+    align-items: start !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .property-detail-viewport,
+  .property-detail-grid,
+  .property-detail-media,
+  .property-detail-facts,
+  .property-detail-sidebar {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .property-detail-location-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    height: auto !important;
+  }
+
+  .property-detail-map-panel .leaflet-container,
+  .property-detail-map-panel > div:has(.leaflet-container) {
+    height: 220px !important;
+  }
 }

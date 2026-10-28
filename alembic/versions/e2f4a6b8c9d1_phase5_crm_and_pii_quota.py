@@ -24,7 +24,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "e2f4a6b8c9d1"
@@ -57,6 +57,12 @@ STATUS_LABELS = (
 
 def _enum(labels: tuple[str, ...], name: str) -> postgresql.ENUM:
     """Create the PG enum up-front so a partial run stays replayable."""
+    if context.is_offline_mode():
+        # Offline Alembic has a mock bind with no catalog/result set. Render the
+        # known clean-chain DDL instead of calling execute().first() on it.
+        values = ", ".join("'" + label.replace("'", "''") + "'" for label in labels)
+        op.execute(f'CREATE TYPE "{name}" AS ENUM ({values})')
+        return postgresql.ENUM(*labels, name=name, create_type=False)
     enum = postgresql.ENUM(*labels, name=name)
     enum.create(op.get_bind(), checkfirst=True)
     return postgresql.ENUM(*labels, name=name, create_type=False)
@@ -82,6 +88,19 @@ def _swap_enum(enum_name: str, labels: tuple[str, ...]) -> None:
     bind = op.get_bind()
     column = ENUM_COLUMNS[enum_name]
     old_name = f"{enum_name}_old"
+
+    if context.is_offline_mode():
+        # The clean offline graph has the current enum shape from the preceding
+        # revision; catalog introspection is an online-only operation.
+        values = ", ".join("'" + label.replace("'", "''") + "'" for label in labels)
+        op.execute(f'ALTER TYPE "{enum_name}" RENAME TO "{old_name}"')
+        op.execute(f'CREATE TYPE "{enum_name}" AS ENUM ({values})')
+        op.execute(
+            f'ALTER TABLE property ALTER COLUMN {column} '
+            f'TYPE "{enum_name}" USING {column}::text::"{enum_name}"'
+        )
+        op.execute(f'DROP TYPE "{old_name}"')
+        return
 
     # A partial run may have left the current type already renamed out of the way.
     exists = bind.execute(
@@ -216,4 +235,3 @@ def downgrade() -> None:
         "user_role",
     ):
         postgresql.ENUM(name=name).drop(bind, checkfirst=True)
-

@@ -21,6 +21,7 @@ import { LandingFooter } from "./landing-footer";
 import { HeroOpportunity } from "./hero-opportunity";
 import { HeroMarket } from "./hero-market";
 import { LandingCityPicker } from "./landing-city-picker";
+import { GuestToolLink } from "./guest-tool-link";
 
 const tools = [
   {
@@ -92,11 +93,6 @@ export function LandingPage({ dashboard = false }: { dashboard?: boolean }) {
               پشت هر قیمت، داستانی هست.
               <br className="landing-mobile-break" /> بازار را روشن‌تر ببین.
             </p>
-            <p className="landing-hero-description">
-              با شکارچی، تحلیل بازار، ارزش‌گذاری خودکار ملک و رادار قیمت را کنار هم داشته باشید؛
-              ابزارهایی برای بررسی آگاهانه‌تر املاک ایران. تحلیل و نقشه فقط در شهرها و محله‌های دارای
-              داده ارائه می‌شوند؛ این تصویر شب تهران، محدودهٔ خدمات سامانه نیست.
-            </p>
             <div className="landing-hero-actions">
               <Link href={landingRoutes.avm} className="landing-button landing-button-primary">
                 ورود به تحلیل بازار <IconArrowUpLeft size={20} aria-hidden />
@@ -130,9 +126,6 @@ export function LandingPage({ dashboard = false }: { dashboard?: boolean }) {
             <a href="#professional-tools" aria-label="مشاهدهٔ ابزارهای حرفه‌ای">
               <IconArrowDown aria-hidden size={18} />
             </a>
-            <span lang="en" dir="ltr">
-              A CLEARER VIEW OF PROPERTY
-            </span>
           </div>
         </section>
 
@@ -170,17 +163,17 @@ export function LandingPage({ dashboard = false }: { dashboard?: boolean }) {
                       <li key={label}>{label}</li>
                     ))}
                   </ul>
-                  <Link href={href}>
+                  <GuestToolLink href={href} className="landing-tool-link">
                     ورود به ابزار <IconArrowUpLeft aria-hidden size={20} />
                     <span className="sr-only"> {title}</span>
-                  </Link>
+                  </GuestToolLink>
                 </article>
               )
             )}
           </div>
           <p className="landing-data-note">
             نتایج تحلیل به پوشش و کیفیت داده‌های ثبت‌شده وابسته‌اند و تضمینی برای قیمت معامله یا بازده
-            سرمایه‌گذاری نیستند. استفاده از ابزارها نیازمند ورود و دسترسی مجاز است.
+            سرمایه‌گذاری نیستند. تصویرها و اعداد پیش‌نمایش بر اساس داده‌های فعلی API هستند؛ در صورت نبود داده یا مجوز، مقدار نمونه ساخته نمی‌شود. اجرای واقعی هر ابزار تابع نقش و اشتراک مجاز حساب است.
           </p>
         </section>
 

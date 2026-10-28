@@ -6,10 +6,10 @@ import { Icons } from "@/components/icons";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const items = [
-  { label: "رادار املاک", href: "/dashboard/properties", icon: Icons.crosshair },
-  { label: "فایلینگ", href: "/dashboard/workspaces", icon: Icons.page },
-  { label: "پنل کاربری", href: "/dashboard/users", icon: Icons.user },
-  { label: "اعلان‌ها", href: "/dashboard/notifications", icon: Icons.notification }
+  { label: "داشبورد", href: "/dashboard", icon: Icons.home },
+  { label: "رادار شکار", href: "/dashboard/properties", icon: Icons.crosshair },
+  { label: "شبکه همکاری", href: "/dashboard/network", icon: Icons.building },
+  { label: "حساب من", href: "/dashboard/profile", icon: Icons.user }
 ] as const;
 
 function isActivePath(pathname: string, href: string) {
@@ -39,6 +39,10 @@ export default function MobileBottomNav() {
         <span className="max-w-full truncate text-[9px] font-medium leading-4 min-[380px]:text-[10px]">
           {item.label}
         </span>
+        <span
+          aria-hidden="true"
+          className={`h-1 w-1 rounded-full bg-[#c5a880] shadow-[0_0_8px_2px_rgba(197,168,128,0.65)] transition-opacity ${active ? "opacity-100" : "opacity-0"}`}
+        />
       </Link>
     );
   };
@@ -47,20 +51,21 @@ export default function MobileBottomNav() {
     <nav
       aria-label="ناوبری موبایل"
       dir="rtl"
-      className="fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--brand-c88252)]/30 bg-background/90 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-12px_36px_rgba(0,0,0,0.28)] backdrop-blur-md md:hidden"
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#c5a880]/20 bg-[#060b13]/95 px-2 pt-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_36px_rgba(0,0,0,0.28)] backdrop-blur-md md:hidden"
     >
       <div className="mx-auto grid w-full max-w-lg grid-cols-5 items-end gap-1">
         {renderItem(items[0])}
         {renderItem(items[1])}
 
         <Link
-          href="/dashboard/overview"
-          aria-label="داشبورد — صفحه اصلی"
-          title="داشبورد"
-          aria-current={isActivePath(pathname, "/dashboard/overview") ? "page" : undefined}
-          className="relative -mt-7 mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-[var(--brand-c88252)] to-[var(--brand-ffd8be)] text-primary-foreground shadow-lg shadow-[var(--brand-c88252)]/20 ring-4 ring-[var(--brand-060b13)]/90 transition-transform duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-ffd8be)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-060b13)]"
+          href="/dashboard/properties/submit"
+          aria-label="ثبت ملک"
+          title="ثبت ملک"
+          className="relative -mt-4 mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-[#a38255] via-[#c5a880] to-[#e8d5be] text-[#060b13] shadow-lg shadow-[#c5a880]/20 ring-4 ring-[#060b13]/95 transition-transform duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c5a880] focus-visible:ring-offset-2 focus-visible:ring-offset-[#060b13]"
         >
-          <Icons.dashboard className="h-6 w-6" />
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#060b13] text-[#c5a880]">
+            <Icons.add className="h-6 w-6" />
+          </span>
         </Link>
 
         {renderItem(items[2])}

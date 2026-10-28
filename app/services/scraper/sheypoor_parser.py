@@ -382,34 +382,35 @@ def parse_sheypoor_detail(
     address = item.get("address") if isinstance(item.get("address"), dict) else {}
     geo = item.get("geo") if isinstance(item.get("geo"), dict) else {}
 
-    # The Offer's own ``category`` names the *deal* side only ("forSale"), so the
-    # asset type comes from the category the job searched under.
+    # The Offer's own ``category`` names the *deal* side only ("forSale"). A
+    # combined search route is not evidence of a specific asset type; use only a
+    # concrete detail-owned type/category, otherwise preserve unknown as None.
     offer_category = str(_get(payload, "category") or "")
     asset_slug = str(_get(payload, "__category") or "")
-    property_type, deal_type = map_category_to_types(asset_slug)
-    if asset_slug in {"houses-apartments-for-sale", "house-apartment-for-rent"}:
-        # These are combined source categories. The taxonomy's apartment enum is
-        # only a route-level hint and cannot identify a specific listing's type.
-        property_type = None
+    _, deal_type = map_category_to_types(asset_slug)
+    # Taxonomy entries can be route-level defaults, including specific-looking
+    # types which still do not identify the individual listing. Never infer the
+    # asset from crawler search context; detail-owned evidence is checked below.
+    property_type = None
     for candidate in (
         _get(item, "propertyType", "property_type", "realEstateType"),
         _get(payload, "propertyType", "property_type", "realEstateType"),
     ):
         if candidate:
-            from app.services.scraper.parser import map_category
-
             actual_type, _ = map_category(str(candidate))
             if actual_type is not None:
                 property_type = actual_type
                 break
     if deal_type is None:
         deal_type = _deal_from_offer_category(offer_category)
-    if property_type is None and deal_type is None:
-        # Only non-combined, detail-owned evidence may drive the fallback.
-        # The job's combined search category must not assert APARTMENT.
-        from app.services.scraper.parser import map_category
-
-        property_type, deal_type = map_category(offer_category)
+    if not asset_slug and property_type is None and offer_category:
+        # In legacy flat payloads ``category`` is the detail's specific category.
+        # The Offer ``category`` is only a deal label and is safely unclassified.
+        detail_type, detail_deal = map_category(offer_category)
+        if detail_type is not None:
+            property_type = detail_type
+        if deal_type is None and detail_deal is not None:
+            deal_type = detail_deal
     category = asset_slug or offer_category
 
     floor_size = item.get("floorSize") if isinstance(item.get("floorSize"), dict) else {}

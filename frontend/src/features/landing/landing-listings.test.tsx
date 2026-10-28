@@ -43,25 +43,29 @@ describe("landing inventory showcase", () => {
     fireEvent.click(screen.getByRole("button", { name: "جستجو" }));
     await waitFor(() =>
       expect(state.fetch).toHaveBeenLastCalledWith(
-        expect.objectContaining({ city: "شیراز", min_area: 120, max_price: 3000000000, limit: 6 })
+        expect.objectContaining({ city: "شیراز", min_area: 120, max_price: 3000000000, limit: 6 }),
+        false
       )
     );
     fireEvent.click(screen.getByRole("button", { name: "رهن و اجاره" }));
     await waitFor(() =>
       expect(state.fetch).toHaveBeenLastCalledWith(
-        expect.objectContaining({ deal_type: ["RENT", "FULL_MORTGAGE"] })
+        expect.objectContaining({ deal_type: ["RENT", "FULL_MORTGAGE"] }),
+        false
       )
     );
     fireEvent.click(screen.getByRole("button", { name: "فرصت‌های زیر قیمت بازار" }));
     await waitFor(() =>
       expect(state.fetch).toHaveBeenLastCalledWith(
-        expect.objectContaining({ valuation_status: "BARGAIN" })
+        expect.objectContaining({ valuation_status: "BARGAIN" }),
+        false
       )
     );
     fireEvent.click(screen.getByRole("button", { name: "فایل‌های دفاتر" }));
     await waitFor(() =>
       expect(state.fetch).toHaveBeenLastCalledWith(
-        expect.objectContaining({ submitter_type: "AGENCY", valuation_status: undefined })
+        expect.objectContaining({ submitter_type: "AGENCY", valuation_status: undefined }),
+        false
       )
     );
     fireEvent.click(screen.getByRole("button", { name: "پاک‌کردن فیلترها" }));
@@ -75,13 +79,12 @@ describe("landing inventory showcase", () => {
     expect(await screen.findByText("آگهی منطبق پیدا نشد")).not.toBeNull();
     expect(screen.queryByRole("article")).toBeNull();
   });
-  it("preserves access protection instead of rendering fake listings", async () => {
+  it("preserves access protection without forcing a login", async () => {
     state.fetch.mockRejectedValue(new ApiError(401, "unauthorized", "Unauthorized"));
     renderListings();
     expect(await screen.findByRole("alert")).not.toBeNull();
-    expect(screen.getByRole("link", { name: "ورود به حساب" }).getAttribute("href")).toContain(
-      "callbackUrl=%2Fdashboard%23search"
-    );
+    expect(screen.getByRole("heading", { name: "نمایش عمومی آگهی‌ها در دسترس نیست" })).not.toBeNull();
+    expect(screen.queryByRole("link", { name: "ورود به حساب" })).toBeNull();
   });
   it("supports retry after a failed request", async () => {
     state.fetch

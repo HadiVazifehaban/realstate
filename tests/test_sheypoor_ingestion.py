@@ -270,7 +270,8 @@ def test_parse_detail_rent_splits_deposit_and_rent() -> None:
     assert detail.total_price is None
 
 
-def test_parse_detail_classifies_property_type_from_category() -> None:
+def test_parse_detail_classifies_property_type_from_detail_owned_category() -> None:
+    # Legacy flat detail payloads own this specific category, so it is evidence.
     detail = parse_sheypoor_detail({"category": "buy-villa"}, "x")
     assert detail.property_type == PropertyType.VILLA
 
@@ -288,6 +289,31 @@ def test_parse_detail_tolerates_bare_payload() -> None:
     assert detail.area is None
     assert detail.latitude is None
     assert detail.images == []
+    assert detail.property_type is None
+
+
+def test_parse_detail_combined_search_category_does_not_guess_property_type() -> None:
+    # A search route groups houses and apartments; its taxonomy hint must not be
+    # mistaken for listing-specific evidence.
+    detail = parse_sheypoor_detail(
+        {"__category": "houses-apartments-for-sale"}, "SP-7"
+    )
+    assert detail.property_type is None
+
+
+def test_parse_detail_specific_detail_type_overrides_combined_search_category() -> None:
+    detail = parse_sheypoor_detail(
+        {
+            "__category": "houses-apartments-for-sale",
+            "itemOffered": {"propertyType": "Villa"},
+        },
+        "SP-8",
+    )
+    assert detail.property_type == PropertyType.VILLA
+
+
+def test_parse_detail_legacy_payload_with_specific_category_keeps_classification() -> None:
+    detail = parse_sheypoor_detail({"category": "apartment-sell"}, "SP-9")
     assert detail.property_type == PropertyType.APARTMENT
 
 

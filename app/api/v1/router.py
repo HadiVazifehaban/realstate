@@ -16,6 +16,7 @@ from app.api.v1.endpoints import (
     gis,
     health,
     license,
+    keycloak_admin,
     matching,
     market_demand,
     network,
@@ -83,6 +84,12 @@ private_router.include_router(
     admin_users.router,
     prefix="/admin",
     tags=["admin"],
+    dependencies=[Depends(get_principal), Depends(require_principal_roles(UserRole.ADMIN))],
+)
+private_router.include_router(
+    keycloak_admin.router,
+    prefix="/admin/keycloak",
+    tags=["keycloak-admin"],
     dependencies=[Depends(get_principal), Depends(require_principal_roles(UserRole.ADMIN))],
 )
 api_router.include_router(private_router)

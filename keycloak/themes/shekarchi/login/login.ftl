@@ -28,7 +28,7 @@
             <input id="password" class="pf-c-form-control mk-input" name="password" type="password" autocomplete="current-password" dir="ltr" />
             <button class="mk-pw-toggle" type="button" id="mk-toggle-password" data-show-label="${msg('showPassword')}" data-hide-label="${msg('hidePassword')}" aria-controls="password" aria-pressed="false" aria-label="${msg('showPassword')}">${msg('showPassword')}</button>
           </div>
-          <#if realm.resetPasswordAllowed><div class="mk-form-link"><a href="${url.loginResetCredentialsUrl}">${msg('doForgotPassword')}</a></div></#if>
+          <#if realm.resetPasswordAllowed><div class="mk-form-link"><a href="#" id="mk-forgot-password">${msg('doForgotPassword')}</a></div></#if>
         </div>
         <#if captchaAvailable?? && captchaAvailable>
           <fieldset class="mk-captcha" aria-describedby="mk-captcha-question-password">
@@ -100,7 +100,7 @@
           <input id="captchaAnswer" class="pf-c-form-control mk-input" name="captchaAnswer" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" maxlength="6" dir="ltr" aria-required="true" aria-describedby="mk-captcha-question" />
         </fieldset>
       </#if>
-      <#if realm.resetPasswordAllowed><div class="mk-form-link"><a href="${url.loginResetCredentialsUrl}">${msg('doForgotPassword')}</a></div></#if>
+      <#if realm.resetPasswordAllowed><div class="mk-form-link"><a href="#" id="mk-forgot-password">${msg('doForgotPassword')}</a></div></#if>
       <input type="hidden" name="credentialId" <#if auth.selectedCredential?has_content>value="${auth.selectedCredential}"</#if>/>
       <input class="btn btn-primary mk-btn-primary btn-block" name="login" id="kc-login" type="submit" value="${msg('doLogIn')}" <#if (captchaRequired?? && captchaRequired) && !(captchaAvailable?? && captchaAvailable)>disabled</#if> />
     </form>
@@ -108,7 +108,12 @@
       <form id="kc-captcha-refresh-form" action="${url.loginAction}" method="post" hidden><input type="hidden" name="captchaRefresh" value="1" /></form>
     </#if>
   </#if>
-  </#if>
+    </#if>
+    <form id="mk-recovery-form" action="${url.loginAction}" method="post" hidden>
+      <input type="hidden" name="action" value="submitPhone" />
+      <input type="hidden" name="loginMode" value="recovery" />
+      <input type="hidden" name="phone" value="" />
+    </form>
   <script src="${url.resourcesPath}/js/login.js" defer></script>
 <#elseif section = "info">
   <#if realm.registrationAllowed && !registrationDisabled??>

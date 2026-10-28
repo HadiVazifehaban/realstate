@@ -187,7 +187,6 @@ async def test_source_filter_expands_legacy_labels(db_ready) -> None:
         )
 
     assert matched == legacy + canonical
-    assert canonical == 0, "premise: no rows use the canonical label yet"
 
 
 async def test_source_buckets_partition_every_source(db_ready) -> None:

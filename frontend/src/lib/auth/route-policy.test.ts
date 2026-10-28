@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import { isPublicRoute, requiredRolesForPage } from "./route-policy";
 
 describe("landing route classification", () => {
-  it("makes only the pricing catalog public, not orders or subscriptions", () => {
+  it("makes public inventory reads available, not orders or subscriptions", () => {
     expect(isPublicRoute("/backend/api/v1/billing/plans")).toBe(true);
+    expect(isPublicRoute("/backend/api/v1/properties")).toBe(true);
+    expect(isPublicRoute("/backend/api/v1/properties/cities")).toBe(true);
+    expect(isPublicRoute("/backend/api/v1/properties/market/neighbourhoods")).toBe(true);
     for (const path of [
       "/backend/api/v1/billing/orders",
       "/backend/api/v1/billing/subscriptions/current",
@@ -36,7 +39,7 @@ describe("landing route classification", () => {
     "/dashboard/properties/submit",
     "/dashboard/billing",
     "/api/gis/static-map",
-    "/backend/api/v1/properties",
+    "/backend/api/v1/properties/00000000-0000-0000-0000-000000000000",
     "/unknown",
     "//"
   ])("keeps %s protected", (path) => {
@@ -47,5 +50,15 @@ describe("landing route classification", () => {
     expect(requiredRolesForPage("/dashboard/roles")).toEqual(["ROLE_ADMIN"]);
     expect(requiredRolesForPage("/dashboard/properties")).not.toContain("ROLE_OWNER");
     expect(requiredRolesForPage("/dashboard/properties/submit")).toContain("ROLE_OWNER");
+  });
+
+  it("restricts every Keycloak administration page to the verified system admin role", () => {
+    for (const path of [
+      '/dashboard/settings/keycloak',
+      '/dashboard/settings/keycloak/users',
+      '/dashboard/settings/keycloak/clients'
+    ]) {
+      expect(requiredRolesForPage(path)).toEqual(['ROLE_ADMIN']);
+    }
   });
 });

@@ -5,7 +5,7 @@ from sqlalchemy import or_, select, text
 
 from app.models import ScrapeJob
 from app.models.base import utcnow
-from app.models.enums import ScrapeJobStatus
+from app.models.enums import ScrapeJobStatus, ScrapeJobTrigger
 from app.schemas.scraper import ScrapeJobCreate, ScrapeJobResponse
 from app.services import scraper_service
 from app.services.scraper.demand_locations import (
@@ -28,7 +28,6 @@ async def ensure_city_inventory(session, city: str, settings) -> dict:
     located = demand_location(city)
     if located is None:
         return {"city": city, "status": "unsupported", "jobs": []}
-    by_id = city == located['id']
     city = located["name"]
     if not settings.scraper_enabled:
         return {"city": city, "status": "disabled", "jobs": []}
@@ -42,29 +41,52 @@ async def ensure_city_inventory(session, city: str, settings) -> dict:
     for source, slug in targets.items():
         source_jobs = []
         for category in DEMAND_CATEGORIES[source]:
-            result = await session.execute(
-                select(ScrapeJob).where(
-                    ScrapeJob.city == slug, ScrapeJob.source == source,
-                    ScrapeJob.category == category,
-                    or_(ScrapeJob.status.in_(ACTIVE), ScrapeJob.created_at >= utcnow() - COOLDOWN),
-                ).order_by(ScrapeJob.created_at.desc()).limit(1)
+            generic_category = (
+                "apartment-sell"
+                if category.endswith("for-sale") or category == "apartment-sell"
+                else "apartment-rent"
             )
-            job = result.scalar_one_or_none()
-            if job is None:
-                # Acquire a city-wide transaction lock before any service commit;
-                # serialize each candidate check and creation across sources.
+            scope = f"demand:{located['id']}"
+            bind = getattr(session, "bind", None)
+            if bind is None and callable(getattr(session, "get_bind", None)):
+                try:
+                    bind = session.get_bind()
+                except Exception:
+                    bind = None
+            dialect = getattr(getattr(bind, "dialect", None), "name", None)
+            if dialect == "postgresql":
                 await session.execute(
                     text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-                    {"key": f"market-demand:{located['id']}"},
+                    {"key": f"market-demand:{located['id']}:{source}:{generic_category}"},
                 )
-                job = await scraper_service.trigger_and_maybe_run(
-                    session, ScrapeJobCreate(source=source, city=slug,
-                                             category=category,
-                                             max_pages=1, fetch_phones=False,
-                                             params={"source_category": category,
-                                                     "execution_scope": f"demand:{located['id']}"}),
+            try:
+                result = await session.execute(
+                    select(ScrapeJob).where(
+                        ScrapeJob.city == slug, ScrapeJob.source == source,
+                        ScrapeJob.category == generic_category,
+                        ScrapeJob.params["execution_scope"].as_string() == scope,
+                        or_(ScrapeJob.status.in_(ACTIVE), ScrapeJob.created_at >= utcnow() - COOLDOWN),
+                    ).order_by(ScrapeJob.created_at.desc()).limit(1)
+                )
+                job = result.scalar_one_or_none()
+            except Exception:
+                if dialect == "postgresql":
+                    await session.rollback()
+                raise
+            if job is None:
+                job = await scraper_service.trigger_with_trigger(
+                    session,
+                    ScrapeJobCreate(source=source, city=slug, category=generic_category,
+                                    max_pages=1, fetch_phones=False,
+                                    params={"source_category": category,
+                                            "execution_scope": scope}),
+                    trigger=ScrapeJobTrigger.MANUAL,
                     settings=settings,
                 )
+            elif dialect == "postgresql":
+                await session.rollback()
+            elif callable(getattr(session, "rollback", None)):
+                await session.rollback()
             source_jobs.append(job)
             jobs.append(job)
         if any(job.status in ACTIVE for job in source_jobs):
@@ -97,9 +119,19 @@ async def filter_source_summaries(source, city_slug, summaries):
     if located is None:
         return []
     if source == 'delta':
-        # Delta's category route is city-scoped and summaries inherit that
-        # request city; individual detail city is checked before persistence.
-        return summaries
+        # Delta's category route is city-scoped, but a detail page may omit its
+        # address. Only allow the row if explicit detail-city evidence agrees;
+        # never infer the listing's city from the request URL alone.
+        from app.services.location_catalog import normalized_name, resolve_city
+
+        expected = normalized_name(located['name'])
+        accepted = []
+        for summary in summaries:
+            evidence = getattr(summary, "city", "") or ""
+            resolved = resolve_city(evidence) if evidence else None
+            if resolved and normalized_name(resolved['name']) == expected:
+                accepted.append(summary)
+        return accepted
     from app.services.location_catalog import normalized_name
     expected = normalized_name(located['name'])
     return [summary for summary in summaries if summary.city

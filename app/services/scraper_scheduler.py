@@ -176,6 +176,10 @@ class ScrapeScheduler:
                         source_cities = []
                         for configured_city in s.city_list:
                             location = demand_location(configured_city)
+                            if location is None and configured_city.isascii():
+                                from app.services.scraper.demand_locations import canonical_demand_city
+
+                                location = canonical_demand_city(configured_city)
                             target = source_city_targets(location["id"]).get(source) if location else None
                             if target:
                                 source_cities.append(target)
@@ -196,10 +200,17 @@ class ScrapeScheduler:
                                 continue
                             batch_seen.add(target_key)
                             schedule_city, job_category = city, category
-                            schedule_category = source_category if source == "sheypoor" else None
+                            schedule_category = source_category
+                            if s.scraper_schedule_skip_overlapping and await _has_active_job(
+                                session, city, category, source
+                            ):
+                                logger.info("skipping %s/%s/%s: active job exists", source, city, category)
+                                continue
+                            if source in {"sheypoor", "delta"}:
+                                schedule_category = source_category
                             job = await self._schedule_one(
                                 session, schedule_city, job_category, source,
-                                source_category=(schedule_category if source == "sheypoor" else None),
+                                source_category=schedule_category if source in {"sheypoor", "delta"} else None,
                             )
                             if job is not None:
                                 created.append(job)
@@ -225,7 +236,7 @@ class ScrapeScheduler:
                 )
                 return None
             params = {"execution_scope": f"schedule:{self._tick_date}"}
-            if source_category and source == "sheypoor":
+            if source_category and source in {"sheypoor", "delta"}:
                 params["source_category"] = source_category
             payload = ScrapeJobCreate(
                 # Without this the job fell back to the node default and every
@@ -237,11 +248,12 @@ class ScrapeScheduler:
                 max_pages=max(s.scraper_schedule_max_pages, 1),
                 fetch_phones=False,
             )
-            job = await scraper_service.create_job(
+            job = await scraper_service.trigger_with_trigger(
                 session,
                 payload,
                 trigger=ScrapeJobTrigger.SCHEDULED,
                 settings=s,
+                wait=False,
             )
         except Exception as exc:  # noqa: BLE001 - one bad triple must not stop the rest
             logger.warning(

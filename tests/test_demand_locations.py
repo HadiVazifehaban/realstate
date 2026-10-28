@@ -35,7 +35,9 @@ def test_source_spelling_variant_and_recommendation_scope():
 
 
 def test_same_named_city_preserves_province_in_ingestion():
-    detail = DivarListingDetail(token='test', city='اردکان', province='فارس')
+    from app.models.enums import PropertyType
+
+    detail = DivarListingDetail(token='test', city='اردکان', province='فارس', property_type=PropertyType.APARTMENT)
     fields = build_property_fields(detail, content_hash=None)
     assert fields['province'] == 'فارس'
     assert fields['city'] == 'اردکان'

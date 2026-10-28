@@ -199,6 +199,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       # Must exactly match the realm issuer derived from KC_HOSTNAME.
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://localhost:8082/realms/maskanchi}
+      KEYCLOAK_JWKS_URL: ${KEYCLOAK_JWKS_URL:-http://keycloak:8080/realms/maskanchi/protocol/openid-connect/certs}
       # OSM/Overpass GIS gateway: no API key is required (Nominatim and Overpass
       # are free public services). The NESHAN_API_KEY variable is removed as the
       # GIS stack now runs on OpenStreetMap only.
@@ -271,7 +272,7 @@ services:
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     env_file:
-      - frontend/.env
+      - ${FRONTEND_ENV_FILE:-frontend/.env}
     environment:
       NODE_ENV: production
       PORT: 3000

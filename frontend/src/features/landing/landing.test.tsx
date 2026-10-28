@@ -27,6 +27,10 @@ vi.mock("next/image", () => ({
   }) => <img {...props} />
 }));
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ status: "unauthenticated", data: null })
+}));
+
 import { LandingPage } from "./components/landing-page";
 import { landingRoutes, publicNavigation } from "./config";
 import { LandingBrand } from "./components/brand";
@@ -203,10 +207,8 @@ describe("public landing", () => {
     const footer = screen.getByRole("contentinfo");
     expect(within(footer).getByText("شکارچی")).not.toBeNull();
     expect(within(footer).getByText("SHEKARCHI")).not.toBeNull();
-    const developer = within(footer).getByRole("link", { name: "چشم‌انداز اوج فردا (AVG Tech)" });
-    expect(developer.getAttribute("href")).toBe("https://ojfarda.ir");
-    expect(developer.getAttribute("target")).toBe("_blank");
-    expect(developer.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(footer.textContent).not.toContain("چشم‌انداز اوج فردا");
+    expect(footer.textContent).not.toContain("کارت‌به‌کارت");
     expect(container.querySelector(".landing-footer-top")?.children).toHaveLength(4);
     expect(within(footer).getByRole("heading", { name: "دسترسی سریع" })).not.toBeNull();
     expect(container.querySelector(".landing-hero-image")?.getAttribute("src")).toContain(

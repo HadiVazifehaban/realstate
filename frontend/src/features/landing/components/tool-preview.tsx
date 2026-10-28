@@ -53,7 +53,7 @@ export function ToolPreview({ kind }: { kind: "chart" | "map" | "radar" }) {
         dealTypes: ["SALE"],
         minFiles: 1,
         limit: 100
-      }),
+      }, false),
     enabled: kind !== "radar",
     staleTime: 30_000,
     refetchInterval: 60_000,

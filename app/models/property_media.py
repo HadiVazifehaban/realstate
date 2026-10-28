@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import SQLModel, Field, Column
 
 from app.models.base import pg_enum, timestamp_column, utcnow, uuid_column
@@ -23,6 +24,7 @@ class PropertyMedia(SQLModel, table=True):
     """One image/video/floor-plan attached to a property."""
 
     __tablename__ = "property_media"
+    __table_args__ = (UniqueConstraint("property_id", "id", name="uq_property_media_property_pair"),)
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=uuid_column())
     property_id: uuid.UUID = Field(foreign_key="property.id", index=True)

@@ -167,6 +167,10 @@ export interface PropertySummary {
   /** Null unless the node can serve the image; the card falls back to a plate. */
   cover_url: string | null;
   images_count: number;
+  message_available?: boolean;
+  message_unavailable_reason?: string | null;
+  contact_available?: boolean;
+  contact_unavailable_reason?: string | null;
 }
 
 export interface BargainListResponse {
@@ -353,6 +357,7 @@ export interface InventoryCitiesResponse {
 export interface PropertySubmitRequest {
   latitude: number;
   longitude: number;
+  district?: string | null;
   property_type: PropertyType;
   deal_type: DealType;
   title: string;

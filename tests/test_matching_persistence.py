@@ -8,12 +8,12 @@ that stops a re-run from resurrecting work an agent already triaged.
 from __future__ import annotations
 
 import uuid
+import os
 
 import pytest
 from sqlalchemy import select, text
 
 from app.core.config import Settings
-from app.db.session import AsyncSessionLocal, engine
 from app.models import ClientDemand, Property, PropertyMatch
 from app.models.enums import (
     DealType,
@@ -35,21 +35,12 @@ _TARGET_AREA = (
 )
 
 
-async def _db_ready() -> bool:
-    try:
-        async with engine.connect() as conn:
-            result = await conn.execute(
-                text("SELECT to_regclass('public.property') IS NOT NULL")
-            )
-            return bool(result.scalar())
-    except Exception:  # noqa: BLE001
-        return False
-
-
 @pytest.fixture()
-async def db_ready() -> None:
-    if not await _db_ready():
-        pytest.skip("PostgreSQL/PostGIS not available")
+def db_session_factory(phase15_session_factory):
+    """Use the explicitly preflight-approved isolated PostgreSQL fixture."""
+    if os.getenv("SHEKARCHI_TEST_INTEGRATION") != "1":
+        pytest.skip("matching persistence requires explicit Phase 1.6 isolated Integration opt-in")
+    return phase15_session_factory
 
 
 def _settings(**overrides) -> Settings:
@@ -57,9 +48,9 @@ def _settings(**overrides) -> Settings:
     return Settings(matching_enabled=True, matching_min_score=1.0, **overrides)
 
 
-async def _seed() -> tuple[uuid.UUID, uuid.UUID]:
+async def _seed(session_factory) -> tuple[uuid.UUID, uuid.UUID]:
     """Create one demand and one listing that comfortably match."""
-    async with AsyncSessionLocal() as session:
+    async with session_factory() as session:
         demand = ClientDemand(
             client_name="مشتری رگرسیون",
             deal_type=DealType.SALE,
@@ -95,8 +86,8 @@ async def _seed() -> tuple[uuid.UUID, uuid.UUID]:
         return prop.id, demand.id
 
 
-async def _cleanup(*match_ids: uuid.UUID, property_id: uuid.UUID, demand_id: uuid.UUID) -> None:
-    async with AsyncSessionLocal() as session:
+async def _cleanup(session_factory, *match_ids: uuid.UUID, property_id: uuid.UUID, demand_id: uuid.UUID) -> None:
+    async with session_factory() as session:
         for mid in match_ids:
             row = await session.get(PropertyMatch, mid)
             if row is not None:
@@ -121,11 +112,12 @@ async def _cleanup(*match_ids: uuid.UUID, property_id: uuid.UUID, demand_id: uui
         await session.commit()
 
 
-async def test_retrigger_creates_then_updates_in_place(db_ready) -> None:
+async def test_retrigger_creates_then_updates_in_place(db_session_factory) -> None:
     """First run creates, second updates -- never a duplicate row."""
-    pid, did = await _seed()
+    session_factory = db_session_factory
+    pid, did = await _seed(session_factory)
     try:
-        async with AsyncSessionLocal() as session:
+        async with session_factory() as session:
             demand = await session.get(ClientDemand, did)
             first = await matching_service.retrigger_demand(
                 session, demand, settings=_settings()
@@ -136,7 +128,7 @@ async def test_retrigger_creates_then_updates_in_place(db_ready) -> None:
         assert first["matches_created"] >= 1
         assert first["matches_updated"] == 0
 
-        async with AsyncSessionLocal() as session:
+        async with session_factory() as session:
             demand = await session.get(ClientDemand, did)
             second = await matching_service.retrigger_demand(
                 session, demand, settings=_settings()
@@ -147,7 +139,7 @@ async def test_retrigger_creates_then_updates_in_place(db_ready) -> None:
         assert second["matches_created"] == 0
         assert second["matches_updated"] >= 1
 
-        async with AsyncSessionLocal() as session:
+        async with session_factory() as session:
             rows = (
                 (
                     await session.execute(
@@ -162,7 +154,7 @@ async def test_retrigger_creates_then_updates_in_place(db_ready) -> None:
             )
         assert len(rows) == 1
     finally:
-        async with AsyncSessionLocal() as session:
+        async with session_factory() as session:
             existing = (
                 (
                     await session.execute(
@@ -174,18 +166,19 @@ async def test_retrigger_creates_then_updates_in_place(db_ready) -> None:
                 .scalars()
                 .all()
             )
-        await _cleanup(*[r.id for r in existing], property_id=pid, demand_id=did)
+        await _cleanup(session_factory, *[r.id for r in existing], property_id=pid, demand_id=did)
 
 
-async def test_retrigger_does_not_resurrect_triaged_matches(db_ready) -> None:
+async def test_retrigger_does_not_resurrect_triaged_matches(db_session_factory) -> None:
     """CONTACTED/DISMISSED rows survive a re-run untouched and uncounted."""
-    pid, did = await _seed()
+    session_factory = db_session_factory
+    pid, did = await _seed(session_factory)
     match_ids: list[uuid.UUID] = []
     try:
-        async with AsyncSessionLocal() as session:
+        async with session_factory() as session:
             demand = await session.get(ClientDemand, did)
             await matching_service.retrigger_demand(session, demand, settings=_settings())
-        async with AsyncSessionLocal() as session:
+        async with session_factory() as session:
             match = (
                 (
                     await session.execute(
@@ -205,7 +198,7 @@ async def test_retrigger_does_not_resurrect_triaged_matches(db_ready) -> None:
             match.specs_score = 1.5
             await session.commit()
 
-        async with AsyncSessionLocal() as session:
+        async with session_factory() as session:
             demand = await session.get(ClientDemand, did)
             result = await matching_service.retrigger_demand(
                 session, demand, settings=_settings()
@@ -216,33 +209,34 @@ async def test_retrigger_does_not_resurrect_triaged_matches(db_ready) -> None:
         # "created" counter -- which must stay zero -- is asserted here.
         assert result["matches_created"] == 0
 
-        async with AsyncSessionLocal() as session:
+        async with session_factory() as session:
             match = await session.get(PropertyMatch, match_ids[0])
             assert match.status is MatchStatus.CONTACTED
             assert match.score == 12.5
             assert match.specs_score == 1.5
     finally:
-        await _cleanup(*match_ids, property_id=pid, demand_id=did)
+        await _cleanup(session_factory, *match_ids, property_id=pid, demand_id=did)
 
 
-async def test_match_property_ignores_non_matchable_listing(db_ready) -> None:
+async def test_match_property_ignores_non_matchable_listing(db_session_factory) -> None:
     """An archived listing must not generate fresh suggestions."""
-    pid, did = await _seed()
+    session_factory = db_session_factory
+    pid, did = await _seed(session_factory)
     match_ids: list[uuid.UUID] = []
     try:
-        async with AsyncSessionLocal() as session:
+        async with session_factory() as session:
             prop = await session.get(Property, pid)
             prop.status = PropertyStatus.ARCHIVED
             await session.commit()
 
-        async with AsyncSessionLocal() as session:
+        async with session_factory() as session:
             prop = await session.get(Property, pid)
             rows = await matching_service.match_property(
                 session, prop, settings=_settings()
             )
         assert rows == []
     finally:
-        async with AsyncSessionLocal() as session:
+        async with session_factory() as session:
             existing = (
                 (
                     await session.execute(
@@ -256,4 +250,4 @@ async def test_match_property_ignores_non_matchable_listing(db_ready) -> None:
                 .all()
             )
             match_ids.extend(r.id for r in existing)
-        await _cleanup(*match_ids, property_id=pid, demand_id=did)
+        await _cleanup(session_factory, *match_ids, property_id=pid, demand_id=did)

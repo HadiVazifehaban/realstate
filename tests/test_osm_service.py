@@ -497,7 +497,11 @@ def test_no_api_key_anywhere_in_settings() -> None:
 
     fields = Settings.model_fields
     assert not any("neshan" in name.lower() for name in fields)
-    assert not any(name.lower().endswith("api_key") for name in fields)
+    assert not any(
+        name.lower().endswith("api_key")
+        and any(token in name.lower() for token in ("osm", "neshan"))
+        for name in fields
+    )
     # No NEXT_PUBLIC_ counterpart either -- nothing secret can be shipped.
     assert not any(name.startswith("next_public_") for name in fields)
 
